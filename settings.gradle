@@ -1,1 +1,9 @@
 rootProject.name = 'Stocker-Backend'
+
+include 'services:identity'
+include 'services:catalog'
+include 'services:shopping'
+include 'services:pricing'
+include 'services:notifications'
+include 'services:analytics'
+include 'gateway'

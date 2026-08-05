@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: pricing
+  lifecycle:
+    timeout-per-shutdown-phase: 10s
+  data:
+    mongodb:
+      uri: ${STOCKER_MONGO_URI:mongodb://localhost:27017/pricing}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: stocker.pricing
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+server:
+  port: ${SERVER_PORT:8084}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+app:
+  kafka:
+    producer:
+      topics:
+        promotions: stocker.promotions.events.v1
+        pricing: stocker.pricing.events.v1
+    consumer:
+      topics: stocker.catalog.events.v1

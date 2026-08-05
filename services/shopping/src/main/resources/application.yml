@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: shopping
+  lifecycle:
+    timeout-per-shutdown-phase: 10s
+  datasource:
+    url: ${STOCKER_DB_URL:jdbc:postgresql://localhost:5432/shopping}
+    username: ${STOCKER_DB_USER:stocker}
+    password: ${STOCKER_DB_PASSWORD:stocker}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: stocker.shopping
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+server:
+  port: ${SERVER_PORT:8083}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+app:
+  outbox:
+    poll-interval-ms: 5000
+  kafka:
+    producer:
+      topics:
+        shopping: stocker.shopping.events.v1
+    consumer:
+      topics: stocker.pricing.events.v1

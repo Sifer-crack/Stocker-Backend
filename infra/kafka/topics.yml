@@ -1,0 +1,44 @@
+# Kafka topic registry — single source of truth.
+#
+# Partitions: identity/catalog/promotions/analytics events are low-volume,
+# so 6 partitions suffice. Shopping and pricing are hot paths -> 12.
+# The future inventory read-model topics are pre-reserved here as a documented
+# gap; they must NOT be created until the Inventory/Read-Model service is
+# scaffolded.
+#
+# Retention is deliberately left at broker defaults; tune per topic when real
+# workloads are known.
+
+topics:
+  - name: stocker.household.events.v1
+    partitions: 6
+    replication-factor: 1
+    description: Identity/household lifecycle events (created, member added, closed)
+
+  - name: stocker.catalog.events.v1
+    partitions: 6
+    replication-factor: 1
+    description: Catalog item lifecycle events (item created, updated, deleted)
+
+  - name: stocker.promotions.events.v1
+    partitions: 6
+    replication-factor: 1
+    description: Promotion events (promotion created, updated, activated)
+
+  - name: stocker.shopping.events.v1
+    partitions: 12
+    replication-factor: 1
+    description: Shopping list/item events (hot path)
+
+  - name: stocker.pricing.events.v1
+    partitions: 12
+    replication-factor: 1
+    description: Price quotes/history events (hot path)
+
+  # --- reserved (NOT yet provisioned) ---
+  # inventory read-model topics; create only when the Inventory service ships.
+  - name: stocker.inventory.events.v1
+    partitions: 24
+    replication-factor: 1
+    description: RESERVED - inventory read-model projections (do not create yet)
+    enabled: false
