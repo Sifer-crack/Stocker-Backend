@@ -39,6 +39,11 @@ subprojects {
 		}
 	}
 
+
+	dependencies {
+		implementation 'io.github.cdimascio:dotenv-java:3.2.0'
+	}
+
 	tasks.named('test') {
 		useJUnitPlatform()
 	}
