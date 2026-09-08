@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package stocker.pricing.v1;
+
+option java_multiple_files = true;
+option java_package = "com.stocker.pricing.api.grpc.v1";
+option java_outer_classname = "PriceRecordProto";
+
+import "google/protobuf/timestamp.proto";
+
+service PriceRecordService {
+  rpc Fetch (FetchRequest) returns (FetchResponse);
+  rpc Save (SaveRequest) returns (SaveResponse);
+}
+
+message FetchRequest {
+  string item_id = 1;
+  string store_id = 2;
+}
+
+message FetchResponse {
+  repeated PriceRecord price_records = 1;
+}
+
+message PriceRecord {
+  string id = 1;
+  string item_id = 2;
+  string store_id = 3;
+  string chain_id = 4;
+  string channel = 5;
+  double price_amount = 6;
+  string currency = 7;
+  bool promo_flag = 8;
+  google.protobuf.Timestamp captured_at = 9;
+  string raw_attributes = 10;
+  google.protobuf.Timestamp created_at = 11;
+}
+
+message SaveRequest {
+  PriceRecord price_record = 1;
+}
+
+message SaveResponse {
+  bool saved = 1;
+  string id = 2;
+}

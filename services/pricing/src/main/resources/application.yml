@@ -3,9 +3,18 @@ spring:
     name: pricing
   lifecycle:
     timeout-per-shutdown-phase: 10s
-  data:
-    mongodb:
-      uri: ${STOCKER_MONGO_URI:mongodb://localhost:27017/pricing}
+  datasource:
+    url: ${STOCKER_DB_URL:jdbc:postgresql://localhost:5432/pricing}
+    username: ${STOCKER_DB_USER:stocker}
+    password: ${STOCKER_DB_PASSWORD:stocker}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:

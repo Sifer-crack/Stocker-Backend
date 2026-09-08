@@ -1,8 +1,9 @@
 # pricing
 
 Owns: promotions and pricing.
-Data store: MongoDB (`pricing` database). Schemaless — no Flyway.
-Status: **skeleton only** — boots, connects to MongoDB/Kafka, exposes `GET /healthz`. Publisher is a stub interface.
+Data store: PostgreSQL (`pricing` database, `price_records` table with JSONB). Flyway manages the schema.
+Status: skeleton — boots, connects to Postgres/Kafka, exposes `GET /healthz`, plus a basic gRPC
+`PriceRecordService` (`Fetch`/`Save`) backed by a JPA repository and a fetcher service.
 
 ## Confirmed event topics
 
@@ -14,11 +15,11 @@ Status: **skeleton only** — boots, connects to MongoDB/Kafka, exposes `GET /he
 
 ## Structure
 
-- `api/` — HTTP surface (only `/healthz` today)
-- `application/` — use cases (empty, TODO)
-- `domain/` — entities/aggregates (empty, TODO)
-- `infrastructure/publisher/` — `EventPublisher` interface + `KafkaEventPublisher` stub
-- `infrastructure/persistence/` — MongoDB adapters (empty, TODO)
+- `api/grpc/` — gRPC controller implementing `PriceRecordService` (`api/grpc/v1`, generated from proto)
+- `api/rest/` — HTTP surface (only `/healthz` today)
+- `model/` — `PriceRecord` JPA entity (Lombok)
+- `repository/` — `PriceRecordRepository` (Spring Data JPA)
+- `service/` — `PriceFetcherService`
 - `infrastructure/config/` — Kafka wiring stubs
 
 See `AGENT.md` for implementation TODOs.
