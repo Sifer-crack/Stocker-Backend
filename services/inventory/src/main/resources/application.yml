@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: inventory
+  lifecycle:
+    timeout-per-shutdown-phase: 10s
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: stocker.analytics
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+server:
+  port: ${SERVER_PORT:8087}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+app:
+  kafka:
+    consumer:
+      topics: stocker.household.events.v1,stocker.catalog.events.v1,stocker.shopping.events.v1,stocker.promotions.events.v1,stocker.pricing.events.v1
