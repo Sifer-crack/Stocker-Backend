@@ -15,6 +15,14 @@
 - Kafka producer/consumer wiring stubs under `infrastructure/config/` (no logic).
 - Infrastructure/publisher `EventPublisher` port retained for future event emission.
 
+> TODO: items below are stale and must be reconciled with the code (tracked in root `TASKS.md`):
+> - The gRPC server is **not** currently started (no Spring gRPC server starter / `spring.grpc.server`),
+>   and `PriceRecordGrpcController` is `@Controller`, not `@GrpcService`.
+> - `infrastructure/config/` Kafka stubs and the `infrastructure/publisher` `EventPublisher` port were
+>   deleted; the replacements (`domain/port/EventPublisher`, `infrastructure/messaging/*`,
+>   `application/PricingEventService`) do not exist yet.
+> - `model/` + `repository/` + `service/` layouts still diverge from the repo-wide layered convention.
+
 ## Conventions
 
 - Package root: `com.stocker.pricing`.
