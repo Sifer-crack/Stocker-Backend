@@ -6,7 +6,7 @@ spring:
   datasource:
     url: ${STOCKER_DB_URL}
     username: ${STOCKER_DB_USER}
-#    password: ${STOCKER_DB_PASSWORD}
+    password: ${STOCKER_DB_PASSWORD}
     hikari:
       maximum-pool-size: 10
   jpa:
