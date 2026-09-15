@@ -1,5 +1,2 @@
-### Create product
-POST http://localhost:8082/products?name=Anchor+Milk&unit=2L
-
-### Search for Anchor Milk 2L
-GET http://localhost:8082/products/search?name=Anchor+Milk&unit=2L
+### Add Anchor Milk to temporary user's pantry
+POST http://localhost:8087/pantry-items?userId=550e8400-e29b-41d4-a716-446655440000&productName=Anchor%20Milk&unit=2L&quantity=1

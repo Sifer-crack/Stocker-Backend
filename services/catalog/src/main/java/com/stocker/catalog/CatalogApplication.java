@@ -19,7 +19,7 @@ public class CatalogApplication {
 
 		System.setProperty("STOCKER_DB_URL", dotenv.get("STOCKER_DB_URL"));
 		System.setProperty("STOCKER_DB_USER", dotenv.get("STOCKER_DB_USER"));
-//		System.setProperty("STOCKER_DB_PASSWORD", dotenv.get("STOCKER_DB_PASSWORD"));
+		System.setProperty("STOCKER_DB_PASSWORD", dotenv.get("STOCKER_DB_PASSWORD"));
 
 		SpringApplication.run(CatalogApplication.class, args);
 	}

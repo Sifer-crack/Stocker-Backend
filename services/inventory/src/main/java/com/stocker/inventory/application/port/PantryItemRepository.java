@@ -9,6 +9,7 @@ import java.util.UUID;
 public interface PantryItemRepository {
     PantryItem save(PantryItem pantryItem);
     List<PantryItem> findByUserId(UUID userId);
+    Optional<PantryItem> findByUserIdAndProductId(UUID userId, UUID productId);
     Optional<PantryItem> findById(UUID pantryItemId);
     void deleteById(UUID pantryItemId);
 }

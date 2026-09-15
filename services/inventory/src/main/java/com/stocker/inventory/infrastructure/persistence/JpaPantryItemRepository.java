@@ -20,8 +20,15 @@ public class JpaPantryItemRepository implements PantryItemRepository {
     public PantryItem save(PantryItem pantryItem) {
         PantryItemEntity entity = new PantryItemEntity();
 
-        entity.setUserId(pantryItem.getUser_id());
-        entity.setProductId(pantryItem.getProduct_id());
+        if (pantryItem.getPantry_item_id() != null) {
+            entity = repository.findById(pantryItem.getPantry_item_id()).orElseThrow(() -> new RuntimeException("Pantry Item Not Found"));
+        }
+        else {
+            entity = new PantryItemEntity();
+            entity.setUserId(pantryItem.getUser_id());
+            entity.setProductId(pantryItem.getProduct_id());
+        }
+
         entity.setQuantityRemaining(pantryItem.getQuantity());
 
         PantryItemEntity saved = repository.save(entity);
@@ -42,6 +49,16 @@ public class JpaPantryItemRepository implements PantryItemRepository {
                 entity.getProductId(),
                 entity.getQuantity()
         )).toList();
+    }
+
+    @Override
+    public Optional<PantryItem> findByUserIdAndProductId(UUID userId, UUID productId) {
+        return repository.findByUserIdAndProductId(userId, productId).map(entity -> new PantryItem(
+                entity.getPantryItemId(),
+                entity.getUserId(),
+                entity.getProductId(),
+                entity.getQuantity()
+        ));
     }
 
     @Override
