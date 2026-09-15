@@ -69,6 +69,19 @@ public class JpaProductRepository implements ProductRepository {
     }
 
     @Override
+    public List<Product> searchByName(String query) {
+        return repository
+                .findByNameContainingIgnoreCase(query)
+                .stream()
+                .map(entity -> new Product(
+                        entity.getProductId(),
+                        entity.getCategoryId(),
+                        entity.getName(),
+                        entity.getUnit()
+                )).toList();
+    }
+
+    @Override
     public void deleteById(UUID productId) {
         repository.deleteById(productId);
     }

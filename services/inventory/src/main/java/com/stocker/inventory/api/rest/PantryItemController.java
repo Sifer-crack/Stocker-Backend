@@ -9,6 +9,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/pantry-items")
+@CrossOrigin(origins = "http://localhost:5173") // TODO: domain for the frontend
 public class PantryItemController {
     private final PantryItemService pantryItemService;
 
@@ -20,11 +21,10 @@ public class PantryItemController {
     @PostMapping
     public PantryItem addPantryItem(
             @RequestParam UUID userId,
-            @RequestParam String productName,
-            @RequestParam String unit,
+            @RequestParam UUID productId,
             @RequestParam int quantity) {
 
-        return pantryItemService.addPantryItem(userId, productName, unit, quantity);
+        return pantryItemService.addPantryItem(userId, productId, quantity);
     }
 
     @GetMapping

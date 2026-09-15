@@ -1,2 +1,8 @@
 ### Add Anchor Milk to temporary user's pantry
 POST http://localhost:8087/pantry-items?userId=550e8400-e29b-41d4-a716-446655440000&productName=Anchor%20Milk&unit=2L&quantity=1
+
+###
+GET http://localhost:8087/pantry-items?userId=00000000-0000-0000-0000-000000000001
+
+###
+POST http://localhost:8087/pantry-items?userId=00000000-0000-0000-0000-000000000001&productName=Anchor%20Milk&unit=2L&quantity=1

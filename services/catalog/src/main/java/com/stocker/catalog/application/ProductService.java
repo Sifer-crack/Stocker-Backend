@@ -28,6 +28,10 @@ public class ProductService {
         return productRepository.findAll();
     }
 
+    public List<Product> searchProducts(String query) {
+        return productRepository.searchByName(query);
+    }
+
     public Product getProduct(UUID productId) {
         return productRepository.findById(productId).orElseThrow(() -> new RuntimeException("Product not found"));
     }

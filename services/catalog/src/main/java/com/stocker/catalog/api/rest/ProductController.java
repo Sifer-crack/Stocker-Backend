@@ -9,6 +9,8 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/products")
+@CrossOrigin(origins = "http://localhost:5173") // TODO: domain for the frontend
+
 public class ProductController {
     private final ProductService productService;
 
@@ -26,19 +28,19 @@ public class ProductController {
         return productService.getProduct(id);
     }
 
-    @GetMapping("/search")
-    public Product getProductByNameAndUnit(
-            @RequestParam String name,
-            @RequestParam String unit) {
-        return productService.getProductByNameAndUnit(name, unit);
-    }
-
     @PostMapping
     public Product createProduct(@RequestParam(required = false) UUID categoryId,
                                  @RequestParam String name,
                                  @RequestParam String unit) {
 
         return productService.createProduct(categoryId, name, unit);
+    }
+
+    // search from available products in products database
+    @GetMapping("/search")
+    public List<Product> searchProducts(
+            @RequestParam String query) {
+        return productService.searchProducts(query);
     }
 
     @DeleteMapping("/{id}")
