@@ -1,0 +1,5 @@
+### Create product
+POST http://localhost:8082/products?name=Anchor+Milk&unit=2L
+
+### Search for Anchor Milk 2L
+GET http://localhost:8082/products/search?name=Anchor+Milk&unit=2L

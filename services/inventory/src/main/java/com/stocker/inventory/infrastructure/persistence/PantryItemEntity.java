@@ -1,4 +1,4 @@
-package com.stocker.pantry.infrastructure.persistence;
+package com.stocker.inventory.infrastructure.persistence;
 
 import jakarta.persistence.*;
 

@@ -1,2 +1,0 @@
-### add 3 bottles of milk
-POST http://localhost:8087/pantry-items?userId-USER_UUID&producId=MILK_PRODUCT_UUID&quantity=3

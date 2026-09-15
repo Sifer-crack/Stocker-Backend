@@ -3,6 +3,10 @@ spring:
     name: inventory
   lifecycle:
     timeout-per-shutdown-phase: 10s
+  datasource:
+    url: ${STOCKER_DB_URL}
+    username: ${STOCKER_DB_USER}
+  # password: ${STOCKER_DB_PASSWORD}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:

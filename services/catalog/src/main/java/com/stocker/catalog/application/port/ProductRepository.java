@@ -14,4 +14,6 @@ public interface ProductRepository {
     Product save(Product product);
 
     void deleteById(UUID productId);
+
+    Optional<Product> findByNameAndUnit(String name, String unit);
 }

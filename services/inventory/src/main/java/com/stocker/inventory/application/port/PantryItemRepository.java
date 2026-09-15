@@ -1,6 +1,6 @@
-package com.stocker.pantry.application.port;
+package com.stocker.inventory.application.port;
 
-import com.stocker.pantry.domain.PantryItem;
+import com.stocker.inventory.domain.PantryItem;
 
 import java.util.List;
 import java.util.Optional;

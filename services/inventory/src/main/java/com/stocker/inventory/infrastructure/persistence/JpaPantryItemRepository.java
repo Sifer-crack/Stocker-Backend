@@ -1,12 +1,14 @@
-package com.stocker.pantry.infrastructure.persistence;
+package com.stocker.inventory.infrastructure.persistence;
 
-import com.stocker.pantry.application.port.PantryItemRepository;
-import com.stocker.pantry.domain.PantryItem;
+import com.stocker.inventory.application.port.PantryItemRepository;
+import com.stocker.inventory.domain.PantryItem;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+@Repository
 public class JpaPantryItemRepository implements PantryItemRepository {
     private final SpringDataPantryItemRepository repository;
 

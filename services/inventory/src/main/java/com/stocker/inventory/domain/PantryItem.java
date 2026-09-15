@@ -1,4 +1,4 @@
-package com.stocker.pantry.domain;
+package com.stocker.inventory.domain;
 
 import java.util.UUID;
 

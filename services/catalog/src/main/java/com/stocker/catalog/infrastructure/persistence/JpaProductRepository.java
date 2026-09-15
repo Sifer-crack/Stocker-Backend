@@ -29,6 +29,16 @@ public class JpaProductRepository implements ProductRepository {
     }
 
     @Override
+    public Optional<Product> findByNameAndUnit(String name, String unit) {
+        return repository.findByNameIgnoreCase(name, unit).map(entity -> new Product(
+                entity.getProductId(),
+                entity.getCategoryId(),
+                entity.getName(),
+                entity.getUnit()
+        ));
+    }
+
+    @Override
     public List<Product> findAll() {
         return repository.findAll().stream().map(entity -> new Product(
                 entity.getProductId(),

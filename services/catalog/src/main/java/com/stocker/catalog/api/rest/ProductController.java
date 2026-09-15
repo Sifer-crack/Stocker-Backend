@@ -26,6 +26,13 @@ public class ProductController {
         return productService.getProduct(id);
     }
 
+    @GetMapping("/search")
+    public Product getProductByNameAndUnit(
+            @RequestParam String name,
+            @RequestParam String unit) {
+        return productService.getProductByNameAndUnit(name, unit);
+    }
+
     @PostMapping
     public Product createProduct(@RequestParam(required = false) UUID categoryId,
                                  @RequestParam String name,

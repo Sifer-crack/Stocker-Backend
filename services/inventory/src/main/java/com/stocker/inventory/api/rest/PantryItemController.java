@@ -1,7 +1,7 @@
-package com.stocker.pantry.api.rest;
+package com.stocker.inventory.api.rest;
 
-import com.stocker.pantry.application.PantryItemService;
-import com.stocker.pantry.domain.PantryItem;
+import com.stocker.inventory.application.PantryItemService;
+import com.stocker.inventory.domain.PantryItem;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,10 +20,11 @@ public class PantryItemController {
     @PostMapping
     public PantryItem addPantryItem(
             @RequestParam UUID userId,
-            @RequestParam UUID productId,
+            @RequestParam String productName,
+            @RequestParam String unit,
             @RequestParam int quantity) {
 
-        return pantryItemService.addPantryItem(userId, productId, quantity);
+        return pantryItemService.addPantryItem(userId, productName, unit, quantity);
     }
 
     @GetMapping
