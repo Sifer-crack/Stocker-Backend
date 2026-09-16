@@ -63,11 +63,16 @@ public class JpaPantryItemRepository implements PantryItemRepository {
 
     @Override
     public Optional<PantryItem> findById(UUID pantryItemId) {
-        return Optional.empty();
+        return repository.findById(pantryItemId).map(entity -> new PantryItem(
+                entity.getPantryItemId(),
+                entity.getUserId(),
+                entity.getProductId(),
+                entity.getQuantity()
+        ));
     }
 
     @Override
     public void deleteById(UUID pantryItemId) {
-
+        repository.deleteById(pantryItemId);
     }
 }

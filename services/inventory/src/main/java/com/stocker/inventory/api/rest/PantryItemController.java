@@ -31,4 +31,16 @@ public class PantryItemController {
     public List<PantryItem> getPantry(@RequestParam UUID userId) {
         return pantryItemService.getPantryItems(userId);
     }
+    @PutMapping("/{pantryItemId}")
+    public PantryItem updatePantryItem(
+            @PathVariable UUID pantryItemId,
+            @RequestParam int quantity) {
+
+        return pantryItemService.updatePantryItem(pantryItemId, quantity);
+    }
+
+    @DeleteMapping("/{pantryItemId}")
+    public void deletePantryItem(@PathVariable UUID pantryItemId) {
+        pantryItemService.deletePantryItem(pantryItemId);
+    }
 }

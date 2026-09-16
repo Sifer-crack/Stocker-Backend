@@ -45,7 +45,21 @@ public class PantryItemService {
                 quantity
         ));
     }
+    public PantryItem updatePantryItem(UUID pantryItemId, int quantity) {
+        if (quantity < 1) {
+            throw new IllegalArgumentException("Quantity must be at least 1");
+        }
+        PantryItem current = pantryItemRepository.findById(pantryItemId)
+                .orElseThrow(() -> new IllegalArgumentException("Pantry item not found"));
 
+        PantryItem updated = new PantryItem(
+                current.getPantry_item_id(),
+                current.getUser_id(),
+                current.getProduct_id(),
+                quantity
+        );
+        return pantryItemRepository.save(updated);
+    }
     public void deletePantryItem(UUID pantryItemId) {
         pantryItemRepository.deleteById(pantryItemId);
     }
