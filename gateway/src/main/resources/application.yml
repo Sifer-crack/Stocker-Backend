@@ -11,7 +11,7 @@ spring:
               predicates:
                 - Path=/api/identity/**
               filters:
-                - StripPrefix=2
+                - StripPrefix=1
   grpc:
     client:
       default-channel:

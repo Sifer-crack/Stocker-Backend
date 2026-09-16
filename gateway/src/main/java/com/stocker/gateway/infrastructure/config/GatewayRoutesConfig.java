@@ -7,7 +7,7 @@ public class GatewayRoutesConfig {
 
 	// HTTP routes live under spring.cloud.gateway.server.webflux.routes in
 	// application.yml. Currently: /api/identity/** -> http://identity:8081
-	// with StripPrefix=2. Claim forwarding to downstream services is handled
+	// with StripPrefix=1 (/api/identity/register -> /identity/register). Claim forwarding to downstream services is handled
 	// by JwtClaimForwardFilter; auth rules by SecurityConfig.
 
 }
