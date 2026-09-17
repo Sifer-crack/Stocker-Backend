@@ -15,6 +15,8 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  # TODO: gRPC server is not started. Add a spring.grpc.server section (e.g. port: ${SERVER_PORT:8084})
+  # once the Spring gRPC server starter is added to build.gradle.
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
@@ -95,6 +97,13 @@ app:
       store-id: ${STOCKER_INGEST_WOOLWORTHS_STORE_ID:}
       store-name: ${STOCKER_INGEST_WOOLWORTHS_STORE_NAME:}
       category-urls: []
+  # TODO: the topics below are configured but unused — no @KafkaListener and no producer exist yet.
+  # Create (currently missing, to match the other services' hexagonal layout):
+  #   application/PricingEventService.java
+  #   domain/port/EventPublisher.java
+  #   infrastructure/messaging/KafkaEventPublisher.java
+  #   infrastructure/messaging/KafkaEventConsumer.java  (consumes stocker.catalog.events.v1)
+  # and keep the topic names aligned with infra/kafka/topics.yml.
   kafka:
     producer:
       topics:

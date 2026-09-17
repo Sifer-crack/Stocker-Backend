@@ -14,6 +14,12 @@ dependencies {
 	implementation 'org.flywaydb:flyway-database-postgresql'
 
 	//  gRPC-Java https://github.com/grpc/grpc-java
+	// TODO: the gRPC server is not actually started — only the low-level io.grpc libs below are
+	// present, so PriceRecordServiceImplBase is never bound to a listener. Add the Spring gRPC
+	// server starter and configure spring.grpc.server.port. Requires approval: root AGENT.md pins
+	// the dependency set (springGrpcVersion lives in the root build.gradle).
+	// TODO: add an in-process gRPC test dependency (e.g. io.grpc:grpc-inprocess or
+	// io.grpc:grpc-testing) before writing gRPC controller tests.
 	runtimeOnly 'io.grpc:grpc-netty-shaded:1.83.1'
 	implementation 'io.grpc:grpc-protobuf:1.83.1'
 	implementation 'io.grpc:grpc-stub:1.83.1'

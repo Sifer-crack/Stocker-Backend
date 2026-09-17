@@ -21,6 +21,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.StringUtils;
 
+// TODO: this service is never served — the Spring gRPC server is not configured (see build.gradle)
+// and Spring gRPC registers @GrpcService beans, not @Controller. Switch to @GrpcService once the
+// server starter is added.
 @Controller
 @RequiredArgsConstructor
 public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecordServiceImplBase {
@@ -51,6 +54,9 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 			responseObserver.onCompleted();
 			return;
 		}
+		// TODO: validate before persisting — channel must be one of the Flyway CHECK values
+		// ('pickup','click_and_collect'), price_amount must be >= 0 (DB CHECK), and captured_at must
+		// be non-zero (column is NOT NULL).
 		com.stocker.pricing.model.PriceRecord saved =
 				priceFetcherService.save(toEntity(request.getPriceRecord()));
 		responseObserver.onNext(SaveResponse.newBuilder()
@@ -94,6 +100,9 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 	}
 
 	private static com.stocker.pricing.model.PriceRecord toEntity(PriceRecord record) {
+		// TODO: raw_attributes is never copied from the request (proto field is a JSON string) and
+		// the entity column is NOT NULL — parse it into Map<String,Object> (or default to Map.of()).
+		// TODO: captured_at may be the zero proto timestamp -> null -> NOT NULL violation; default it.
 		return com.stocker.pricing.model.PriceRecord.builder()
 				.itemId(record.getItemId())
 				.storeId(record.getStoreId())
