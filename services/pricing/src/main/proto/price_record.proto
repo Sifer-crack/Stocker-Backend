@@ -11,6 +11,18 @@ import "google/protobuf/timestamp.proto";
 service PriceRecordService {
   rpc Fetch (FetchRequest) returns (FetchResponse);
   rpc Save (SaveRequest) returns (SaveResponse);
+  rpc Search (SearchRequest) returns (SearchResponse);
+}
+
+message SearchRequest {
+  string search_term = 1;
+  string item_id = 2;
+  repeated string store_urls = 3;
+  string category = 4;
+}
+
+message SearchResponse {
+  repeated PriceRecord price_records = 1;
 }
 
 message FetchRequest {

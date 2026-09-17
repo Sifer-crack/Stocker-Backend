@@ -7,7 +7,10 @@ import com.stocker.pricing.api.grpc.v1.PriceRecord;
 import com.stocker.pricing.api.grpc.v1.PriceRecordServiceGrpc;
 import com.stocker.pricing.api.grpc.v1.SaveRequest;
 import com.stocker.pricing.api.grpc.v1.SaveResponse;
+import com.stocker.pricing.api.grpc.v1.SearchRequest;
+import com.stocker.pricing.api.grpc.v1.SearchResponse;
 import com.stocker.pricing.service.PriceFetcherService;
+import com.stocker.pricing.service.PriceSearchService;
 import io.grpc.stub.StreamObserver;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -25,6 +28,7 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 	private static final Logger log = LoggerFactory.getLogger(PriceRecordGrpcController.class);
 
 	private final PriceFetcherService priceFetcherService;
+	private final PriceSearchService priceSearchService;
 
 	@Override
 	public void fetch(FetchRequest request, StreamObserver<FetchResponse> responseObserver) {
@@ -53,6 +57,23 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 				.setSaved(true)
 				.setId(saved.getId() == null ? "" : saved.getId().toString())
 				.build());
+		responseObserver.onCompleted();
+	}
+
+	@Override
+	public void search(SearchRequest request, StreamObserver<SearchResponse> responseObserver) {
+		log.info("gRPC search: searchTerm={}, itemId={}", request.getSearchTerm(), request.getItemId());
+		if (!StringUtils.hasText(request.getItemId())) {
+			log.warn("gRPC search rejected: itemId is required");
+			responseObserver.onNext(SearchResponse.getDefaultInstance());
+			responseObserver.onCompleted();
+			return;
+		}
+		List<com.stocker.pricing.model.PriceRecord> records = priceSearchService.search(
+				request.getSearchTerm(), request.getItemId(), request.getStoreUrlsList(), request.getCategory());
+		SearchResponse.Builder response = SearchResponse.newBuilder();
+		records.stream().map(PriceRecordGrpcController::toProto).forEach(response::addPriceRecords);
+		responseObserver.onNext(response.build());
 		responseObserver.onCompleted();
 	}
 

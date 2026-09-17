@@ -74,4 +74,4 @@ docs/architecture/        planned C4 diagrams
 
 Service-internal layers are identical across modules: `api/rest/`, `application/`,
 `domain/`, `infrastructure/config/` (+ `outbox/` or `publisher/` where noted).
-See root `AGENT.md` for the enforced conventions.
+See root `AGENTS.md` for the enforced conventions.

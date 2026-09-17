@@ -6,6 +6,7 @@ description = 'pricing: promotions and pricing (PostgreSQL + JSONB)'
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
@@ -24,9 +25,48 @@ dependencies {
 	runtimeOnly 'org.postgresql:postgresql'
 	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 
+	//  Playwright for Java https://playwright.dev/java/ - used by ingest/ for self-built
+	//  supermarket scraping (New World / PAK'nSave / Woolworths NZ have no public JSON API).
+	implementation 'com.microsoft.playwright:playwright:1.63.0'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testCompileOnly 'org.projectlombok:lombok'
 	testAnnotationProcessor 'org.projectlombok:lombok'
+}
+
+// Downloads the Playwright Firefox binary for local dev/CI use of the ingest/ module.
+// Not wired into build/test/bootJar - plain `./gradlew build` never needs network/Firefox.
+// Firefox, not Chromium: verified against the live sites - see PlaywrightConfig javadoc.
+tasks.register('installPlaywrightBrowsers', JavaExec) {
+	group = 'ingest'
+	description = "Downloads the Playwright Firefox binary (app.ingest.* module)."
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'com.microsoft.playwright.CLI'
+	args = ['install', 'firefox']
+}
+
+// Make root .env vars (STOCKER_SPREAD_API_KEY, STOCKER_DB_URL, ...) visible to tests.
+tasks.named('test') {
+	environment.putAll(readDotEnv(new File("${rootDir}/.env")))
+}
+
+def readDotEnv(File file) {
+	def env = [:]
+	if (file.exists()) {
+		file.readLines().each { raw ->
+			def line = raw.trim()
+			if (line && !line.startsWith('#') && line.indexOf('=') > 0) {
+				def eq = line.indexOf('=')
+				def key = line.substring(0, eq).trim()
+				def value = line.substring(eq + 1).trim()
+				if (value.length() >= 2 && value.startsWith('"') && value.endsWith('"')) {
+					value = value.substring(1, value.length() - 1)
+				}
+				env[key] = value
+			}
+		}
+	}
+	return env
 }
 
 protobuf {

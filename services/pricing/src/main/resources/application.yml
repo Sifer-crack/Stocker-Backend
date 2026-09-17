@@ -39,6 +39,62 @@ management:
         include: health,info,prometheus
 
 app:
+  fetch:
+    provider: ${STOCKER_FETCH_PROVIDER:spread}
+    timeout-seconds: 30
+    spread:
+      base-url: ${STOCKER_SPREAD_BASE_URL:https://spread.butterup.app/spread-api/v1}
+      api-key: ${STOCKER_SPREAD_API_KEY:}
+    serpapi:
+      base-url: https://serpapi.com/search
+      api-key: ${STOCKER_SERPAPI_KEY:}
+      country: nz
+    scrapingbee:
+      base-url: https://app.scrapingbee.com/api/v1
+      api-key: ${STOCKER_SCRAPINGBEE_KEY:}
+    scraperapi:
+      base-url: https://api.scraperapi.com
+      api-key: ${STOCKER_SCRAPERAPI_KEY:}
+    rapidapi:
+      base-url: ${STOCKER_RAPIDAPI_BASE_URL:https://woolworths-products-api.p.rapidapi.com}
+      host: ${STOCKER_RAPIDAPI_HOST:woolworths-products-api.p.rapidapi.com}
+      endpoint: ${STOCKER_RAPIDAPI_ENDPOINT:/woolworths/product-search/}
+      price-changes-endpoint: ${STOCKER_RAPIDAPI_PRICE_CHANGES_ENDPOINT:/woolworths/price-changes/}
+      api-key: ${STOCKER_RAPIDAPI_KEY:}
+      query-param: query
+      limit: 50
+    culture-stores:
+      - name: Tai Ping
+        url: https://www.taiping.co.nz
+        chain: taiping
+      - name: Lim Chhour
+        url: https://www.limchhour.co.nz
+        chain: limchhour
+      - name: Goldenresult
+        url: https://www.goldenresult.co.nz
+        chain: goldenresult
+  ingest:
+    enabled: ${STOCKER_INGEST_ENABLED:false}
+    dry-run: ${STOCKER_INGEST_DRY_RUN:true}
+    cron: ${STOCKER_INGEST_CRON:0 0 3 * * *}
+    navigation-timeout-seconds: 30
+    max-pages-per-category: 5
+    sitemap-cache-ttl-days: ${STOCKER_INGEST_SITEMAP_CACHE_TTL_DAYS:7}
+    newworld:
+      enabled: ${STOCKER_INGEST_NEWWORLD_ENABLED:false}
+      store-id: ${STOCKER_INGEST_NEWWORLD_STORE_ID:}
+      store-name: ${STOCKER_INGEST_NEWWORLD_STORE_NAME:}
+      category-urls: []
+    paknsave:
+      enabled: ${STOCKER_INGEST_PAKNSAVE_ENABLED:false}
+      store-id: ${STOCKER_INGEST_PAKNSAVE_STORE_ID:}
+      store-name: ${STOCKER_INGEST_PAKNSAVE_STORE_NAME:}
+      category-urls: []
+    woolworths:
+      enabled: ${STOCKER_INGEST_WOOLWORTHS_ENABLED:false}
+      store-id: ${STOCKER_INGEST_WOOLWORTHS_STORE_ID:}
+      store-name: ${STOCKER_INGEST_WOOLWORTHS_STORE_NAME:}
+      category-urls: []
   kafka:
     producer:
       topics:
