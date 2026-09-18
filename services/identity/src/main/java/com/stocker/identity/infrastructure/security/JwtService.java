@@ -43,16 +43,20 @@ public class JwtService {
 		this.refreshTtlSeconds = refreshTtlSeconds;
 	}
 
-	public String issueAccessToken(String userId, String username) {
-		return issue(userId, username, "access", accessTtlSeconds);
+	public String issueAccessToken(String userId, String email) {
+		return issue(userId, email, "access", accessTtlSeconds);
 	}
 
-	public String issueRefreshToken(String userId, String username) {
-		return issue(userId, username, "refresh", refreshTtlSeconds);
+	public String issueRefreshToken(String userId, String email) {
+		return issue(userId, email, "refresh", refreshTtlSeconds);
 	}
 
 	public long accessTtlSeconds() {
 		return accessTtlSeconds;
+	}
+
+	public long refreshTtlSeconds() {
+		return refreshTtlSeconds;
 	}
 
 	public Jwt decode(String token) {
@@ -69,24 +73,24 @@ public class JwtService {
 		if (!"refresh".equals(jwt.getClaimAsString("type"))) {
 			throw new InvalidRefreshTokenException();
 		}
-		return new ValidatedRefresh(jwt.getSubject(), jwt.getClaimAsString("username"));
+		return new ValidatedRefresh(jwt.getSubject(), jwt.getClaimAsString("email"));
 	}
 
-	private String issue(String userId, String username, String type, long ttlSeconds) {
+	private String issue(String userId, String email, String type, long ttlSeconds) {
 		Instant now = Instant.now();
 		JwtClaimsSet claims = JwtClaimsSet.builder()
 			.issuer("stocker-identity")
 			.subject(userId)
 			.issuedAt(now)
 			.expiresAt(now.plusSeconds(ttlSeconds))
-			.claim("username", username)
+			.claim("email", email)
 			.claim("type", type)
 			.build();
 		return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
 			.getTokenValue();
 	}
 
-	public record ValidatedRefresh(String userId, String username) {
+	public record ValidatedRefresh(String userId, String email) {
 	}
 
 	public static class InvalidRefreshTokenException extends RuntimeException {

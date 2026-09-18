@@ -11,15 +11,15 @@ class JwtServiceTest {
 
 	@Test
 	void refreshTokenRoundTrip() {
-		String refresh = jwtService.issueRefreshToken("user-1", "jdoe");
+		String refresh = jwtService.issueRefreshToken("user-1", "jdoe@example.com");
 		JwtService.ValidatedRefresh validated = jwtService.validateRefreshToken(refresh);
 		assertEquals("user-1", validated.userId());
-		assertEquals("jdoe", validated.username());
+		assertEquals("jdoe@example.com", validated.email());
 	}
 
 	@Test
 	void accessTokenRejectedAsRefresh() {
-		String access = jwtService.issueAccessToken("user-1", "jdoe");
+		String access = jwtService.issueAccessToken("user-1", "jdoe@example.com");
 		assertThrows(JwtService.InvalidRefreshTokenException.class,
 			() -> jwtService.validateRefreshToken(access));
 	}

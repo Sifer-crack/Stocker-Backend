@@ -18,9 +18,6 @@ public class User {
 	@Column(name = "user_id")
 	private UUID userId;
 
-	@Column(name = "username", nullable = false, unique = true)
-	private String username;
-
 	@Column(name = "email", nullable = false, unique = true)
 	private String email;
 
@@ -45,14 +42,6 @@ public class User {
 
 	public void setUserId(UUID userId) {
 		this.userId = userId;
-	}
-
-	public String getUsername() {
-		return username;
-	}
-
-	public void setUsername(String username) {
-		this.username = username;
 	}
 
 	public String getEmail() {

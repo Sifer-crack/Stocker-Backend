@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 
 import com.stocker.identity.api.rest.dto.AuthResponse;
 import com.stocker.identity.api.rest.dto.LoginRequest;
-import com.stocker.identity.api.rest.dto.RefreshRequest;
 import com.stocker.identity.api.rest.dto.RegisterRequest;
 import com.stocker.identity.api.rest.dto.UserResponse;
 import com.stocker.identity.domain.User;
@@ -34,11 +33,7 @@ public class AuthService {
 		if (userRepository.findByEmail(request.email()).isPresent()) {
 			throw new EmailAlreadyExistsException();
 		}
-		if (userRepository.findByUsername(request.username()).isPresent()) {
-			throw new UsernameAlreadyExistsException();
-		}
 		User user = new User();
-		user.setUsername(request.username());
 		user.setEmail(request.email());
 		user.setPasswordHash(passwordEncoder.encode(request.password()));
 		user.setFirstName(request.firstName());
@@ -47,7 +42,7 @@ public class AuthService {
 		return toResponse(saved);
 	}
 
-	public AuthResponse login(LoginRequest request) {
+	public Tokens login(LoginRequest request) {
 		try {
 			authenticationManager.authenticate(
 				new UsernamePasswordAuthenticationToken(request.email(), request.password()));
@@ -58,10 +53,13 @@ public class AuthService {
 		return tokens(user);
 	}
 
-	public AuthResponse refresh(RefreshRequest request) {
+	public Tokens refresh(String refreshToken) {
+		if (refreshToken == null || refreshToken.isBlank()) {
+			throw new BadCredentialsException();
+		}
 		JwtService.ValidatedRefresh validated;
 		try {
-			validated = jwtService.validateRefreshToken(request.refreshToken());
+			validated = jwtService.validateRefreshToken(refreshToken);
 		} catch (JwtService.InvalidRefreshTokenException ex) {
 			throw new BadCredentialsException(ex);
 		}
@@ -75,28 +73,28 @@ public class AuthService {
 		return tokens(user);
 	}
 
-	private AuthResponse tokens(User user) {
+	private Tokens tokens(User user) {
 		String userId = user.getUserId().toString();
-		return new AuthResponse(
-			jwtService.issueAccessToken(userId, user.getUsername()),
-			jwtService.issueRefreshToken(userId, user.getUsername()),
+		AuthResponse body = new AuthResponse(
+			jwtService.issueAccessToken(userId, user.getEmail()),
 			"Bearer",
 			jwtService.accessTtlSeconds());
+		String refreshToken = jwtService.issueRefreshToken(userId, user.getEmail());
+		return new Tokens(body, refreshToken);
 	}
 
 	private UserResponse toResponse(User user) {
 		return new UserResponse(
 			user.getUserId(),
-			user.getUsername(),
 			user.getEmail(),
 			user.getFirstName(),
 			user.getLastName());
 	}
 
-	public static class EmailAlreadyExistsException extends RuntimeException {
+	public record Tokens(AuthResponse body, String refreshToken) {
 	}
 
-	public static class UsernameAlreadyExistsException extends RuntimeException {
+	public static class EmailAlreadyExistsException extends RuntimeException {
 	}
 
 	public static class BadCredentialsException extends RuntimeException {
