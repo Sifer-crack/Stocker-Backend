@@ -2,8 +2,7 @@ package com.stocker.inventory.application;
 
 import com.stocker.inventory.application.port.PantryItemRepository;
 import com.stocker.inventory.domain.PantryItem;
-import com.stocker.inventory.infrastructure.client.CatalogClient;
-import com.stocker.inventory.infrastructure.client.ProductResponse;
+
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -14,7 +13,7 @@ import java.util.UUID;
 public class PantryItemService {
     private final PantryItemRepository pantryItemRepository;
 
-    public PantryItemService(PantryItemRepository pantryItemRepository, CatalogClient catalogClient) {
+    public PantryItemService(PantryItemRepository pantryItemRepository) {
         this.pantryItemRepository = pantryItemRepository;
     }
 
@@ -23,8 +22,13 @@ public class PantryItemService {
     }
 
     public PantryItem addPantryItem(UUID userId, UUID productId, int quantity) {
+        if (quantity < 1) {
+            throw new IllegalArgumentException("Quantity must be at least 1");
+        }
+
         Optional<PantryItem> existing = pantryItemRepository.findByUserIdAndProductId(userId, productId);
 
+        // if the product already exists inside the users pantry, just add to it rather than making a new row
         if (existing.isPresent()) {
             PantryItem current = existing.get();
 
@@ -38,6 +42,7 @@ public class PantryItemService {
             return pantryItemRepository.save(updated);
         }
 
+        // otherwise if the product isn't inside the user's pantry then add a new row for the product in pantry
         return pantryItemRepository.save(new PantryItem(
                 null,
                 userId,
@@ -49,6 +54,7 @@ public class PantryItemService {
         if (quantity < 1) {
             throw new IllegalArgumentException("Quantity must be at least 1");
         }
+
         PantryItem current = pantryItemRepository.findById(pantryItemId)
                 .orElseThrow(() -> new IllegalArgumentException("Pantry item not found"));
 

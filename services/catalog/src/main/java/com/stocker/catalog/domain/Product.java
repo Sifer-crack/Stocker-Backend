@@ -1,34 +1,42 @@
 package com.stocker.catalog.domain;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public class Product {
     private final UUID productId;
-    private final UUID categoryId;
-    private final String name;
-    private final String unit;
+    private final String productName;
+    private final String groceryType;
+    private final BigDecimal sellingWeightKg;
+    private final BigDecimal sellingVolumeL;
 
 
-    public Product(UUID productId, UUID categoryId, String name, String unit) {
+
+    public Product(UUID productId, String productName, String groceryType, BigDecimal sellingWeightKg, BigDecimal sellingVolumeL) {
         this.productId = productId;
-        this.categoryId = categoryId;
-        this.name = name;
-        this.unit = unit;
+        this.productName = productName;
+        this.groceryType = groceryType;
+        this.sellingWeightKg = sellingWeightKg;
+        this.sellingVolumeL = sellingVolumeL;
     }
 
     public UUID getProductId() {
         return productId;
     }
 
-    public UUID getCategoryId() {
-        return categoryId;
+    public String getProductName() {
+        return productName;
     }
 
-    public String getName() {
-        return name;
+    public String getGroceryType() {
+        return groceryType;
     }
 
-    public String getUnit() {
-        return unit;
+    public BigDecimal getSellingWeightKg() {
+        return sellingWeightKg;
+    }
+
+    public BigDecimal getSellingVolumeL() {
+        return sellingVolumeL;
     }
 }

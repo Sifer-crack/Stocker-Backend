@@ -18,7 +18,7 @@ public class JpaPantryItemRepository implements PantryItemRepository {
 
     @Override
     public PantryItem save(PantryItem pantryItem) {
-        PantryItemEntity entity = new PantryItemEntity();
+        PantryItemEntity entity;
 
         if (pantryItem.getPantry_item_id() != null) {
             entity = repository.findById(pantryItem.getPantry_item_id()).orElseThrow(() -> new RuntimeException("Pantry Item Not Found"));
@@ -29,50 +29,40 @@ public class JpaPantryItemRepository implements PantryItemRepository {
             entity.setProductId(pantryItem.getProduct_id());
         }
 
-        entity.setQuantityRemaining(pantryItem.getQuantity());
+        entity.setQuantity(pantryItem.getQuantity());
 
         PantryItemEntity saved = repository.save(entity);
 
-        return new PantryItem(
-                saved.getPantryItemId(),
-                saved.getUserId(),
-                saved.getProductId(),
-                saved.getQuantity()
-        );
+        return toDomain(saved);
     }
 
     @Override
     public List<PantryItem> findByUserId(UUID userId) {
-        return repository.findByUserId(userId).stream().map(entity -> new PantryItem(
-                entity.getPantryItemId(),
-                entity.getUserId(),
-                entity.getProductId(),
-                entity.getQuantity()
-        )).toList();
+        return repository.findByUserId(userId).stream().map(this::toDomain).toList();
     }
 
     @Override
     public Optional<PantryItem> findByUserIdAndProductId(UUID userId, UUID productId) {
-        return repository.findByUserIdAndProductId(userId, productId).map(entity -> new PantryItem(
-                entity.getPantryItemId(),
-                entity.getUserId(),
-                entity.getProductId(),
-                entity.getQuantity()
-        ));
+        return repository.findByUserIdAndProductId(userId, productId).map(this::toDomain);
     }
 
     @Override
     public Optional<PantryItem> findById(UUID pantryItemId) {
-        return repository.findById(pantryItemId).map(entity -> new PantryItem(
-                entity.getPantryItemId(),
-                entity.getUserId(),
-                entity.getProductId(),
-                entity.getQuantity()
-        ));
+        return repository.findById(pantryItemId).map(this::toDomain);
     }
 
     @Override
     public void deleteById(UUID pantryItemId) {
         repository.deleteById(pantryItemId);
+    }
+
+    // returns a new pantry item
+    private PantryItem toDomain(PantryItemEntity entity) {
+        return new PantryItem(
+                entity.getPantryItemId(),
+                entity.getUserId(),
+                entity.getProductId(),
+                entity.getQuantity()
+        );
     }
 }

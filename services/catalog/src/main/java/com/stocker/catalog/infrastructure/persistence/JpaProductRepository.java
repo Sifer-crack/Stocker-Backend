@@ -20,32 +20,12 @@ public class JpaProductRepository implements ProductRepository {
     @Override
     public Optional<Product> findById(UUID productId) {
         return repository.findById(productId)
-                .map(entity -> new Product(
-                        entity.getProductId(),
-                        entity.getCategoryId(),
-                        entity.getName(),
-                        entity.getUnit()
-                ));
-    }
-
-    @Override
-    public Optional<Product> findByNameAndUnit(String name, String unit) {
-        return repository.findByNameIgnoreCase(name, unit).map(entity -> new Product(
-                entity.getProductId(),
-                entity.getCategoryId(),
-                entity.getName(),
-                entity.getUnit()
-        ));
+                .map(this::toDomain);
     }
 
     @Override
     public List<Product> findAll() {
-        return repository.findAll().stream().map(entity -> new Product(
-                entity.getProductId(),
-                entity.getCategoryId(),
-                entity.getName(),
-                entity.getUnit()
-        )).toList();
+        return repository.findAll().stream().map(this::toDomain).toList();
 
     }
 
@@ -54,35 +34,36 @@ public class JpaProductRepository implements ProductRepository {
         ProductEntity entity = new ProductEntity();
 
         entity.setProductId(product.getProductId());
-        entity.setCategoryId(product.getCategoryId());
-        entity.setName(product.getName());
-        entity.setUnit(product.getUnit());
+        entity.setProductName(product.getProductName());
+        entity.setGroceryType(product.getGroceryType());
+        entity.setSellingWeightKg(product.getSellingWeightKg());
+        entity.setSellingVolumeL(product.getSellingVolumeL());
 
         ProductEntity saved = repository.save(entity);
 
-        return new Product(
-                saved.getProductId(),
-                saved.getCategoryId(),
-                saved.getName(),
-                saved.getUnit()
-        );
+        return toDomain(saved);
+
     }
 
     @Override
     public List<Product> searchByName(String query) {
         return repository
-                .findByNameContainingIgnoreCase(query)
+                .findByProductNameContainingIgnoreCase(query)
                 .stream()
-                .map(entity -> new Product(
-                        entity.getProductId(),
-                        entity.getCategoryId(),
-                        entity.getName(),
-                        entity.getUnit()
-                )).toList();
+                .map(this::toDomain).toList();
     }
 
     @Override
     public void deleteById(UUID productId) {
         repository.deleteById(productId);
+    }
+
+    private Product toDomain(ProductEntity entity) {
+        return new Product(
+                entity.getProductId(),
+                entity.getProductName(),
+                entity.getGroceryType(),
+                entity.getSellingWeightKg(),
+                entity.getSellingVolumeL());
     }
 }

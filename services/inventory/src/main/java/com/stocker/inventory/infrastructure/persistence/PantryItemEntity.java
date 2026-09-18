@@ -2,7 +2,7 @@ package com.stocker.inventory.infrastructure.persistence;
 
 import jakarta.persistence.*;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -16,17 +16,14 @@ public class PantryItemEntity {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    @Column(name = "product_id")
+    @Column(name = "product_id", nullable = false)
     private UUID productId; // uses pre-existing id from the product table
 
     @Column(name = "quantity", nullable = false)
     private int quantity;
 
     @Column(name = "created_at", insertable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    private OffsetDateTime createdAt;
 
     public UUID getPantryItemId() {
         return pantryItemId;
@@ -56,24 +53,12 @@ public class PantryItemEntity {
         return quantity;
     }
 
-    public void setQuantityRemaining(int quantityRemaining) {
-        this.quantity = quantityRemaining;
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
     }
 
-    public LocalDateTime getCreatedAt() {
+    public OffsetDateTime getCreatedAt() {
         return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return getUpdatedAt();
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
     }
 
 }

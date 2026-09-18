@@ -4,6 +4,7 @@ import com.stocker.catalog.application.ProductService;
 import com.stocker.catalog.domain.Product;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,11 +30,14 @@ public class ProductController {
     }
 
     @PostMapping
-    public Product createProduct(@RequestParam(required = false) UUID categoryId,
-                                 @RequestParam String name,
-                                 @RequestParam String unit) {
+    public Product createProduct(
+            @RequestParam String productName,
+            @RequestParam(required = false) String groceryType,
+            @RequestParam(required = false) BigDecimal sellingWeightKg,
+            @RequestParam(required = false) BigDecimal sellingVolumeL
+            ) {
 
-        return productService.createProduct(categoryId, name, unit);
+        return productService.createProduct(productName,groceryType,sellingWeightKg, sellingVolumeL);
     }
 
     // search from available products in products database

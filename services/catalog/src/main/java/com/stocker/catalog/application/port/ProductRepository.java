@@ -15,7 +15,5 @@ public interface ProductRepository {
 
     void deleteById(UUID productId);
 
-    Optional<Product> findByNameAndUnit(String name, String unit);
-
     List<Product> searchByName(String query);
 }

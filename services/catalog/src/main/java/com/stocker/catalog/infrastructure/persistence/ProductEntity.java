@@ -2,7 +2,8 @@ package com.stocker.catalog.infrastructure.persistence;
 
 import jakarta.persistence.*;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -13,17 +14,20 @@ public class ProductEntity {
     @Column(name = "product_id")
     private UUID productId;
 
-    @Column(name = "category_id")
-    private UUID category_id;
+    @Column(name = "product_name", nullable = false)
+    private String productName;
 
-    @Column(name = "name", nullable = false)
-    private String name;
+    @Column(name = "grocery_type")
+    private String groceryType;
 
-    @Column(name = "unit")
-    private String unit;
+    @Column(name = "selling_weight_kg", precision = 10, scale = 4)
+    private BigDecimal sellingWeightKg;
+
+    @Column(name = "selling_volume_l", precision = 10, scale = 4)
+    private BigDecimal sellingVolumeL;
 
     @Column(name = "created_at", insertable = false)
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 
     public UUID getProductId() {
         return productId;
@@ -33,28 +37,40 @@ public class ProductEntity {
         this.productId = productId;
     }
 
-    public UUID getCategoryId() {
-        return category_id;
+    public String getProductName() {
+        return productName;
     }
 
-    public void setCategoryId(UUID categoryId) {
-        this.category_id = categoryId;
+    public void setProductName(String productName) {
+        this.productName = productName;
     }
 
-    public String getName() {
-        return name;
+    public String getGroceryType() {
+        return groceryType;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setGroceryType(String groceryType) {
+        this.groceryType = groceryType;
     }
 
-    public String getUnit() {
-        return unit;
+    public BigDecimal getSellingWeightKg() {
+        return sellingWeightKg;
     }
 
-    public void setUnit(String unit) {
-        this.unit = unit;
+    public void setSellingWeightKg(BigDecimal sellingWeightKg) {
+        this.sellingWeightKg = sellingWeightKg;
+    }
+
+    public BigDecimal getSellingVolumeL() {
+        return sellingVolumeL;
+    }
+
+    public void setSellingVolumeL(BigDecimal sellingVolumeL) {
+        this.sellingVolumeL = sellingVolumeL;
+    }
+
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
     }
 
 }

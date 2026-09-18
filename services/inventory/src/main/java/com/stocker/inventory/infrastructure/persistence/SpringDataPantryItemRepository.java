@@ -1,6 +1,5 @@
 package com.stocker.inventory.infrastructure.persistence;
 
-import com.stocker.inventory.domain.PantryItem;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
