@@ -65,10 +65,13 @@ services:
     build:
       context: .
       dockerfile: gateway/Dockerfile
+    environment:
+      STOCKER_GRPC_PRICING_ADDRESS: dns:///pricing:9094
     ports:
       - "8080:8080"
     depends_on:
       - identity
+      - pricing
 
   identity:
     build:
