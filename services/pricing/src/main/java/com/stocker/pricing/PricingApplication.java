@@ -10,19 +10,17 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  *    The rest of the repo uses api/rest, application, domain, infrastructure. No service may
  *    diverge structurally (root AGENT.md), so migrate the classes accordingly.
  *
- * 2. Missing files that must be created (they do not exist yet; nothing here references them):
- *      domain/port/EventPublisher.java
- *      infrastructure/messaging/KafkaEventPublisher.java
- *      infrastructure/messaging/KafkaEventConsumer.java   (consumes stocker.catalog.events.v1)
- *      application/PricingEventService.java
- *    Then wire the app.kafka.* topics against infra/kafka/topics.yml.
+ * 2. Event pipeline: domain/port/EventPublisher + infrastructure/messaging/KafkaEventPublisher
+ *    now exist (publish PriceRecordCaptured to stocker.pricing.events.v1). Still missing:
+ *    infrastructure/messaging/KafkaEventConsumer + application/PricingEventService for actually
+ *    consuming stocker.catalog.events.v1 (infrastructure/config/KafkaConsumerConfig is a stub only).
  *
- * 3. gRPC: the server is not started (no Spring gRPC server starter / spring.grpc.server config),
- *    so api/grpc/PriceRecordGrpcController is never bound. See build.gradle and application.yml.
+ * 3. gRPC: server now starts (Spring gRPC server starter, spring.grpc.server.port), and
+ *    api/grpc/PriceRecordGrpcController is a @GrpcService. See CACHE_MODULE.md for the on-demand
+ *    cache-aside + async refresh built on top of Search.
  *
- * 4. Tests: only GET /healthz is covered. Add gRPC and PriceFetcherService tests.
- *
- * 5. Docs: README.md and AGENT.md still claim a live gRPC server and a retained EventPublisher.
+ * 4. Tests: gRPC Search/save-path, PriceSearchService cache-aside, and PriceCache are covered.
+ *    PriceFetcherService (Fetch/Save entry points) still has no dedicated unit test.
  */
 @SpringBootApplication
 public class PricingApplication {
