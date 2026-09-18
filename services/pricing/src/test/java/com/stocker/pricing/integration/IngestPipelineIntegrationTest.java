@@ -12,6 +12,7 @@ import com.stocker.pricing.ingest.model.ScrapeException;
 import com.stocker.pricing.ingest.model.ScrapeResult;
 import com.stocker.pricing.model.PriceRecord;
 import com.stocker.pricing.repository.PriceRecordRepository;
+import com.stocker.pricing.service.PriceStatsService;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,12 +45,14 @@ class IngestPipelineIntegrationTest {
 
 	private Browser browser;
 	private PriceRecordRepository priceRecordRepository;
+	private PriceStatsService priceStatsService;
 	private IngestProperties properties;
 
 	@BeforeEach
 	void setUp() {
 		browser = mock(Browser.class);
 		priceRecordRepository = mock(PriceRecordRepository.class);
+		priceStatsService = mock(PriceStatsService.class);
 		when(priceRecordRepository.save(any(PriceRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
 		properties = new IngestProperties();
@@ -73,7 +76,7 @@ class IngestPipelineIntegrationTest {
 				.warnings(List.of())
 				.build());
 
-		IngestScheduler scheduler = new IngestScheduler(List.of(newworld), browser, properties, priceRecordRepository);
+		IngestScheduler scheduler = new IngestScheduler(List.of(newworld), browser, properties, priceRecordRepository, priceStatsService);
 		scheduler.runAll();
 
 		assertEquals(1, newworld.invocations, "scraper should be invoked exactly once for its one configured chain");
@@ -106,7 +109,7 @@ class IngestPipelineIntegrationTest {
 				.warnings(List.of())
 				.build());
 
-		IngestScheduler scheduler = new IngestScheduler(List.of(newworld), browser, properties, priceRecordRepository);
+		IngestScheduler scheduler = new IngestScheduler(List.of(newworld), browser, properties, priceRecordRepository, priceStatsService);
 		scheduler.runAll();
 
 		assertEquals(1, newworld.invocations, "dry-run must still scrape, just not persist");
@@ -118,7 +121,7 @@ class IngestPipelineIntegrationTest {
 		// newworld left at its default (disabled), regardless of category-urls.
 		StubChainScraper newworld = StubChainScraper.thatNeverRuns(ChainId.NEWWORLD);
 
-		IngestScheduler scheduler = new IngestScheduler(List.of(newworld), browser, properties, priceRecordRepository);
+		IngestScheduler scheduler = new IngestScheduler(List.of(newworld), browser, properties, priceRecordRepository, priceStatsService);
 		scheduler.runAll();
 
 		assertEquals(0, newworld.invocations, "a disabled chain must never be scraped");
@@ -134,7 +137,7 @@ class IngestPipelineIntegrationTest {
 
 		StubChainScraper newworld = StubChainScraper.thatNeverRuns(ChainId.NEWWORLD);
 
-		IngestScheduler scheduler = new IngestScheduler(List.of(newworld), browser, properties, priceRecordRepository);
+		IngestScheduler scheduler = new IngestScheduler(List.of(newworld), browser, properties, priceRecordRepository, priceStatsService);
 		scheduler.runAll();
 
 		assertEquals(0, newworld.invocations, "an enabled chain with no category-urls must be skipped, not scraped");
@@ -156,7 +159,7 @@ class IngestPipelineIntegrationTest {
 				.warnings(List.of())
 				.build());
 
-		IngestScheduler scheduler = new IngestScheduler(List.of(newworld, paknsave), browser, properties, priceRecordRepository);
+		IngestScheduler scheduler = new IngestScheduler(List.of(newworld, paknsave), browser, properties, priceRecordRepository, priceStatsService);
 		scheduler.runAll();
 
 		assertEquals(1, newworld.invocations);
@@ -182,7 +185,7 @@ class IngestPipelineIntegrationTest {
 				.warnings(List.of())
 				.build());
 
-		IngestScheduler scheduler = new IngestScheduler(List.of(woolworths), browser, properties, priceRecordRepository);
+		IngestScheduler scheduler = new IngestScheduler(List.of(woolworths), browser, properties, priceRecordRepository, priceStatsService);
 		scheduler.runAll();
 
 		ArgumentCaptor<PriceRecord> captor = ArgumentCaptor.forClass(PriceRecord.class);
@@ -206,7 +209,7 @@ class IngestPipelineIntegrationTest {
 				.warnings(List.of("store-pin cookie had no effect"))
 				.build());
 
-		IngestScheduler scheduler = new IngestScheduler(List.of(newworld), browser, properties, priceRecordRepository);
+		IngestScheduler scheduler = new IngestScheduler(List.of(newworld), browser, properties, priceRecordRepository, priceStatsService);
 		scheduler.runAll();
 
 		verify(priceRecordRepository, times(1)).save(any(PriceRecord.class));

@@ -4,6 +4,7 @@ import com.microsoft.playwright.Browser;
 import com.stocker.pricing.ingest.ChainScraper;
 import com.stocker.pricing.ingest.IngestScheduler;
 import com.stocker.pricing.repository.PriceRecordRepository;
+import com.stocker.pricing.service.PriceStatsService;
 import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -15,7 +16,8 @@ public class IngestSchedulerConfig {
 
 	@Bean
 	public IngestScheduler ingestScheduler(List<ChainScraper> chainScrapers, Browser browser,
-			IngestProperties properties, PriceRecordRepository priceRecordRepository) {
-		return new IngestScheduler(chainScrapers, browser, properties, priceRecordRepository);
+			IngestProperties properties, PriceRecordRepository priceRecordRepository,
+			PriceStatsService priceStatsService) {
+		return new IngestScheduler(chainScrapers, browser, properties, priceRecordRepository, priceStatsService);
 	}
 }

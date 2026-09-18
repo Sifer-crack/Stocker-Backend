@@ -9,6 +9,7 @@ import com.stocker.pricing.ingest.model.ScrapeException;
 import com.stocker.pricing.ingest.model.ScrapeResult;
 import com.stocker.pricing.model.PriceRecord;
 import com.stocker.pricing.repository.PriceRecordRepository;
+import com.stocker.pricing.service.PriceStatsService;
 import com.stocker.pricing.service.RawProductPriceRecordMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,13 +31,15 @@ public class IngestScheduler {
 	private final Browser browser;
 	private final IngestProperties properties;
 	private final PriceRecordRepository priceRecordRepository;
+	private final PriceStatsService priceStatsService;
 
 	public IngestScheduler(List<ChainScraper> chainScrapers, Browser browser, IngestProperties properties,
-			PriceRecordRepository priceRecordRepository) {
+			PriceRecordRepository priceRecordRepository, PriceStatsService priceStatsService) {
 		this.chainScrapers = chainScrapers;
 		this.browser = browser;
 		this.properties = properties;
 		this.priceRecordRepository = priceRecordRepository;
+		this.priceStatsService = priceStatsService;
 	}
 
 	@Scheduled(cron = "${app.ingest.cron}")
@@ -99,6 +102,7 @@ public class IngestScheduler {
 			try {
 				PriceRecord record = RawProductPriceRecordMapper.toPriceRecord(product);
 				priceRecordRepository.save(record);
+				priceStatsService.recordObservation(record);
 				saved++;
 			} catch (IllegalArgumentException e) {
 				log.warn("{}: skipping product, could not derive itemId: {}", chainId, e.getMessage());

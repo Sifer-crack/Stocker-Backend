@@ -15,6 +15,7 @@ public class PriceFetcherService {
 	private static final Logger log = LoggerFactory.getLogger(PriceFetcherService.class);
 
 	private final PriceRecordRepository priceRecordRepository;
+	private final PriceStatsService priceStatsService;
 
 	public List<PriceRecord> fetch(String itemId, String storeId) {
 		log.info("Fetching price records for itemId={}, storeId={}", itemId, storeId);
@@ -23,6 +24,8 @@ public class PriceFetcherService {
 
 	public PriceRecord save(PriceRecord record) {
 		log.info("Saving price record for itemId={}, storeId={}", record.getItemId(), record.getStoreId());
-		return priceRecordRepository.save(record);
+		PriceRecord saved = priceRecordRepository.save(record);
+		priceStatsService.recordObservation(saved);
+		return saved;
 	}
 }
