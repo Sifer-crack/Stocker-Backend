@@ -267,26 +267,49 @@ STOCKER_INGEST_SITEMAP_CACHE_TTL_DAYS=7  # sitemap category-URL cache TTL (both 
 
 ## Day-1 checklist
 
-1. `./gradlew :services:pricing:installPlaywrightBrowsers` (downloads Firefox).
-2. Run the three live-verification tests one at a time — selectors are already
-   verified, so these should pass; if one doesn't, the site's DOM has likely
-   changed since this was written:
+**Executed 2026-09-18 — status: done for the "milk" category, all three chains.**
+Steps 1-4 and 6-7 below are complete; step 5 (Foodstuffs store-pin) remains
+unverified (no store-id configured yet — every chain currently returns
+whatever store the site defaults to, tracked as a known risk above).
+
+1. ~~`./gradlew :services:pricing:installPlaywrightBrowsers` (downloads Firefox).~~ done.
+2. ~~Run the three live-verification tests one at a time~~ — all three passed
+   against the current live DOM with no selector changes needed:
    ```bash
-   STOCKER_INGEST_PAKNSAVE_LIVE_VERIFY=true ./gradlew :services:pricing:test --tests '*PaknsavePlaywrightIngest*'
-   STOCKER_INGEST_NEWWORLD_LIVE_VERIFY=true ./gradlew :services:pricing:test --tests '*NewWorldPlaywrightIngest*'
-   STOCKER_INGEST_WOOLWORTHS_LIVE_VERIFY=true ./gradlew :services:pricing:test --tests '*WoolworthsPlaywrightIngest*'
+   STOCKER_INGEST_PAKNSAVE_LIVE_VERIFY=true ./gradlew :services:pricing:test --tests '*PaknsavePlaywrightIngest*'    # 32 cards
+   STOCKER_INGEST_NEWWORLD_LIVE_VERIFY=true ./gradlew :services:pricing:test --tests '*NewWorldPlaywrightIngest*'    # 24 cards
+   STOCKER_INGEST_WOOLWORTHS_LIVE_VERIFY=true ./gradlew :services:pricing:test --tests '*WoolworthsPlaywrightIngest*' # 36 cards (28 named products after filtering non-product tiles)
    ```
-3. If any fails, read the logged first-card HTML and correct the selectors in
-   `FoodstuffsChainScraper` / `WoolworthsNzChainScraper`.
-4. Populate real, robots.txt-safe `category-urls` per chain (the sitemap
-   category-URL cache, above, can discover these by keyword).
-5. Confirm the Foodstuffs store-pin cookie hypothesis: run with a real
-   `store-id` set and check whether the returned products/prices actually
-   change (e.g. against a different store's known specials) — if not, the
-   cookie names or values need correcting.
-6. Run with `app.ingest.enabled=true`, `dry-run=true` and confirm realistic
-   product counts with no `zeroResultCategoryUrls`/warnings in the logs.
-7. Only then set `dry-run=false` against a real, migrated database.
+3. Not needed this run — no selector corrections required.
+4. ~~Populate real, robots.txt-safe `category-urls` per chain~~ — done, sourced
+   directly from the live-verification tests' own verified URLs (`application.yml`):
+   New World/PAK'nSave `.../fridge-deli-and-eggs/milk/fresh-milk?pg=1`,
+   Woolworths NZ `.../fridge-deli/milk/full-cream-milk`.
+5. **Still open**: Foodstuffs store-pin cookie hypothesis unconfirmed; no
+   Woolworths store-pin mechanism exists yet. Every chain currently reflects
+   whatever store the site defaults to (IP-geolocated for Foodstuffs).
+6. ~~Run with `app.ingest.enabled=true`, `dry-run=true`~~ — done via
+   `IngestMilkCategoryLiveVerificationTest` (a permanent, gated regression
+   test — `STOCKER_INGEST_MILK_LIVE_VERIFY=true`), driving the real
+   `IngestScheduler` + real `FoodstuffsChainScraper`/`WoolworthsNzChainScraper`
+   against the exact configured URLs: 24/32/28 realistic product counts, zero
+   `zeroResultCategoryUrls`, zero scheduler-level warnings.
+7. ~~Only then set `dry-run=false` against a real, migrated database~~ — done,
+   via `IngestMilkCategoryLivePersistTest` (`STOCKER_INGEST_MILK_LIVE_PERSIST=true`),
+   against a **new, dedicated** Neon `pricing` database (see below) — 84 rows
+   landed in `price_records`, 84 in `price_stats`. `app.ingest.enabled` and
+   each chain's `enabled` now default to `true` in `application.yml`;
+   `dry-run` still defaults to `true` (explicit env var opt-out required to
+   actually persist, unchanged from the original design).
+
+### A note on the database this ran against
+
+The `.env` used for this module's live tests originally pointed at Neon's
+shared default database (`neondb`), which turned out to already contain
+unrelated tables (`items`, `shops`) from other in-progress work on this
+project. A new, dedicated `pricing` database was created as a sibling on the
+same Neon project specifically for this service (`STOCKER_DB_URL` in `.env`
+now points at it) — `neondb`'s existing tables were never touched.
 
 ## Dependencies
 

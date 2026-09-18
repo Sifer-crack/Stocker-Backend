@@ -2,40 +2,41 @@
 
 Owns: promotions and pricing.
 Data store: PostgreSQL (`pricing` database, `price_records` table with JSONB). Flyway manages the schema.
-Status: skeleton — boots, connects to Postgres/Kafka, exposes `GET /healthz`, plus a gRPC
-`PriceRecordService` (`Fetch`/`Save` backed by a JPA repository and a fetcher service, and `Search`
-which runs the web-crawl `fetch/` module end-to-end and persists live prices), plus a scheduled,
-self-built `ingest/` module (New World / PAK'nSave / Woolworths NZ via Playwright) — default off
-behind `app.ingest.enabled`, decoupled from `Search`. See `INGEST_MODULE.md`.
-
-> TODO: the gRPC server is **not actually served** yet — the Spring gRPC server starter and
-> `spring.grpc.server.port` are missing, and the controller is `@Controller` rather than `@GrpcService`.
-> The event pipeline is also missing: no listener, no publisher
-> (`application/PricingEventService`, `domain/port/EventPublisher`, `infrastructure/messaging/*`).
-> This doc currently overstates what is implemented — see `TASKS.md` at the repo root.
+Status: boots, connects to Postgres/Kafka, exposes `GET /healthz`, and serves a real gRPC
+`PriceRecordService` (`@GrpcService`, Spring gRPC server on `spring.grpc.server.port`) with `Fetch`,
+`Save`, and `Search`. `Search` is a cache-aside read over `price_records` (in-process L1 + Postgres
+freshness-window L2) with a bounded synchronous fallback to the `fetch/` web-crawl module and an
+async Kafka-driven refresh escalation on cache miss — see `CACHE_MODULE.md`. A scheduled, self-built
+`ingest/` module (New World / PAK'nSave / Woolworths NZ via Playwright) populates `price_records`
+broadly on a cron, decoupled from `Search`; default off behind `app.ingest.enabled`. See
+`INGEST_MODULE.md`.
 
 ## Confirmed event topics
 
-| Topic | Direction | Key |
-|---|---|---|
-| `stocker.promotions.events.v1` | produces | `householdId` |
-| `stocker.pricing.events.v1` | produces | `householdId` |
-| `stocker.catalog.events.v1` | consumes (to confirm) | `householdId` or `itemId` |
+| Topic | Direction | Key | Purpose |
+|---|---|---|---|
+| `stocker.pricing.events.v1` | produces | `itemId` | Public `PriceRecordCaptured` domain event (`infrastructure/messaging/KafkaEventPublisher`) |
+| `stocker.promotions.events.v1` | produces (unused) | `householdId` | Reserved, no producer yet |
+| `stocker.pricing.refresh-requests.v1` | produces + consumes (internal) | `itemId` | Pricing's own cache-miss retry queue — not a public event stream, see `CACHE_MODULE.md` |
+| `stocker.catalog.events.v1` | consumes (stub only) | `householdId` or `itemId` | `infrastructure/config/KafkaConsumerConfig` — TODO, no business logic yet |
 
 ## Structure
 
-- `api/grpc/` — gRPC controller implementing `PriceRecordService` (`api/grpc/v1`, generated from proto)
+- `api/grpc/` — `@GrpcService` implementing `PriceRecordService` (`api/grpc/v1`, generated from proto)
 - `api/rest/` — HTTP surface (only `/healthz` today)
-- `model/` — `PriceRecord` JPA entity (Lombok)
-- `repository/` — `PriceRecordRepository` (Spring Data JPA)
+- `model/` — `PriceRecord`, `PriceStats` JPA entities (Lombok)
+- `repository/` — `PriceRecordRepository`, `PriceStatsRepository` (Spring Data JPA)
 - `service/` — `PriceFetcherService`, `PriceSearchService`, `RawProductPriceRecordMapper`
+- `service/cache/` — on-demand cache-aside (`PriceCache`, `PricingCacheProperties`); see `CACHE_MODULE.md`
+- `refresh/` — async cache-miss refresh via Kafka (`PriceRefreshRequestConsumer`); see `CACHE_MODULE.md`
+- `domain/port/` — `EventPublisher` port
+- `infrastructure/messaging/` — `KafkaEventPublisher` (publishes `PriceRecordCaptured`)
+- `infrastructure/config/` — Kafka producer/consumer wiring
 - `fetch/` — web-crawl module (providers, config, models); see `FETCH_MODULE.md`
 - `ingest/` — scheduled self-built supermarket scraping (Playwright); see `INGEST_MODULE.md`
-- `infrastructure/config/` — Kafka wiring stubs
 
-> TODO: structure no longer matches the repo convention (`api/rest`, `application`, `domain`,
-> `infrastructure`) — migrate `model/`, `repository/`, `service/` per root `AGENT.md`. The
-> `infrastructure/config` Kafka stubs and the `infrastructure/publisher` port were removed and their
-> replacements under `infrastructure/messaging/` do not exist yet (see `TASKS.md`).
+> TODO: `model/`, `repository/`, `service/` still don't match the repo-wide `domain`/`application`
+> layered convention used by the other services — a structural migration, tracked separately in
+> root `TASKS.md`, not part of the cache/refresh work above.
 
-See `AGENT.md` for implementation TODOs.
+See `AGENT.md` for implementation TODOs, `CACHE_MODULE.md` for the on-demand cache/refresh design.

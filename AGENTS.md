@@ -46,8 +46,9 @@ active development).
 
 - Runs PostgreSQL + `flyway-database-postgresql` + JPA. MongoDB is NOT part of
   pricing anymore — it was migrated away. The `mongo` container and the
-  `STOCKER_MONGO_URI` env var for `pricing` in `docker-compose.yml` are stale;
-  don't copy that pattern into new services.
+  `STOCKER_MONGO_URI` env var for `pricing` were removed from `docker-compose.yml`
+  (pricing now sets `STOCKER_DB_URL`/`STOCKER_DB_USER`/`STOCKER_DB_PASSWORD` and
+  depends on `postgres`, matching identity/catalog/shopping).
 - gRPC server: `PriceRecordService` (`stocker.pricing.v1`) with `Fetch`/`Save`/`Search`
   RPCs, implemented by `api/grpc/PriceRecordGrpcController`; contract in
   `src/main/proto/price_record.proto`.
@@ -75,7 +76,7 @@ active development).
 ./gradlew build                          # full build + tests (needs JDK 25 toolchain)
 ./gradlew :services:<name>:bootJar       # e.g. :services:pricing:bootJar
 ./gradlew :services:identity:test        # single module
-docker compose up postgres mongo kafka kafka-init   # infra only
+docker compose up postgres kafka kafka-init          # infra only
 docker compose up --build                # infra + all services
 ```
 

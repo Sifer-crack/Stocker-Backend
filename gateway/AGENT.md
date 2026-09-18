@@ -6,13 +6,14 @@
 - Spring Cloud Gateway **Server WebFlux** (`spring-cloud-starter-gateway-server-webflux`); routes under `spring.cloud.gateway.server.webflux.routes` (currently empty).
 - `GET /healthz` via `api/rest/HealthzController` (WebFlux annotation controller).
 - Spring gRPC **client** (`org.springframework.grpc:spring-grpc-client-spring-boot-starter` 1.0.3, BOM-managed) wired via `infrastructure/config/GrpcOutboundConfig`.
+- `pricing` gRPC channel (`spring.grpc.client.channels.pricing`, default `dns:///localhost:9094`) with a real `PriceRecordServiceGrpc.PriceRecordServiceBlockingStub` bean. `src/main/proto/price_record.proto` is a duplicate of pricing's copy (protobuf/grpc-java codegen plugin added to `build.gradle`) — there's no shared-proto mechanism in this repo, so keep the two files byte-for-byte in sync when the contract changes.
+- `api/rest/PricingController` — `GET /api/pricing/search` (`term`, `itemId`, optional `storeUrls`, `category`) translates to the gRPC `Search` RPC and maps the response to JSON, sorted by price ascending. This is a locally-implemented BFF endpoint, not a proxied route — it needs no `GatewayRoutesConfig` entry. The blocking stub call is offloaded via `Mono.fromCallable(...).subscribeOn(Schedulers.boundedElastic())` since this module runs on WebFlux/Netty.
 - `HealthzControllerTest` (`@WebFluxTest`, no broker needed).
 
 ## Stubbed / TODO
 
-- Define real routes once services expose REST surfaces (in `application.yml`).
-- Add proto definitions + spring-grpc protobuf build plugin, then create blocking/reactive stubs per service in `GrpcOutboundConfig`.
-- `infrastructure/config/GatewayRoutesConfig` — document/configure route predicates and filters.
+- Define real routes once other services (identity, catalog, ...) expose REST surfaces (in `application.yml`) — `PricingController` above is the only real endpoint so far.
+- `identity` gRPC channel exists in `application.yml` but has no stub bean yet (identity has no gRPC API to generate from).
 
 ## Conventions
 
