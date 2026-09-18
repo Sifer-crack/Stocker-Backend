@@ -15,8 +15,10 @@ import com.stocker.identity.infrastructure.security.JwtService;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -25,6 +27,9 @@ import java.util.UUID;
 import jakarta.servlet.http.Cookie;
 
 @WebMvcTest(controllers = AuthController.class)
+@org.springframework.context.annotation.Import({
+	com.stocker.identity.infrastructure.security.SecurityConfig.class,
+	org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration.class })
 class AuthControllerTest {
 
 	@Autowired
@@ -127,5 +132,16 @@ class AuthControllerTest {
 		mockMvc.perform(post("/identity/logout"))
 			.andExpect(status().isNoContent())
 			.andExpect(cookie().maxAge("refreshToken", 0));
+	}
+
+	@Test
+	void corsPreflightIsPermitted() throws Exception {
+		mockMvc.perform(options("/identity/register")
+				.header("Origin", "http://localhost:5173")
+				.header("Access-Control-Request-Method", "POST")
+				.header("Access-Control-Request-Headers", "content-type"))
+			.andExpect(status().isOk())
+			.andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"))
+			.andExpect(header().string("Access-Control-Allow-Credentials", "true"));
 	}
 }

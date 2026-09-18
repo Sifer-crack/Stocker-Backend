@@ -56,6 +56,8 @@ public class SecurityConfig {
 			.formLogin(AbstractHttpConfigurer::disable)
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.authorizeHttpRequests(auth -> auth
+				// CORS preflights carry no credentials and must never require auth.
+				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				.requestMatchers(HttpMethod.GET, "/healthz", "/actuator/health", "/actuator/info").permitAll()
 				.requestMatchers(HttpMethod.POST, "/identity/register", "/identity/login", "/identity/refresh", "/identity/logout").permitAll()
 				.anyRequest().authenticated())

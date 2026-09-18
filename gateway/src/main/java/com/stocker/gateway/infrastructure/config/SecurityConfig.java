@@ -40,6 +40,8 @@ public class SecurityConfig {
 			.httpBasic(basic -> basic.disable())
 			.formLogin(form -> form.disable())
 			.authorizeExchange(exchanges -> exchanges
+				// CORS preflights carry no credentials and must never require auth.
+				.pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				.pathMatchers(HttpMethod.GET, "/healthz", "/actuator/health", "/actuator/info").permitAll()
 				.pathMatchers(HttpMethod.POST,
 					"/api/identity/register",

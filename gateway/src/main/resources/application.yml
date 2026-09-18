@@ -3,14 +3,6 @@ spring:
     name: gateway
   cloud:
     gateway:
-      globalcors:
-        cors-configurations:
-          '[/**]':
-            allowedOrigins: ${STOCKER_CORS_ALLOWED_ORIGINS:http://localhost:5173}
-            allowedMethods: "*"
-            allowedHeaders: "*"
-            allowCredentials: true
-            maxAge: 3600
       server:
         webflux:
           routes:
@@ -20,6 +12,12 @@ spring:
                 - Path=/api/identity/**
               filters:
                 - StripPrefix=1
+                # The gateway is the single CORS enforcement point: strip the
+                # browser's CORS headers before proxying so identity never
+                # stamps a second Access-Control-Allow-* set on the response.
+                - RemoveRequestHeader=Origin
+                - RemoveRequestHeader=Access-Control-Request-Method
+                - RemoveRequestHeader=Access-Control-Request-Headers
   grpc:
     client:
       default-channel:
