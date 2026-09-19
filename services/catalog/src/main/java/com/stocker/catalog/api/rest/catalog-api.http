@@ -18,9 +18,19 @@ GET http://localhost:8082/products/22222222-2222-2222-2222-222222222222
 DELETE http://localhost:8082/products/5ddcf122-267b-426e-bae5-82daeff1161e
 
 
-### preview product grouping
+###
+# preview product grouping
 GET http://localhost:8082/products/grouping/preview
 Accept: application/json
 
-### preview safe product grouping
+###
+# preview safe product grouping
 GET http://localhost:8082/products/grouping/preview/safe
+
+###
+# preview import
+GET http://localhost:8082/products/grouping/import-preview/
+
+###
+# import grouping DONT RUN
+POST http://localhost:8082/products/grouping/import
