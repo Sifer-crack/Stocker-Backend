@@ -131,3 +131,7 @@ app:
       timeout: ${STOCKER_PRICING_FALLBACK_TIMEOUT:PT3S}
     refresh:
       topic: ${STOCKER_PRICING_REFRESH_TOPIC:stocker.pricing.refresh-requests.v1}
+  service-area:
+    # Placeholder region list - needs product/team sign-off on the real supported-region set
+    # before this ships. Matched case-insensitively by ServiceAreaProperties.isSupported.
+    supported-regions: ${STOCKER_SERVICE_AREA_SUPPORTED_REGIONS:auckland,wellington,christchurch}
