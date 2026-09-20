@@ -10,9 +10,10 @@ public class KafkaConsumerConfig {
 	// Idempotency key: (topic, partition, offset). Dedupe store to be added later.
 	// Topic names come from app.kafka.consumer.topics in application.yml.
 
-	@KafkaListener(topics = "#{'${app.kafka.consumer.topics}'.split(',')}", groupId = "${spring.kafka.consumer.group-id}")
-	public void onEvent(String payload) {
-		// TODO: implement
-	}
+	// TODO: Implement Kafka later if needed
+//	@KafkaListener(topics = "#{'${app.kafka.consumer.topics}'.split(',')}", groupId = "${spring.kafka.consumer.group-id}")
+//	public void onEvent(String payload) {
+//		// TODO: implement
+//	}
 
 }

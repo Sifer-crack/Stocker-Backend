@@ -4,14 +4,20 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 10s
   datasource:
-    url: ${STOCKER_DB_URL:jdbc:postgresql://localhost:5432/catalog}
-    username: ${STOCKER_DB_USER:stocker}
-    password: ${STOCKER_DB_PASSWORD:stocker}
+    url: ${STOCKER_DB_URL}
+    username: ${STOCKER_DB_USER}
+    password: ${STOCKER_DB_PASSWORD}
     hikari:
       maximum-pool-size: 10
   jpa:
     hibernate:
       ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
     open-in-view: false
   flyway:
     enabled: true

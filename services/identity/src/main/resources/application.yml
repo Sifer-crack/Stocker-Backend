@@ -45,3 +45,9 @@ app:
         household: stocker.household.events.v1
     consumer:
       topics: stocker.household.events.v1
+
+stocker:
+  jwt:
+    secret: ${STOCKER_JWT_SECRET:dev-only-32-byte-minimum-secret-0123456789}
+    access-ttl-seconds: ${STOCKER_JWT_ACCESS_TTL:900}
+    refresh-ttl-seconds: ${STOCKER_JWT_REFRESH_TTL:604800}
