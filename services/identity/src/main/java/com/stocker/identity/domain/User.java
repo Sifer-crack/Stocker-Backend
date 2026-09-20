@@ -30,6 +30,9 @@ public class User {
 	@Column(name = "last_name")
 	private String lastName;
 
+	@Column(name = "grocery_budget", columnDefinition = "DOUBLE PRECISION")
+	private Double groceryBudget;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
@@ -74,6 +77,14 @@ public class User {
 
 	public void setLastName(String lastName) {
 		this.lastName = lastName;
+	}
+
+	public Double getGroceryBudget() {
+		return groceryBudget;
+	}
+
+	public void setGroceryBudget(Double groceryBudget) {
+		this.groceryBudget = groceryBudget;
 	}
 
 	public Instant getCreatedAt() {
