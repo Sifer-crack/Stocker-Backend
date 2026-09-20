@@ -28,6 +28,16 @@ spring:
                 - RemoveRequestHeader=Access-Control-Request-Method
                 - RemoveRequestHeader=Access-Control-Request-Headers
 
+            - id: catalog
+              uri: http://inventory:8087
+              predicates:
+                - Path=/api/pantry-items/**
+              filters:
+                - StripPrefix=1
+                - RemoveRequestHeader=Origin
+                - RemoveRequestHeader=Access-Control-Request-Method
+                - RemoveRequestHeader=Access-Control-Request-Headers
+
   grpc:
     client:
       default-channel:
