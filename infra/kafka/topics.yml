@@ -35,6 +35,15 @@ topics:
     replication-factor: 1
     description: Price quotes/history events (hot path)
 
+  - name: stocker.pricing.refresh-requests.v1
+    partitions: 6
+    replication-factor: 1
+    description: >-
+      Internal work queue for the pricing service's own cache-miss refresh
+      escalation (Search cache-miss -> async re-fetch). Deliberately separate
+      from stocker.pricing.events.v1: this is pricing's own retry plumbing,
+      not a public domain-event stream for other services to consume.
+
   # --- reserved (NOT yet provisioned) ---
   # inventory read-model topics; create only when the Inventory service ships.
   - name: stocker.inventory.events.v1

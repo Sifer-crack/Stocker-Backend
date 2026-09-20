@@ -1,11 +1,11 @@
 description = 'analytics: analytics and event sink (optional store)'
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
-	implementation 'org.springframework.boot:spring-boot-starter-actuator'
-	implementation 'org.springframework.boot:spring-boot-starter-kafka'
+	implementation libs.spring.boot.starter.webmvc
+	implementation libs.spring.boot.starter.actuator
+	implementation libs.spring.boot.starter.kafka
 
-	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+	runtimeOnly libs.micrometer.registry.prometheus
 
-	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testImplementation libs.spring.boot.starter.webmvc.test
 }

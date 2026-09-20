@@ -1,6 +1,13 @@
 description = 'identity: authentication, users, households (PostgreSQL)'
 
 dependencies {
+	implementation libs.spring.boot.starter.webmvc
+	implementation libs.spring.boot.starter.actuator
+	implementation libs.spring.boot.starter.data.jpa
+	implementation libs.spring.boot.starter.validation
+	implementation libs.spring.boot.starter.kafka
+	implementation libs.spring.boot.flyway
+	implementation libs.flyway.database.postgresql
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -12,9 +19,10 @@ dependencies {
 	implementation 'com.nimbusds:nimbus-jose-jwt'
 	implementation 'org.flywaydb:flyway-database-postgresql'
 
-	runtimeOnly 'org.postgresql:postgresql'
-	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+	runtimeOnly libs.postgresql
+	runtimeOnly libs.micrometer.registry.prometheus
 
+	testImplementation libs.spring.boot.starter.webmvc.test
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 }
