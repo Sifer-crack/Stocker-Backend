@@ -11,7 +11,13 @@ spring:
               predicates:
                 - Path=/api/identity/**
               filters:
-                - StripPrefix=2
+                - StripPrefix=1
+                # The gateway is the single CORS enforcement point: strip the
+                # browser's CORS headers before proxying so identity never
+                # stamps a second Access-Control-Allow-* set on the response.
+                - RemoveRequestHeader=Origin
+                - RemoveRequestHeader=Access-Control-Request-Method
+                - RemoveRequestHeader=Access-Control-Request-Headers
   grpc:
     client:
       default-channel:

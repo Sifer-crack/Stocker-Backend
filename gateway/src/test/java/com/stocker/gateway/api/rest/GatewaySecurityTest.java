@@ -24,7 +24,7 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 		"spring.cloud.gateway.server.webflux.routes[0].id=identity",
 		"spring.cloud.gateway.server.webflux.routes[0].uri=http://127.0.0.1:9",
 		"spring.cloud.gateway.server.webflux.routes[0].predicates[0]=Path=/api/identity/**",
-		"spring.cloud.gateway.server.webflux.routes[0].filters[0]=StripPrefix=2"
+		"spring.cloud.gateway.server.webflux.routes[0].filters[0]=StripPrefix=1"
 })
 @AutoConfigureWebTestClient
 class GatewaySecurityTest {
