@@ -1,0 +1,95 @@
+// Duplicated from services/pricing/src/main/proto/price_record.proto.
+// There is no shared-proto/schema-registry mechanism in this repo yet, so each gRPC client
+// generates its own stub from its own copy of the .proto contract. Keep this file byte-for-byte
+// in sync with pricing's copy whenever the contract changes.
+syntax = "proto3";
+
+package stocker.pricing.v1;
+
+option java_multiple_files = true;
+option java_package = "com.stocker.pricing.api.grpc.v1";
+option java_outer_classname = "PriceRecordProto";
+
+import "google/protobuf/timestamp.proto";
+
+service PriceRecordService {
+  rpc Fetch (FetchRequest) returns (FetchResponse);
+  rpc Save (SaveRequest) returns (SaveResponse);
+  rpc Search (SearchRequest) returns (SearchResponse);
+  rpc CompareShoppingList (CompareShoppingListRequest) returns (CompareShoppingListResponse);
+}
+
+message SearchRequest {
+  string search_term = 1;
+  string item_id = 2;
+  repeated string store_urls = 3;
+  string category = 4;
+}
+
+message SearchResponse {
+  repeated PriceRecord price_records = 1;
+}
+
+message FetchRequest {
+  string item_id = 1;
+  string store_id = 2;
+}
+
+message FetchResponse {
+  repeated PriceRecord price_records = 1;
+}
+
+message PriceRecord {
+  string id = 1;
+  string item_id = 2;
+  string store_id = 3;
+  string chain_id = 4;
+  string channel = 5;
+  double price_amount = 6;
+  string currency = 7;
+  bool promo_flag = 8;
+  google.protobuf.Timestamp captured_at = 9;
+  string raw_attributes = 10;
+  google.protobuf.Timestamp created_at = 11;
+}
+
+message SaveRequest {
+  PriceRecord price_record = 1;
+}
+
+message SaveResponse {
+  bool saved = 1;
+  string id = 2;
+}
+
+message ShoppingListItem {
+  string item_id = 1;
+  int32 quantity = 2;
+}
+
+message CompareShoppingListRequest {
+  repeated ShoppingListItem items = 1;
+  string region = 2;
+  // Optional. If blank, the server uses the computed cheapest chain as the baseline for
+  // StoreTotal.savings_amount, and echoes it back via effective_selected_chain_id.
+  string selected_chain_id = 3;
+}
+
+message StoreTotal {
+  string chain_id = 1;
+  double total_amount = 2;
+  string currency = 3;
+  int32 items_priced = 4;
+  repeated string unavailable_item_ids = 5;
+  // Relative to CompareShoppingListResponse.effective_selected_chain_id.
+  double savings_amount = 6;
+}
+
+message CompareShoppingListResponse {
+  // Sorted ascending by total_amount.
+  repeated StoreTotal store_totals = 1;
+  // Empty only if store_totals is empty (no chain carries any requested item).
+  string cheapest_chain_id = 2;
+  // Echoes the request's selected_chain_id, or the computed cheapest chain if it was blank.
+  string effective_selected_chain_id = 3;
+}

@@ -3,9 +3,21 @@ spring:
     name: pricing
   lifecycle:
     timeout-per-shutdown-phase: 10s
-  data:
-    mongodb:
-      uri: ${STOCKER_MONGO_URI:mongodb://localhost:27017/pricing}
+  datasource:
+    url: ${STOCKER_DB_URL:jdbc:postgresql://localhost:5432/pricing}
+    username: ${STOCKER_DB_USER:stocker}
+    password: ${STOCKER_DB_PASSWORD:stocker}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  grpc:
+    server:
+      port: ${STOCKER_GRPC_SERVER_PORT:9094}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
@@ -30,6 +42,73 @@ management:
         include: health,info,prometheus
 
 app:
+  fetch:
+    provider: ${STOCKER_FETCH_PROVIDER:spread}
+    timeout-seconds: 30
+    spread:
+      base-url: ${STOCKER_SPREAD_BASE_URL:https://spread.butterup.app/spread-api/v1}
+      api-key: ${STOCKER_SPREAD_API_KEY:}
+    serpapi:
+      base-url: https://serpapi.com/search
+      api-key: ${STOCKER_SERPAPI_KEY:}
+      country: nz
+    scrapingbee:
+      base-url: https://app.scrapingbee.com/api/v1
+      api-key: ${STOCKER_SCRAPINGBEE_KEY:}
+    scraperapi:
+      base-url: https://api.scraperapi.com
+      api-key: ${STOCKER_SCRAPERAPI_KEY:}
+    rapidapi:
+      base-url: ${STOCKER_RAPIDAPI_BASE_URL:https://woolworths-products-api.p.rapidapi.com}
+      host: ${STOCKER_RAPIDAPI_HOST:woolworths-products-api.p.rapidapi.com}
+      endpoint: ${STOCKER_RAPIDAPI_ENDPOINT:/woolworths/product-search/}
+      price-changes-endpoint: ${STOCKER_RAPIDAPI_PRICE_CHANGES_ENDPOINT:/woolworths/price-changes/}
+      api-key: ${STOCKER_RAPIDAPI_KEY:}
+      query-param: query
+      limit: 50
+    culture-stores:
+      - name: Tai Ping
+        url: https://www.taiping.co.nz
+        chain: taiping
+      - name: Lim Chhour
+        url: https://www.limchhour.co.nz
+        chain: limchhour
+      - name: Goldenresult
+        url: https://www.goldenresult.co.nz
+        chain: goldenresult
+  ingest:
+    # Starting scope: milk only, across all three chains - the one category already verified
+    # end-to-end live (see INGEST_MODULE.md Day-1 checklist). dry-run stays true until a run
+    # against it shows realistic counts with no zeroResultCategoryUrls/warnings.
+    enabled: ${STOCKER_INGEST_ENABLED:true}
+    dry-run: ${STOCKER_INGEST_DRY_RUN:true}
+    cron: ${STOCKER_INGEST_CRON:0 0 3 * * *}
+    navigation-timeout-seconds: 30
+    max-pages-per-category: 5
+    sitemap-cache-ttl-days: ${STOCKER_INGEST_SITEMAP_CACHE_TTL_DAYS:7}
+    newworld:
+      enabled: ${STOCKER_INGEST_NEWWORLD_ENABLED:true}
+      store-id: ${STOCKER_INGEST_NEWWORLD_STORE_ID:}
+      store-name: ${STOCKER_INGEST_NEWWORLD_STORE_NAME:}
+      category-urls:
+        - https://www.newworld.co.nz/shop/category/fridge-deli-and-eggs/milk/fresh-milk?pg=1
+    paknsave:
+      enabled: ${STOCKER_INGEST_PAKNSAVE_ENABLED:true}
+      store-id: ${STOCKER_INGEST_PAKNSAVE_STORE_ID:}
+      store-name: ${STOCKER_INGEST_PAKNSAVE_STORE_NAME:}
+      category-urls:
+        - https://www.paknsave.co.nz/shop/category/fridge-deli-and-eggs/milk/fresh-milk?pg=1
+    woolworths:
+      enabled: ${STOCKER_INGEST_WOOLWORTHS_ENABLED:true}
+      store-id: ${STOCKER_INGEST_WOOLWORTHS_STORE_ID:}
+      store-name: ${STOCKER_INGEST_WOOLWORTHS_STORE_NAME:}
+      category-urls:
+        - https://www.woolworths.co.nz/shop/browse/fridge-deli/milk/full-cream-milk
+  # domain/port/EventPublisher + infrastructure/messaging/KafkaEventPublisher publish to the
+  # `pricing` topic below on every price capture (on-demand and async refresh).
+  # TODO: consuming stocker.catalog.events.v1 (application/PricingEventService +
+  # infrastructure/messaging/KafkaEventConsumer) is still unimplemented — the generic
+  # infrastructure/config/KafkaConsumerConfig listener below is a stub only.
   kafka:
     producer:
       topics:
@@ -37,3 +116,22 @@ app:
         pricing: stocker.pricing.events.v1
     consumer:
       topics: stocker.catalog.events.v1
+  pricing:
+    cache:
+      # How long a price_records row is considered fresh enough to skip a live re-fetch.
+      # Long by design: IngestScheduler's nightly crawl is what should keep this warm.
+      freshness-window: ${STOCKER_PRICING_CACHE_FRESHNESS_WINDOW:PT24H}
+      # In-process L1 TTL - short, just to absorb request bursts for the same item.
+      l1-ttl: ${STOCKER_PRICING_CACHE_L1_TTL:PT5M}
+    fallback:
+      # Tight timeout for the synchronous cache-miss fallback call to the active WebFetcher -
+      # deliberately shorter than app.fetch.timeout-seconds, which governs the underlying
+      # WebClient call itself. On timeout/failure, the fallback gives up and defers to the
+      # async refresh queue instead of blocking the gRPC caller further.
+      timeout: ${STOCKER_PRICING_FALLBACK_TIMEOUT:PT3S}
+    refresh:
+      topic: ${STOCKER_PRICING_REFRESH_TOPIC:stocker.pricing.refresh-requests.v1}
+  service-area:
+    # Placeholder region list - needs product/team sign-off on the real supported-region set
+    # before this ships. Matched case-insensitively by ServiceAreaProperties.isSupported.
+    supported-regions: ${STOCKER_SERVICE_AREA_SUPPORTED_REGIONS:auckland,wellington,christchurch}

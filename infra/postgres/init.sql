@@ -1,3 +1,4 @@
 CREATE DATABASE identity;
 CREATE DATABASE catalog;
 CREATE DATABASE shopping;
+CREATE DATABASE pricing;
