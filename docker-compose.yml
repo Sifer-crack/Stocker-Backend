@@ -77,26 +77,36 @@ services:
     build:
       context: .
       dockerfile: gateway/Dockerfile
+    environment:
+      SERVER_PORT: 8080
+      STOCKER_JWT_SECRET: ${STOCKER_JWT_SECRET}
+      STOCKER_CORS_ALLOWED_ORIGINS: ${STOCKER_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
     ports:
       - "8080:8080"
     depends_on:
       - identity
 
+  # identity talks to Neon (see .env.example), not the local postgres below —
+  # so it waits on kafka only. catalog/shopping still use local postgres.
   identity:
     build:
       context: .
       dockerfile: services/identity/Dockerfile
     environment:
       SERVER_PORT: 8081
-      STOCKER_DB_URL: jdbc:postgresql://postgres:5432/identity
-      STOCKER_DB_USER: stocker
-      STOCKER_DB_PASSWORD: stocker
+      STOCKER_DB_URL: ${IDENTITY_DB_URL}
+      STOCKER_DB_USER: ${IDENTITY_DB_USER}
+      STOCKER_DB_PASSWORD: ${IDENTITY_DB_PASSWORD}
+      # Neon tables already exist and are managed in Neon directly —
+      # the app must never run Flyway migrations against them.
+      SPRING_FLYWAY_ENABLED: "false"
+      STOCKER_JWT_SECRET: ${STOCKER_JWT_SECRET}
+      STOCKER_CORS_ALLOWED_ORIGINS: ${STOCKER_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      STOCKER_AUTH_COOKIE_SECURE: ${STOCKER_AUTH_COOKIE_SECURE:-false}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
       - "8081:8081"
     depends_on:
-      postgres:
-        condition: service_healthy
       kafka:
         condition: service_healthy
 
