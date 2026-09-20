@@ -2,7 +2,9 @@ package com.stocker.identity.application;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 
 import com.stocker.identity.api.rest.dto.AuthResponse;
@@ -38,6 +40,7 @@ public class AuthService {
 		user.setPasswordHash(passwordEncoder.encode(request.password()));
 		user.setFirstName(request.firstName());
 		user.setLastName(request.lastName());
+		user.setGroceryBudget(request.groceryBudget());
 		User saved = userRepository.save(user);
 		return toResponse(saved);
 	}
@@ -88,7 +91,31 @@ public class AuthService {
 			user.getUserId(),
 			user.getEmail(),
 			user.getFirstName(),
-			user.getLastName());
+			user.getLastName(),
+			user.getGroceryBudget());
+	}
+
+	public UserResponse getCurrentUser() {
+		return toResponse(currentUser());
+	}
+
+	public UserResponse updateBudget(Double groceryBudget) {
+		User user = currentUser();
+		user.setGroceryBudget(groceryBudget);
+		return toResponse(userRepository.save(user));
+	}
+
+	private User currentUser() {
+		var authentication = SecurityContextHolder.getContext().getAuthentication();
+		if (!(authentication instanceof JwtAuthenticationToken jwtAuth)) {
+			throw new BadCredentialsException();
+		}
+		try {
+			return userRepository.findById(java.util.UUID.fromString(jwtAuth.getToken().getSubject()))
+				.orElseThrow(UserNotFoundException::new);
+		} catch (IllegalArgumentException ex) {
+			throw new BadCredentialsException(ex);
+		}
 	}
 
 	public record Tokens(AuthResponse body, String refreshToken) {
@@ -105,5 +132,8 @@ public class AuthService {
 		public BadCredentialsException(Throwable cause) {
 			super(cause);
 		}
+	}
+
+	public static class UserNotFoundException extends RuntimeException {
 	}
 }

@@ -44,9 +44,12 @@ class AuthControllerTest {
 	@MockitoBean
 	private org.springframework.security.core.userdetails.UserDetailsService userDetailsService;
 
+	@MockitoBean
+	private org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder;
+
 	@Test
 	void registerReturns201WithoutAuthHeader() throws Exception {
-		when(authService.register(any())).thenReturn(new UserResponse(UUID.randomUUID(), "jdoe@example.com", "Jane", "Doe"));
+		when(authService.register(any())).thenReturn(new UserResponse(UUID.randomUUID(), "jdoe@example.com", "Jane", "Doe", 150.0));
 		mockMvc.perform(post("/identity/register")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
