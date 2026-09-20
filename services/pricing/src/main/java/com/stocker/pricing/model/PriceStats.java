@@ -63,6 +63,9 @@ public class PriceStats {
 	@Column(name = "median_price", nullable = false, precision = 10, scale = 2)
 	private BigDecimal medianPrice;
 
+	@Column(name = "current_promo_flag", nullable = false)
+	private boolean currentPromoFlag;
+
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "price_history", nullable = false)
 	private List<Map<String, Object>> priceHistory;

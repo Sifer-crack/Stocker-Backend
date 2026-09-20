@@ -8,7 +8,15 @@
 - Spring gRPC **client** (`org.springframework.grpc:spring-grpc-client-spring-boot-starter` 1.0.3, BOM-managed) wired via `infrastructure/config/GrpcOutboundConfig`.
 - `pricing` gRPC channel (`spring.grpc.client.channels.pricing`, default `dns:///localhost:9094`) with a real `PriceRecordServiceGrpc.PriceRecordServiceBlockingStub` bean. `src/main/proto/price_record.proto` is a duplicate of pricing's copy (protobuf/grpc-java codegen plugin added to `build.gradle`) — there's no shared-proto mechanism in this repo, so keep the two files byte-for-byte in sync when the contract changes.
 - `api/rest/PricingController` — `GET /api/pricing/search` (`term`, `itemId`, optional `storeUrls`, `category`) translates to the gRPC `Search` RPC and maps the response to JSON, sorted by price ascending. This is a locally-implemented BFF endpoint, not a proxied route — it needs no `GatewayRoutesConfig` entry. The blocking stub call is offloaded via `Mono.fromCallable(...).subscribeOn(Schedulers.boundedElastic())` since this module runs on WebFlux/Netty.
-- `HealthzControllerTest` (`@WebFluxTest`, no broker needed).
+- `api/rest/PricingController#compare` — `POST /api/pricing/compare` (JSON body: `items`, `region`,
+  optional `selectedChainId`) translates to the gRPC `CompareShoppingList` RPC. On the RPC's
+  `Status.INVALID_ARGUMENT` ("outside service area"), `onErrorResume` maps it to a
+  `ResponseStatusException(422)`; a controller-scoped `@ExceptionHandler(ResponseStatusException.class)`
+  puts the message into the JSON body as `{"error": "..."}` — WebFlux's default error body omits
+  `getReason()` unless `server.error.include-message` is set globally, which this deliberately avoids
+  changing repo-wide.
+- `HealthzControllerTest` (`@WebFluxTest`, no broker needed); `PricingControllerCompareTest`
+  (`@WebFluxTest` + `@MockitoBean` stub) covers the success shape and the 422 error-mapping path.
 
 ## Stubbed / TODO
 

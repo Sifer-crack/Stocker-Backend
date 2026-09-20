@@ -2,7 +2,7 @@
 
 Outstanding work for the Stocker Backend, grouped by area.
 
-Last updated: 18/09/2026
+Last updated: 20/09/2026
 
 ## Repo-wide: Spring Boot 4 modular autoconfiguration gaps (fixed)
 
@@ -81,6 +81,28 @@ boot against a real database for the first time in this project's history:
   a dedicated Neon `pricing` database was created (the previously-configured DB was a shared
   default database with unrelated tables from other in-progress work) and now holds 84 real rows
   in both `price_records` and `price_stats`.
+
+- [x] **Shopping-list price comparison + savings display added** — new gRPC RPC
+  `CompareShoppingList` on `PriceRecordService`, implemented by
+  `service/ShoppingListComparisonService` (sums `price_stats.currentPrice` per requested item
+  across chains, recommends the cheapest chain with full item coverage, falling back to the lowest
+  partial total if no chain has full coverage) and `service/SavingsCalculatorService` (pure
+  calculation: `savingsAmount(chain) = (selectedTotal - chainTotal) + discountAmount(chain)`, so an
+  all-chains-tied-on-total case still shows discount-driven savings instead of a flat zero). New
+  `service/servicearea/` module (`ServiceAreaProperties`, `app.service-area.supported-regions`
+  placeholder list — needs real product sign-off before shipping) rejects requests outside the
+  service area or with an empty item list via a shared `ServiceAreaException`. This is the first
+  RPC in the repo to signal failure via `Status.INVALID_ARGUMENT`/`onError` rather than a
+  response-payload flag (contrast `Save`'s `saved=false`) — future RPCs needing a
+  request-cannot-be-served signal should follow this precedent. New `PriceStats.currentPromoFlag`
+  column (`V4__add_price_stats_current_promo_flag.sql`) feeds the discount-savings calculation.
+  Gateway exposes this via `POST /api/pricing/compare`; the `INVALID_ARGUMENT` status is mapped to
+  HTTP 422 with the message in the body via a controller-scoped `@ExceptionHandler` (WebFlux's
+  default error body omits the message otherwise, unless `server.error.include-message` is set
+  repo-wide, which this deliberately avoids). Gateway's duplicate `price_record.proto` was kept in
+  sync manually per the existing documented convention. Still open: the real supported-region list,
+  and whether `shopping` should own persisted shopping lists that call this RPC (out of scope here —
+  this RPC accepts an ad-hoc item list, not a persisted one).
 
 - [ ] **Structure does not follow the convention**
   The module uses legacy `model/`, `repository/`, `service/`; other services use `api/rest`,

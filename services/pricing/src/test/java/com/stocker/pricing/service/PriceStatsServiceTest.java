@@ -74,6 +74,26 @@ class PriceStatsServiceTest {
 	}
 
 	@Test
+	void currentPromoFlagMirrorsTheLatestObservationOnFirstObservation() {
+		when(repository.findByItemIdAndStoreId("item-1", "store-1")).thenReturn(Optional.empty());
+
+		service.recordObservation(record("item-1", "store-1", "3.79", true));
+
+		assertEquals(true, capture().isCurrentPromoFlag());
+	}
+
+	@Test
+	void currentPromoFlagIsOverwrittenByEachNewObservationLikeCurrentPrice() {
+		PriceStats existing = existingStats("item-1", "store-1", "3.79");
+		existing.setCurrentPromoFlag(true);
+		when(repository.findByItemIdAndStoreId("item-1", "store-1")).thenReturn(Optional.of(existing));
+
+		service.recordObservation(record("item-1", "store-1", "4.29", false));
+
+		assertEquals(false, capture().isCurrentPromoFlag());
+	}
+
+	@Test
 	void handlesHistoryEntriesReadBackAsDoubleAfterAJsonRoundTrip() {
 		// Simulates re-loading a row from the DB: Hibernate's JSON deserialization turns numeric
 		// values into Double, not BigDecimal, inside the untyped Map<String, Object> history entries.
@@ -97,12 +117,17 @@ class PriceStatsServiceTest {
 	}
 
 	private static PriceRecord record(String itemId, String storeId, String price) {
+		return record(itemId, storeId, price, false);
+	}
+
+	private static PriceRecord record(String itemId, String storeId, String price, boolean promoFlag) {
 		return PriceRecord.builder()
 				.itemId(itemId)
 				.storeId(storeId)
 				.chainId("newworld")
 				.currency("NZD")
 				.priceAmount(new BigDecimal(price))
+				.promoFlag(promoFlag)
 				.capturedAt(OffsetDateTime.now(ZoneOffset.UTC))
 				.build();
 	}

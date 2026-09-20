@@ -3,6 +3,8 @@ package com.stocker.pricing.api.grpc;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.Timestamp;
+import com.stocker.pricing.api.grpc.v1.CompareShoppingListRequest;
+import com.stocker.pricing.api.grpc.v1.CompareShoppingListResponse;
 import com.stocker.pricing.api.grpc.v1.FetchRequest;
 import com.stocker.pricing.api.grpc.v1.FetchResponse;
 import com.stocker.pricing.api.grpc.v1.PriceRecord;
@@ -11,14 +13,25 @@ import com.stocker.pricing.api.grpc.v1.SaveRequest;
 import com.stocker.pricing.api.grpc.v1.SaveResponse;
 import com.stocker.pricing.api.grpc.v1.SearchRequest;
 import com.stocker.pricing.api.grpc.v1.SearchResponse;
+import com.stocker.pricing.api.grpc.v1.StoreTotal;
 import com.stocker.pricing.service.PriceFetcherService;
 import com.stocker.pricing.service.PriceSearchService;
+import com.stocker.pricing.service.SavingsCalculatorService;
+import com.stocker.pricing.service.SavingsCalculatorService.ChainSavings;
+import com.stocker.pricing.service.ShoppingListComparisonService;
+import com.stocker.pricing.service.ShoppingListComparisonService.ChainTotal;
+import com.stocker.pricing.service.ShoppingListComparisonService.ComparisonResult;
+import com.stocker.pricing.service.ShoppingListComparisonService.RequestedItem;
+import com.stocker.pricing.service.servicearea.ServiceAreaException;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +48,8 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 
 	private final PriceFetcherService priceFetcherService;
 	private final PriceSearchService priceSearchService;
+	private final ShoppingListComparisonService shoppingListComparisonService;
+	private final SavingsCalculatorService savingsCalculatorService;
 
 	@Override
 	public void fetch(FetchRequest request, StreamObserver<FetchResponse> responseObserver) {
@@ -93,6 +108,51 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 		records.stream().map(PriceRecordGrpcController::toProto).forEach(response::addPriceRecords);
 		responseObserver.onNext(response.build());
 		responseObserver.onCompleted();
+	}
+
+	@Override
+	public void compareShoppingList(
+			CompareShoppingListRequest request, StreamObserver<CompareShoppingListResponse> responseObserver) {
+		log.info("gRPC compareShoppingList: itemCount={}, region={}", request.getItemsCount(), request.getRegion());
+		List<RequestedItem> items = request.getItemsList().stream()
+				.map(item -> new RequestedItem(item.getItemId(), item.getQuantity()))
+				.toList();
+
+		ComparisonResult comparison;
+		try {
+			comparison = shoppingListComparisonService.compare(items, request.getRegion());
+		} catch (ServiceAreaException ex) {
+			log.warn("gRPC compareShoppingList rejected: {}", ex.getMessage());
+			responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(ex.getMessage()).asRuntimeException());
+			return;
+		}
+
+		String effectiveSelectedChainId = StringUtils.hasText(request.getSelectedChainId())
+				? request.getSelectedChainId()
+				: comparison.cheapestChainId();
+		Map<String, ChainSavings> savingsByChainId =
+				savingsCalculatorService.calculate(comparison.chainTotals(), effectiveSelectedChainId).stream()
+						.collect(Collectors.toMap(ChainSavings::chainId, Function.identity()));
+
+		CompareShoppingListResponse.Builder response = CompareShoppingListResponse.newBuilder()
+				.setCheapestChainId(comparison.cheapestChainId())
+				.setEffectiveSelectedChainId(effectiveSelectedChainId);
+		for (ChainTotal chainTotal : comparison.chainTotals()) {
+			response.addStoreTotals(toStoreTotal(chainTotal, savingsByChainId.get(chainTotal.chainId())));
+		}
+		responseObserver.onNext(response.build());
+		responseObserver.onCompleted();
+	}
+
+	private static StoreTotal toStoreTotal(ChainTotal chainTotal, ChainSavings savings) {
+		return StoreTotal.newBuilder()
+				.setChainId(chainTotal.chainId())
+				.setTotalAmount(chainTotal.totalAmount().doubleValue())
+				.setCurrency(chainTotal.currency() == null ? "" : chainTotal.currency())
+				.setItemsPriced(chainTotal.itemsPriced())
+				.addAllUnavailableItemIds(chainTotal.unavailableItemIds())
+				.setSavingsAmount(savings == null ? 0.0 : savings.savingsAmount().doubleValue())
+				.build();
 	}
 
 	private static PriceRecord toProto(com.stocker.pricing.model.PriceRecord record) {

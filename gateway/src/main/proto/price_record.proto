@@ -16,6 +16,7 @@ service PriceRecordService {
   rpc Fetch (FetchRequest) returns (FetchResponse);
   rpc Save (SaveRequest) returns (SaveResponse);
   rpc Search (SearchRequest) returns (SearchResponse);
+  rpc CompareShoppingList (CompareShoppingListRequest) returns (CompareShoppingListResponse);
 }
 
 message SearchRequest {
@@ -59,4 +60,36 @@ message SaveRequest {
 message SaveResponse {
   bool saved = 1;
   string id = 2;
+}
+
+message ShoppingListItem {
+  string item_id = 1;
+  int32 quantity = 2;
+}
+
+message CompareShoppingListRequest {
+  repeated ShoppingListItem items = 1;
+  string region = 2;
+  // Optional. If blank, the server uses the computed cheapest chain as the baseline for
+  // StoreTotal.savings_amount, and echoes it back via effective_selected_chain_id.
+  string selected_chain_id = 3;
+}
+
+message StoreTotal {
+  string chain_id = 1;
+  double total_amount = 2;
+  string currency = 3;
+  int32 items_priced = 4;
+  repeated string unavailable_item_ids = 5;
+  // Relative to CompareShoppingListResponse.effective_selected_chain_id.
+  double savings_amount = 6;
+}
+
+message CompareShoppingListResponse {
+  // Sorted ascending by total_amount.
+  repeated StoreTotal store_totals = 1;
+  // Empty only if store_totals is empty (no chain carries any requested item).
+  string cheapest_chain_id = 2;
+  // Echoes the request's selected_chain_id, or the computed cheapest chain if it was blank.
+  string effective_selected_chain_id = 3;
 }

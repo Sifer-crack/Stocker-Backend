@@ -4,6 +4,8 @@ import com.stocker.pricing.api.grpc.v1.SearchRequest;
 import com.stocker.pricing.api.grpc.v1.SearchResponse;
 import com.stocker.pricing.service.PriceFetcherService;
 import com.stocker.pricing.service.PriceSearchService;
+import com.stocker.pricing.service.SavingsCalculatorService;
+import com.stocker.pricing.service.ShoppingListComparisonService;
 import io.grpc.stub.StreamObserver;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -30,7 +32,11 @@ class PriceRecordGrpcControllerSearchTest {
 	void setUp() {
 		priceFetcherService = mock(PriceFetcherService.class);
 		priceSearchService = mock(PriceSearchService.class);
-		controller = new PriceRecordGrpcController(priceFetcherService, priceSearchService);
+		controller = new PriceRecordGrpcController(
+				priceFetcherService,
+				priceSearchService,
+				mock(ShoppingListComparisonService.class),
+				mock(SavingsCalculatorService.class));
 	}
 
 	@Test

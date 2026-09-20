@@ -4,12 +4,17 @@ Owns: promotions and pricing.
 Data store: PostgreSQL (`pricing` database, `price_records` table with JSONB). Flyway manages the schema.
 Status: boots, connects to Postgres/Kafka, exposes `GET /healthz`, and serves a real gRPC
 `PriceRecordService` (`@GrpcService`, Spring gRPC server on `spring.grpc.server.port`) with `Fetch`,
-`Save`, and `Search`. `Search` is a cache-aside read over `price_records` (in-process L1 + Postgres
-freshness-window L2) with a bounded synchronous fallback to the `fetch/` web-crawl module and an
-async Kafka-driven refresh escalation on cache miss — see `CACHE_MODULE.md`. A scheduled, self-built
-`ingest/` module (New World / PAK'nSave / Woolworths NZ via Playwright) populates `price_records`
-broadly on a cron, decoupled from `Search`; default off behind `app.ingest.enabled`. See
-`INGEST_MODULE.md`.
+`Save`, `Search`, and `CompareShoppingList`. `Search` is a cache-aside read over `price_records`
+(in-process L1 + Postgres freshness-window L2) with a bounded synchronous fallback to the `fetch/`
+web-crawl module and an async Kafka-driven refresh escalation on cache miss — see `CACHE_MODULE.md`.
+`CompareShoppingList` sums `price_stats` per requested item across chains, recommends the cheapest
+chain (full item coverage preferred; falls back to the lowest partial total otherwise), and
+computes a savings amount per chain relative to a selected/cheapest baseline plus any currently
+active discounts — see `service/ShoppingListComparisonService` and `service/SavingsCalculatorService`.
+Requests outside `app.service-area.supported-regions` (or with an empty item list) are rejected with
+`Status.INVALID_ARGUMENT`. A scheduled, self-built `ingest/` module (New World / PAK'nSave /
+Woolworths NZ via Playwright) populates `price_records` broadly on a cron, decoupled from `Search`;
+default off behind `app.ingest.enabled`. See `INGEST_MODULE.md`.
 
 ## Confirmed event topics
 
@@ -26,8 +31,11 @@ broadly on a cron, decoupled from `Search`; default off behind `app.ingest.enabl
 - `api/rest/` — HTTP surface (only `/healthz` today)
 - `model/` — `PriceRecord`, `PriceStats` JPA entities (Lombok)
 - `repository/` — `PriceRecordRepository`, `PriceStatsRepository` (Spring Data JPA)
-- `service/` — `PriceFetcherService`, `PriceSearchService`, `RawProductPriceRecordMapper`
+- `service/` — `PriceFetcherService`, `PriceSearchService`, `RawProductPriceRecordMapper`,
+  `ShoppingListComparisonService`, `SavingsCalculatorService`
 - `service/cache/` — on-demand cache-aside (`PriceCache`, `PricingCacheProperties`); see `CACHE_MODULE.md`
+- `service/servicearea/` — `ServiceAreaProperties` (`app.service-area.supported-regions`),
+  `ServiceAreaException` (shared by `CompareShoppingList`'s two "outside service area" checks)
 - `refresh/` — async cache-miss refresh via Kafka (`PriceRefreshRequestConsumer`); see `CACHE_MODULE.md`
 - `domain/port/` — `EventPublisher` port
 - `infrastructure/messaging/` — `KafkaEventPublisher` (publishes `PriceRecordCaptured`)

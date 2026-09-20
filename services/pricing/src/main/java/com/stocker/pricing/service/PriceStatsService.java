@@ -51,6 +51,7 @@ public class PriceStatsService {
 		stats.setCurrency(record.getCurrency());
 		stats.setPriceHistory(history);
 		stats.setCurrentPrice(record.getPriceAmount());
+		stats.setCurrentPromoFlag(record.isPromoFlag());
 		stats.setLowestPrice(sortedPrices.get(0));
 		stats.setHighestPrice(sortedPrices.get(sortedPrices.size() - 1));
 		stats.setMedianPrice(median(sortedPrices));

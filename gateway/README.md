@@ -1,8 +1,11 @@
 # gateway
 
 Owns: the single entry point / BFF. REST (HTTP) in from clients, gRPC out to services.
-Status: boots (WebFlux), exposes `GET /healthz` and `GET /api/pricing/search` (real, backed by
-pricing's gRPC `Search` RPC). No proxied routes yet — every other service is still skeleton.
+Status: boots (WebFlux), exposes `GET /healthz`, `GET /api/pricing/search` (real, backed by
+pricing's gRPC `Search` RPC), and `POST /api/pricing/compare` (real, backed by pricing's gRPC
+`CompareShoppingList` RPC — a shopping list's total cost per supermarket chain, the recommended
+cheapest chain, and a savings amount per chain). No proxied routes yet — every other service is
+still skeleton.
 
 ## Design
 
