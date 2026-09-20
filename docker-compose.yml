@@ -94,9 +94,9 @@ services:
       dockerfile: services/identity/Dockerfile
     environment:
       SERVER_PORT: 8081
-      STOCKER_DB_URL: ${IDENTITY_DB_URL}
-      STOCKER_DB_USER: ${IDENTITY_DB_USER}
-      STOCKER_DB_PASSWORD: ${IDENTITY_DB_PASSWORD}
+      STOCKER_DB_URL: ${STOCKER_DB_URL}
+      STOCKER_DB_USER: ${STOCKER_DB_USER}
+      STOCKER_DB_PASSWORD: ${STOCKER_DB_PASSWORD}
       # Neon tables already exist and are managed in Neon directly —
       # the app must never run Flyway migrations against them.
       SPRING_FLYWAY_ENABLED: "false"
