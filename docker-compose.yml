@@ -67,12 +67,15 @@ services:
       dockerfile: gateway/Dockerfile
     environment:
       STOCKER_GRPC_PRICING_ADDRESS: dns:///pricing:9094
+      STOCKER_JWT_SECRET: ${STOCKER_JWT_SECRET}
+      STOCKER_CORS_ALLOWED_ORIGINS: ${STOCKER_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
     ports:
       - "8080:8080"
     depends_on:
       - identity
       - pricing
       - catalog
+      - inventory
 
   # identity talks to Neon (see .env.example), not the local postgres below —
   # so it waits on kafka only. catalog/shopping still use local postgres.
@@ -152,6 +155,24 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  inventory:
+    build:
+      context: .
+      dockerfile: services/inventory/Dockerfile
+    environment:
+      SERVER_PORT: 8087
+
+      STOCKER_DB_URL: ${INVENTORY_DB_URL}
+      STOCKER_DB_USER: ${INVENTORY_DB_USER}
+      STOCKER_DB_PASSWORD: ${INVENTORY_DB_PASSWORD}
+
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    ports:
+      - "8087:8087"
+    depends_on:
       kafka:
         condition: service_healthy
 
