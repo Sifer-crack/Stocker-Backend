@@ -36,7 +36,9 @@ out/
 ### VS Code ###
 .vscode/
 
-### Local environment/configuration
-.env
-.env.*
-!.env.example
+
+### Env files ###
+# ignore all .env files at any level, except examples
+**/.env
+**/.env.*
+!**/.env.example
