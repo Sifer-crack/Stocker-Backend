@@ -35,3 +35,10 @@ out/
 
 ### VS Code ###
 .vscode/
+
+
+### Env files ###
+# ignore all .env files at any level, except examples
+**/.env
+**/.env.*
+!**/.env.example

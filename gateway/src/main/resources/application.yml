@@ -5,12 +5,13 @@ spring:
     gateway:
       server:
         webflux:
-          routes: []
-          # TODO: define real routes once services expose HTTP APIs, e.g.:
-          # - id: identity
-          #   uri: http://identity:8081
-          #   predicates:
-          #     - Path=/api/identity/**
+          routes:
+            - id: identity
+              uri: http://identity:8081
+              predicates:
+                - Path=/api/identity/**
+              filters:
+                - StripPrefix=2
   grpc:
     client:
       default-channel:
@@ -28,3 +29,7 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+
+stocker:
+  jwt:
+    secret: ${STOCKER_JWT_SECRET:dev-only-32-byte-minimum-secret-0123456789}

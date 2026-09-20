@@ -8,7 +8,10 @@ dependencies {
 	implementation platform("org.springframework.grpc:spring-grpc-dependencies:${springGrpcVersion}")
 	implementation 'org.springframework.grpc:spring-grpc-client-spring-boot-starter'
 
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+
 	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-webflux-test'
+	testImplementation 'org.springframework.security:spring-security-test'
 }
