@@ -1,0 +1,36 @@
+# Test API calls
+# This changes the main database
+
+# getProducts() - returns a list of all products
+GET http://localhost:8082/products
+
+###
+# createProduct()
+POST http://localhost:8082/products?name=MILK&unit=2L
+
+###
+
+# getProduct() - returns product via an id
+GET http://localhost:8082/products/22222222-2222-2222-2222-222222222222
+
+###
+# deleteProduct() - deletes a product via an id (change the uuid to specific product that you want to test delete)
+DELETE http://localhost:8082/products/5ddcf122-267b-426e-bae5-82daeff1161e
+
+
+###
+# preview product grouping
+GET http://localhost:8082/products/grouping/preview
+Accept: application/json
+
+###
+# preview safe product grouping
+GET http://localhost:8082/products/grouping/preview/safe
+
+###
+# preview import
+GET http://localhost:8082/products/grouping/import-preview/
+
+###
+# import grouping DONT RUN
+POST http://localhost:8082/products/grouping/import

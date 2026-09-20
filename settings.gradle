@@ -1,3 +1,6 @@
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
 rootProject.name = 'Stocker-Backend'
 
 include 'services:identity'
@@ -6,4 +9,5 @@ include 'services:shopping'
 include 'services:pricing'
 include 'services:notifications'
 include 'services:analytics'
+include 'services:inventory'
 include 'gateway'

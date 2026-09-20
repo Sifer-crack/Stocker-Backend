@@ -1,41 +1,23 @@
 spring:
   application:
-    name: catalog
+    name: inventory
   lifecycle:
     timeout-per-shutdown-phase: 10s
   datasource:
     url: ${STOCKER_DB_URL}
     username: ${STOCKER_DB_USER}
     password: ${STOCKER_DB_PASSWORD}
-    hikari:
-      maximum-pool-size: 10
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        jdbc:
-          batch_size: 50
-        order_inserts: true
-        order_updates: true
-    open-in-view: false
-  flyway:
-    enabled: true
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
-      group-id: stocker.catalog
+      group-id: stocker.analytics
       enable-auto-commit: false
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    producer:
-      acks: all
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
 server:
-  port: ${SERVER_PORT:8082}
+  port: ${SERVER_PORT:8087}
   shutdown: graceful
 
 management:
@@ -46,8 +28,5 @@ management:
 
 app:
   kafka:
-    producer:
-      topics:
-        catalog: stocker.catalog.events.v1
     consumer:
-      topics: stocker.catalog.events.v1
+      topics: stocker.household.events.v1,stocker.catalog.events.v1,stocker.shopping.events.v1,stocker.promotions.events.v1,stocker.pricing.events.v1
