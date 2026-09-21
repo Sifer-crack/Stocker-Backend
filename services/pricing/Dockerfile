@@ -18,7 +18,7 @@ FROM eclipse-temurin:25-jre
 # release - confirm with `docker build` and adjust if any fail to resolve.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    libgtk-3-0 libx11-xcb1 libasound2 libdbus-glib-1-2 libxt6 libpci3 \
+    libgtk-3-0 libx11-xcb1 libasound2t64 libdbus-glib-1-2 libxt6 libpci3 \
     fonts-liberation libgcc-s1 libc6 libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
