@@ -1,14 +1,93 @@
-description = 'pricing: promotions and pricing (MongoDB + event Publisher)'
+plugins {
+	alias(libs.plugins.protobuf)
+}
+
+description = 'pricing: promotions and pricing (PostgreSQL + JSONB)'
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
-	implementation 'org.springframework.boot:spring-boot-starter-actuator'
-	implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
-	implementation 'org.springframework.boot:spring-boot-starter-validation'
-	implementation 'org.springframework.boot:spring-boot-starter-kafka'
+	implementation libs.spring.boot.starter.webmvc
+	implementation libs.spring.boot.starter.webflux
+	implementation libs.spring.boot.starter.actuator
+	implementation libs.spring.boot.starter.data.jpa
+	implementation libs.spring.boot.starter.validation
+	implementation libs.spring.boot.starter.kafka
+	implementation libs.spring.boot.flyway
+	implementation libs.flyway.database.postgresql
+	implementation libs.jackson.datatype.jsr310
 
-	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+	//  gRPC-Java https://github.com/grpc/grpc-java
+	//  Spring gRPC server starter binds PriceRecordServiceImplBase to spring.grpc.server.port.
+	implementation platform(libs.spring.grpc.dependencies)
+	implementation libs.spring.grpc.server.starter
+	// TODO: add an in-process gRPC test dependency (e.g. io.grpc:grpc-inprocess or
+	// io.grpc:grpc-testing) before writing gRPC controller tests.
+	runtimeOnly libs.grpc.netty.shaded
+	implementation libs.grpc.protobuf
+	implementation libs.grpc.stub
+	implementation libs.javax.annotation.api
 
-	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
-	testImplementation 'org.springframework.boot:spring-boot-starter-data-mongodb-test'
+	compileOnly libs.lombok
+	annotationProcessor libs.lombok
+
+	runtimeOnly libs.postgresql
+	runtimeOnly libs.micrometer.registry.prometheus
+
+	//  Playwright for Java https://playwright.dev/java/ - used by ingest/ for self-built
+	//  supermarket scraping (New World / PAK'nSave / Woolworths NZ have no public JSON API).
+	implementation libs.playwright
+
+	testImplementation libs.spring.boot.starter.webmvc.test
+	testCompileOnly libs.lombok
+	testAnnotationProcessor libs.lombok
+}
+
+// Downloads the Playwright Firefox binary for local dev/CI use of the ingest/ module.
+// Not wired into build/test/bootJar - plain `./gradlew build` never needs network/Firefox.
+// Firefox, not Chromium: verified against the live sites - see PlaywrightConfig javadoc.
+tasks.register('installPlaywrightBrowsers', JavaExec) {
+	group = 'ingest'
+	description = "Downloads the Playwright Firefox binary (app.ingest.* module)."
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'com.microsoft.playwright.CLI'
+	args = ['install', 'firefox']
+}
+
+// Make root .env vars (STOCKER_SPREAD_API_KEY, STOCKER_DB_URL, ...) visible to tests.
+tasks.named('test') {
+	environment.putAll(readDotEnv(new File("${rootDir}/.env")))
+}
+
+def readDotEnv(File file) {
+	def env = [:]
+	if (file.exists()) {
+		file.readLines().each { raw ->
+			def line = raw.trim()
+			if (line && !line.startsWith('#') && line.indexOf('=') > 0) {
+				def eq = line.indexOf('=')
+				def key = line.substring(0, eq).trim()
+				def value = line.substring(eq + 1).trim()
+				if (value.length() >= 2 && value.startsWith('"') && value.endsWith('"')) {
+					value = value.substring(1, value.length() - 1)
+				}
+				env[key] = value
+			}
+		}
+	}
+	return env
+}
+
+protobuf {
+	protoc {
+		artifact = "com.google.protobuf:protoc:${libs.versions.protoc.get()}"
+	}
+	plugins {
+		grpc {
+			artifact = "io.grpc:protoc-gen-grpc-java:${libs.versions.grpc.get()}"
+		}
+	}
+	generateProtoTasks {
+		all()*.plugins {
+			grpc {}
+		}
+	}
 }

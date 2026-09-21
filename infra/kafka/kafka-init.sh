@@ -18,5 +18,6 @@ create stocker.catalog.events.v1 6
 create stocker.promotions.events.v1 6
 create stocker.shopping.events.v1 12
 create stocker.pricing.events.v1 12
+create stocker.pricing.refresh-requests.v1 6
 
-echo "Kafka topics ensured: household/catalog/promotions(6p), shopping/pricing(12p)"
+echo "Kafka topics ensured: household/catalog/promotions(6p), shopping/pricing(12p), pricing-refresh-requests(6p)"
