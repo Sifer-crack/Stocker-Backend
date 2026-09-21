@@ -13,6 +13,8 @@ service PriceRecordService {
   rpc Save (SaveRequest) returns (SaveResponse);
   rpc Search (SearchRequest) returns (SearchResponse);
   rpc CompareShoppingList (CompareShoppingListRequest) returns (CompareShoppingListResponse);
+  rpc CompareItemPrices (CompareItemPricesRequest) returns (CompareItemPricesResponse);
+  rpc MatchItem (MatchItemRequest) returns (MatchItemResponse);
 }
 
 message SearchRequest {
@@ -88,4 +90,81 @@ message CompareShoppingListResponse {
   string cheapest_chain_id = 2;
   // Echoes the request's selected_chain_id, or the computed cheapest chain if it was blank.
   string effective_selected_chain_id = 3;
+}
+
+message ComparisonItem {
+  // The caller's own id for the item (the shopping-list item id). Prices captured for this
+  // lookup are stored and published under it, so later PriceRecordCaptured events carry it.
+  string item_id = 1;
+  // Item name / SKU to look up across retailers.
+  string search_term = 2;
+  string category = 3;
+}
+
+message CompareItemPricesRequest {
+  repeated ComparisonItem items = 1;
+  // Optional user location. Blank = no service-area check. Non-blank must be a supported region,
+  // otherwise the RPC fails with INVALID_ARGUMENT (same convention as CompareShoppingList).
+  string region = 2;
+}
+
+message StorePrice {
+  string chain_id = 1;
+  // Branch / store identifier as captured for that chain.
+  string store_id = 2;
+  double price_amount = 3;
+  string currency = 4;
+  bool promo_flag = 5;
+  google.protobuf.Timestamp captured_at = 6;
+}
+
+message ItemPriceComparison {
+  string item_id = 1;
+  // False = no usable price yet (for example the live fetch was deferred to the async refresh).
+  // That is a normal outcome, not an error: matching PriceRecordCaptured events follow later.
+  bool found = 2;
+  // Unset when found = false.
+  StorePrice cheapest = 3;
+  // One entry per (chain, store) with a usable price, ascending by price_amount.
+  repeated StorePrice prices = 4;
+}
+
+message CompareItemPricesResponse {
+  // Same order as the request items.
+  repeated ItemPriceComparison comparisons = 1;
+}
+
+// Finds, per supermarket chain, the scraped product that matches a requested item, plus alternatives.
+message MatchItemRequest {
+  string search_term = 1;
+  // The caller's item id. The chosen (exact) products are stored under it so CompareShoppingList
+  // for this item prices exactly them. Alternatives are never stored under it.
+  string item_id = 2;
+  string category = 3;
+}
+
+message ChainMatch {
+  // ChainId enum name: NEWWORLD | PAKNSAVE | WOOLWORTHS.
+  string chain_id = 1;
+  string store_id = 2;
+  string product_name = 3;
+  // Empty when unknown.
+  string brand = 4;
+  double price_amount = 5;
+  string currency = 6;
+  bool promo_flag = 7;
+  google.protobuf.Timestamp captured_at = 8;
+  // 0..1 similarity of the product name to the request.
+  double score = 9;
+  // Empty when unknown.
+  string product_url = 10;
+}
+
+message MatchItemResponse {
+  // "lexical" (word-overlap scoring). Reserved for a future "semantic" matcher.
+  string match_method = 1;
+  // At most one per chain. Empty = nothing found yet (an ingest run may have been started).
+  repeated ChainMatch chain_matches = 2;
+  // Other products from the same chains that share the request's words; at most a few per chain.
+  repeated ChainMatch alternatives = 3;
 }

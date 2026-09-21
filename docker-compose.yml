@@ -69,6 +69,8 @@ services:
       STOCKER_GRPC_PRICING_ADDRESS: dns:///pricing:9094
       STOCKER_JWT_SECRET: ${STOCKER_JWT_SECRET}
       STOCKER_CORS_ALLOWED_ORIGINS: ${STOCKER_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      # Shared with shopping: guards POST /internal/shopping/updates (shopping -> gateway push).
+      STOCKER_INTERNAL_TOKEN: ${STOCKER_INTERNAL_TOKEN:-dev-only-internal-token-change-me}
     ports:
       - "8080:8080"
     depends_on:
@@ -129,6 +131,11 @@ services:
       STOCKER_DB_USER: stocker
       STOCKER_DB_PASSWORD: stocker
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # Price comparison: one gRPC call to pricing per added item, then Kafka backfill; results are
+      # pushed to the gateway, which relays them to the frontend.
+      STOCKER_GRPC_PRICING_ADDRESS: dns:///pricing:9094
+      STOCKER_GATEWAY_URL: http://gateway:8080
+      STOCKER_INTERNAL_TOKEN: ${STOCKER_INTERNAL_TOKEN:-dev-only-internal-token-change-me}
     ports:
       - "8083:8083"
     depends_on:
@@ -144,10 +151,20 @@ services:
     environment:
       SERVER_PORT: 8084
       STOCKER_GRPC_SERVER_PORT: 9094
-      STOCKER_DB_URL: jdbc:postgresql://postgres:5432/pricing
-      STOCKER_DB_USER: stocker
-      STOCKER_DB_PASSWORD: stocker
+      # Neon (main branch, neondb) when STOCKER_DB_* are set in the root .env; falls back to the
+      # local postgres container otherwise.
+      STOCKER_DB_URL: ${STOCKER_DB_URL:-jdbc:postgresql://postgres:5432/pricing}
+      STOCKER_DB_USER: ${STOCKER_DB_USER:-stocker}
+      STOCKER_DB_PASSWORD: ${STOCKER_DB_PASSWORD:-stocker}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # Live price provider for on-demand lookups. Pricing does not read .env at runtime, so the key
+      # must be passed through here or every fetch returns nothing inside Docker.
+      STOCKER_FETCH_PROVIDER: ${STOCKER_FETCH_PROVIDER:-spread}
+      STOCKER_SPREAD_API_KEY: ${STOCKER_SPREAD_API_KEY:-}
+      # Self-built supermarket scraping (Playwright/Firefox). Defaults are the packaged ones: on, but
+      # dry-run (scrape + log, persist nothing). Set STOCKER_INGEST_DRY_RUN=false in .env to store rows.
+      STOCKER_INGEST_ENABLED: ${STOCKER_INGEST_ENABLED:-true}
+      STOCKER_INGEST_DRY_RUN: ${STOCKER_INGEST_DRY_RUN:-true}
     ports:
       - "8084:8084"
       - "9094:9094"

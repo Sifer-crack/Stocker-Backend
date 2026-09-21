@@ -3,17 +3,28 @@ package com.stocker.pricing.api.grpc;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.Timestamp;
+import com.stocker.pricing.api.grpc.v1.ChainMatch;
+import com.stocker.pricing.api.grpc.v1.CompareItemPricesRequest;
+import com.stocker.pricing.api.grpc.v1.CompareItemPricesResponse;
 import com.stocker.pricing.api.grpc.v1.CompareShoppingListRequest;
 import com.stocker.pricing.api.grpc.v1.CompareShoppingListResponse;
 import com.stocker.pricing.api.grpc.v1.FetchRequest;
 import com.stocker.pricing.api.grpc.v1.FetchResponse;
+import com.stocker.pricing.api.grpc.v1.ItemPriceComparison;
+import com.stocker.pricing.api.grpc.v1.MatchItemRequest;
+import com.stocker.pricing.api.grpc.v1.MatchItemResponse;
 import com.stocker.pricing.api.grpc.v1.PriceRecord;
 import com.stocker.pricing.api.grpc.v1.PriceRecordServiceGrpc;
 import com.stocker.pricing.api.grpc.v1.SaveRequest;
 import com.stocker.pricing.api.grpc.v1.SaveResponse;
 import com.stocker.pricing.api.grpc.v1.SearchRequest;
 import com.stocker.pricing.api.grpc.v1.SearchResponse;
+import com.stocker.pricing.api.grpc.v1.StorePrice;
 import com.stocker.pricing.api.grpc.v1.StoreTotal;
+import com.stocker.pricing.service.ItemPriceComparisonService;
+import com.stocker.pricing.service.ItemPriceComparisonService.ItemComparison;
+import com.stocker.pricing.service.ItemPriceComparisonService.ItemQuery;
+import com.stocker.pricing.service.ItemPriceComparisonService.StoreQuote;
 import com.stocker.pricing.service.PriceFetcherService;
 import com.stocker.pricing.service.PriceSearchService;
 import com.stocker.pricing.service.SavingsCalculatorService;
@@ -22,6 +33,9 @@ import com.stocker.pricing.service.ShoppingListComparisonService;
 import com.stocker.pricing.service.ShoppingListComparisonService.ChainTotal;
 import com.stocker.pricing.service.ShoppingListComparisonService.ComparisonResult;
 import com.stocker.pricing.service.ShoppingListComparisonService.RequestedItem;
+import com.stocker.pricing.service.match.ItemMatchService;
+import com.stocker.pricing.service.match.ItemMatchService.MatchResult;
+import com.stocker.pricing.service.match.ItemMatchService.MatchedProduct;
 import com.stocker.pricing.service.servicearea.ServiceAreaException;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -50,6 +64,83 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 	private final PriceSearchService priceSearchService;
 	private final ShoppingListComparisonService shoppingListComparisonService;
 	private final SavingsCalculatorService savingsCalculatorService;
+	private final ItemPriceComparisonService itemPriceComparisonService;
+	private final ItemMatchService itemMatchService;
+
+	@Override
+	public void matchItem(MatchItemRequest request, StreamObserver<MatchItemResponse> responseObserver) {
+		log.info("gRPC matchItem: term={}, itemId={}", request.getSearchTerm(), request.getItemId());
+		if (!StringUtils.hasText(request.getSearchTerm()) || !StringUtils.hasText(request.getItemId())) {
+			responseObserver.onError(
+					Status.INVALID_ARGUMENT.withDescription("term and itemId are required").asRuntimeException());
+			return;
+		}
+		MatchResult result = itemMatchService.match(request.getSearchTerm(), request.getItemId());
+		MatchItemResponse.Builder response = MatchItemResponse.newBuilder().setMatchMethod(result.matchMethod());
+		result.matches().forEach(match -> response.addChainMatches(toProto(match)));
+		result.alternatives().forEach(alternative -> response.addAlternatives(toProto(alternative)));
+		responseObserver.onNext(response.build());
+		responseObserver.onCompleted();
+	}
+
+	private static ChainMatch toProto(MatchedProduct product) {
+		return ChainMatch.newBuilder()
+				.setChainId(product.chainId())
+				.setStoreId(product.storeId())
+				.setProductName(product.productName())
+				.setBrand(product.brand() == null ? "" : product.brand())
+				.setPriceAmount(product.priceAmount().doubleValue())
+				.setCurrency(product.currency() == null ? "" : product.currency())
+				.setPromoFlag(product.promoFlag())
+				.setCapturedAt(toProtoTimestamp(product.capturedAt()))
+				.setScore(product.score())
+				.build();
+	}
+
+	@Override
+	public void compareItemPrices(
+			CompareItemPricesRequest request, StreamObserver<CompareItemPricesResponse> responseObserver) {
+		log.info("gRPC compareItemPrices: itemCount={}, region={}", request.getItemsCount(), request.getRegion());
+		List<ItemQuery> queries = request.getItemsList().stream()
+				.map(item -> new ItemQuery(item.getItemId(), item.getSearchTerm(), item.getCategory()))
+				.toList();
+
+		List<ItemComparison> comparisons;
+		try {
+			comparisons = itemPriceComparisonService.compare(queries, request.getRegion());
+		} catch (ServiceAreaException ex) {
+			log.warn("gRPC compareItemPrices rejected: {}", ex.getMessage());
+			responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(ex.getMessage()).asRuntimeException());
+			return;
+		}
+
+		CompareItemPricesResponse.Builder response = CompareItemPricesResponse.newBuilder();
+		comparisons.forEach(comparison -> response.addComparisons(toProto(comparison)));
+		responseObserver.onNext(response.build());
+		responseObserver.onCompleted();
+	}
+
+	private static ItemPriceComparison toProto(ItemComparison comparison) {
+		ItemPriceComparison.Builder proto = ItemPriceComparison.newBuilder()
+				.setItemId(comparison.itemId() == null ? "" : comparison.itemId())
+				.setFound(comparison.found());
+		comparison.prices().forEach(quote -> proto.addPrices(toProto(quote)));
+		if (comparison.found()) {
+			proto.setCheapest(toProto(comparison.cheapest()));
+		}
+		return proto.build();
+	}
+
+	private static StorePrice toProto(StoreQuote quote) {
+		return StorePrice.newBuilder()
+				.setChainId(quote.chainId())
+				.setStoreId(quote.storeId())
+				.setPriceAmount(quote.priceAmount().doubleValue())
+				.setCurrency(quote.currency() == null ? "" : quote.currency())
+				.setPromoFlag(quote.promoFlag())
+				.setCapturedAt(toProtoTimestamp(quote.capturedAt()))
+				.build();
+	}
 
 	@Override
 	public void fetch(FetchRequest request, StreamObserver<FetchResponse> responseObserver) {

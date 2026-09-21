@@ -1,8 +1,11 @@
 package com.stocker.gateway.api.rest;
 
 import com.google.protobuf.Timestamp;
+import com.stocker.pricing.api.grpc.v1.ChainMatch;
 import com.stocker.pricing.api.grpc.v1.CompareShoppingListRequest;
 import com.stocker.pricing.api.grpc.v1.CompareShoppingListResponse;
+import com.stocker.pricing.api.grpc.v1.MatchItemRequest;
+import com.stocker.pricing.api.grpc.v1.MatchItemResponse;
 import com.stocker.pricing.api.grpc.v1.PriceRecordServiceGrpc;
 import com.stocker.pricing.api.grpc.v1.SearchRequest;
 import com.stocker.pricing.api.grpc.v1.SearchResponse;
@@ -79,7 +82,63 @@ public class PricingController {
 				.onErrorResume(StatusRuntimeException.class, PricingController::mapServiceAreaError);
 	}
 
-	private static Mono<CompareShoppingListResultResponse> mapServiceAreaError(StatusRuntimeException ex) {
+	/**
+	 * Per supermarket chain, the scraped product matching the requested item (at most one per chain,
+	 * cheapest first), plus labelled alternatives. Empty {@code matches} means "nothing found yet" and
+	 * is not an error: an ingest run may have been started, so the client asks again shortly.
+	 */
+	@GetMapping("/match")
+	public Mono<MatchResponseBody> match(
+			@RequestParam String term,
+			@RequestParam String itemId,
+			@RequestParam(required = false) String category) {
+		MatchItemRequest request = MatchItemRequest.newBuilder()
+				.setSearchTerm(term)
+				.setItemId(itemId)
+				.setCategory(category == null ? "" : category)
+				.build();
+		// Blocking stub call, offloaded off the WebFlux/Netty event loop - never block it directly.
+		return Mono.fromCallable(() -> priceRecordServiceBlockingStub.matchItem(request))
+				.subscribeOn(Schedulers.boundedElastic())
+				.map(PricingController::toMatchResponse)
+				.onErrorResume(StatusRuntimeException.class, PricingController::mapServiceAreaError);
+	}
+
+	private static MatchResponseBody toMatchResponse(MatchItemResponse response) {
+		List<MatchView> matches = response.getChainMatchesList().stream()
+				.map(match -> toMatchView(match, "exact"))
+				.sorted(Comparator.comparingDouble(MatchView::priceAmount))
+				.toList();
+		List<MatchView> alternatives = response.getAlternativesList().stream()
+				.map(match -> toMatchView(match, "alternative"))
+				.toList();
+		return new MatchResponseBody(response.getMatchMethod(), matches, alternatives);
+	}
+
+	private static MatchView toMatchView(ChainMatch match, String matchType) {
+		return new MatchView(
+				match.getChainId(),
+				match.getStoreId(),
+				match.getProductName(),
+				match.getBrand().isEmpty() ? null : match.getBrand(),
+				match.getPriceAmount(),
+				match.getCurrency(),
+				match.getPromoFlag(),
+				toIsoStringOrNull(match.getCapturedAt()),
+				match.getScore(),
+				match.getProductUrl().isEmpty() ? null : match.getProductUrl(),
+				matchType);
+	}
+
+	public record MatchResponseBody(String matchMethod, List<MatchView> matches, List<MatchView> alternatives) {
+	}
+
+	/** {@code matchType} is "exact" for {@code matches} and "alternative" for {@code alternatives}. */
+	public record MatchView(String chainId, String storeId, String productName, String brand, double priceAmount,
+			String currency, boolean promoFlag, String capturedAt, double score, String productUrl, String matchType) {
+	}
+
+	private static <T> Mono<T> mapServiceAreaError(StatusRuntimeException ex) {
 		if (ex.getStatus().getCode() == Status.Code.INVALID_ARGUMENT) {
 			return Mono.error(new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, ex.getStatus().getDescription()));
 		}
