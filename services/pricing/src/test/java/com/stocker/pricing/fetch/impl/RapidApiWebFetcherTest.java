@@ -118,6 +118,7 @@ class RapidApiWebFetcherTest {
 	@Test
 	void fallsBackToRapidapiWithoutHost() {
 		WebFetcherProperties.RapidApiConfig blank = new WebFetcherProperties.RapidApiConfig();
+		blank.setHost("");
 		assertEquals("rapidapi", RapidApiWebFetcher
 				.parseResponse("[{\"name\":\"x\"}]", blank).get(0).getChainId());
 	}

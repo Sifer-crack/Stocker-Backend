@@ -15,6 +15,23 @@
   signal a request-cannot-be-served condition via `Status.INVALID_ARGUMENT`/`onError` rather than a
   response-payload flag (which `Save` uses for its persistence-validation failures) — a precedent
   for future RPCs needing this distinction.
+- `MatchItem` RPC -> `service/match/ItemMatchService` (+ `NameMatcher`), behind `GET /api/pricing/match` on the gateway. Matches a
+  requested item ("milk 2L") against the products the scheduled **ingest** has stored (rows with a `chain:code` item id, newer than
+  `app.pricing.match.max-age`), by word overlap (`matchMethod: "lexical"`): per chain the best product at or above `min-score`
+  (`matches`, cheapest first) plus up to `max-alternatives-per-chain` others sharing the request's words (`alternatives`, labelled
+  `matchType: "alternative"` at the gateway). The chosen products - never the alternatives - are also stored under the caller's item id
+  through `PriceStatsService.recordObservation` + `PriceRecordCaptured`, so `CompareShoppingList` prices exactly them. Nothing stored ->
+  one background `IngestScheduler.runAll()` (at most every `refresh-cooldown`) and an EMPTY result (not an error); the caller asks again.
+  No third-party provider is involved. New World / PAK'nSave scrape the pack size ("2l") into the brand slot; the matcher treats a
+  size-shaped brand as part of the name. `RawProductPriceRecordMapper` now keeps name/brand/code/url/image in `raw_attributes` (ingest
+  used to store none, so a stored price could not say which product it was).
+- `CompareItemPrices` RPC (per-item, used by shopping's add-item flow) -> `service/ItemPriceComparisonService`: for each
+  item it calls `PriceSearchService.search` under the caller's item id (so the async refresh later publishes
+  `PriceRecordCaptured` events keyed by that id), keeps the latest usable price per (chain, store) and returns
+  `found`, `cheapest` and the full ascending `prices` list. `found=false` is a normal "nothing yet" result (the
+  events that follow are the backfill); a non-blank `region` outside the service area fails with `INVALID_ARGUMENT`,
+  a blank one skips the check. One item failing yields `found=false` for it, not a failed RPC. Note "cheapest" is the
+  cheapest matching listing of a keyword search, not a guaranteed identical product (see the pending match task in CLAUDE.md).
 - `model/PriceRecord` JPA entity (Lombok) mapping the `price_records` table (JSONB `raw_attributes`).
 - `repository/PriceRecordRepository` (Spring Data JPA).
 - `service/PriceFetcherService` — fetches/saves price records via the repository (SLF4J logging).

@@ -15,6 +15,11 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  grpc:
+    client:
+      channels:
+        pricing:
+          address: ${STOCKER_GRPC_PRICING_ADDRESS:dns:///localhost:9094}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
@@ -47,3 +52,12 @@ app:
         shopping: stocker.shopping.events.v1
     consumer:
       topics: stocker.pricing.events.v1
+  pricing:
+    # One attempt, no retries: on timeout/failure the item stays pending and the Kafka backfill
+    # completes it. Keep above pricing's own bounded live-fetch wait (~3s).
+    compare-timeout: ${STOCKER_PRICING_COMPARE_TIMEOUT:PT8S}
+  gateway:
+    # Where comparison updates are pushed (gateway relays them to the frontend). The token is a
+    # shared secret with the gateway's internal endpoint; the default is for local dev only.
+    base-url: ${STOCKER_GATEWAY_URL:http://localhost:8080}
+    internal-token: ${STOCKER_INTERNAL_TOKEN:dev-only-internal-token-change-me}

@@ -1,5 +1,7 @@
 # Stocker Backend
 
+Testing Testing
+
 Household-inventory / stock-tracking microservices monorepo. Event-driven
 skeleton built with Java 25, Spring Boot 4, Spring Cloud Gateway, Spring gRPC,
 Kafka, and Postgres/Mongo.
@@ -13,15 +15,15 @@ stubs (`// TODO`), and there is no business logic or auth yet.
 [Frontend] --HTTP--> [Gateway :8080] --gRPC--> [services]
 ```
 
-| Service       | Port | Storage              | Kafka events                       |
-|---------------|------|----------------------|------------------------------------|
-| `gateway`     | 8080 | -                    | -                                  |
-| `identity`    | 8081 | Postgres (`identity`) | produces `stocker.household.events.v1` |
-| `catalog`     | 8082 | Postgres (`catalog`)  | produces `stocker.catalog.events.v1`   |
-| `shopping`    | 8083 | Postgres (`shopping`) + Outbox | produces `stocker.shopping.events.v1` |
-| `pricing`     | 8084 | MongoDB               | produces `stocker.pricing.events.v1`   |
-| `notifications` | 8085 | -                   | consumes all event topics              |
-| `analytics`   | 8086 | -                     | consumes all event topics              |
+| Service         | Port | Storage                        | Kafka events                           |
+| --------------- | ---- | ------------------------------ | -------------------------------------- |
+| `gateway`       | 8080 | -                              | -                                      |
+| `identity`      | 8081 | Postgres (`identity`)          | produces `stocker.household.events.v1` |
+| `catalog`       | 8082 | Postgres (`catalog`)           | produces `stocker.catalog.events.v1`   |
+| `shopping`      | 8083 | Postgres (`shopping`) + Outbox | produces `stocker.shopping.events.v1`  |
+| `pricing`       | 8084 | MongoDB                        | produces `stocker.pricing.events.v1`   |
+| `notifications` | 8085 | -                              | consumes all event topics              |
+| `analytics`     | 8086 | -                              | consumes all event topics              |
 
 Event-driven flows, Kafka topic registry, and planned C4 docs live in
 `infra/kafka/topics.yml` and `docs/architecture`.

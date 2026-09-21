@@ -13,6 +13,22 @@ public class PricingCacheProperties {
 	private Cache cache = new Cache();
 	private Fallback fallback = new Fallback();
 	private Refresh refresh = new Refresh();
+	private Match match = new Match();
+
+	/** GET /api/pricing/match: how ingested products are matched to a requested item. */
+	@Getter
+	@Setter
+	public static class Match {
+		/** Minimum name-similarity (0..1) for a product to count as THE match for a chain. */
+		private double minScore = 0.6;
+		/** Minimum similarity for a different product to be offered as an alternative. */
+		private double alternativeMinScore = 0.3;
+		private int maxAlternativesPerChain = 2;
+		/** Ingested rows older than this are ignored. */
+		private Duration maxAge = Duration.ofDays(3);
+		/** At most one on-demand ingest run per this interval, however many lookups miss. */
+		private Duration refreshCooldown = Duration.ofMinutes(30);
+	}
 
 	@Getter
 	@Setter

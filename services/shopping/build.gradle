@@ -1,3 +1,7 @@
+plugins {
+	alias(libs.plugins.protobuf)
+}
+
 description = 'shopping: shopping lists (PostgreSQL + Outbox pattern)'
 
 dependencies {
@@ -9,8 +13,31 @@ dependencies {
 	implementation libs.spring.boot.flyway
 	implementation libs.flyway.database.postgresql
 
+	//  gRPC client to pricing (CompareItemPrices). Same catalog entries gateway already uses.
+	implementation platform(libs.spring.grpc.dependencies)
+	implementation libs.spring.grpc.client.starter
+	implementation libs.grpc.protobuf
+	implementation libs.grpc.stub
+	implementation libs.javax.annotation.api
+
 	runtimeOnly libs.postgresql
 	runtimeOnly libs.micrometer.registry.prometheus
 
 	testImplementation libs.spring.boot.starter.webmvc.test
+}
+
+protobuf {
+	protoc {
+		artifact = "com.google.protobuf:protoc:${libs.versions.protoc.get()}"
+	}
+	plugins {
+		grpc {
+			artifact = "io.grpc:protoc-gen-grpc-java:${libs.versions.grpc.get()}"
+		}
+	}
+	generateProtoTasks {
+		all()*.plugins {
+			grpc {}
+		}
+	}
 }

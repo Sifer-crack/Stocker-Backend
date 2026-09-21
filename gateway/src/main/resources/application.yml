@@ -38,6 +38,20 @@ spring:
                 - RemoveRequestHeader=Access-Control-Request-Method
                 - RemoveRequestHeader=Access-Control-Request-Headers
 
+            # Shopping list: /api/shopping/items -> shopping /shopping/items. The user is identified
+            # by X-User-Id, set by JwtClaimForwardFilter from the verified JWT. Comparison results
+            # come back to the browser over GET /api/updates/shopping (ShoppingUpdatesController),
+            # deliberately not under this prefix.
+            - id: shopping
+              uri: http://shopping:8083
+              predicates:
+                - Path=/api/shopping/**
+              filters:
+                - StripPrefix=1
+                - RemoveRequestHeader=Origin
+                - RemoveRequestHeader=Access-Control-Request-Method
+                - RemoveRequestHeader=Access-Control-Request-Headers
+
   grpc:
     client:
       default-channel:
@@ -66,3 +80,7 @@ app:
 stocker:
   jwt:
     secret: ${STOCKER_JWT_SECRET:dev-only-32-byte-minimum-secret-0123456789}
+  internal:
+    # Shared secret for service-to-service callbacks (shopping -> POST /internal/shopping/updates).
+    # Must match shopping's STOCKER_INTERNAL_TOKEN. The default is for local dev only.
+    token: ${STOCKER_INTERNAL_TOKEN:dev-only-internal-token-change-me}

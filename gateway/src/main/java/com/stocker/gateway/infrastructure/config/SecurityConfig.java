@@ -48,6 +48,10 @@ public class SecurityConfig {
 					"/api/identity/login",
 					"/api/identity/refresh",
 					"/api/identity/logout").permitAll()
+					// Service-to-service callback from shopping: no user JWT, guarded by a shared
+					// secret header that ShoppingUpdatesController checks. Never expose this path
+					// through the public ingress.
+					.pathMatchers(HttpMethod.POST, "/internal/shopping/updates").permitAll()
 					.pathMatchers(HttpMethod.GET, "/api/products/**").permitAll()
 					.pathMatchers("/api/pantry-items/**").authenticated()
 				.pathMatchers("/api/identity/**").authenticated()

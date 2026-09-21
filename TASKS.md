@@ -2,7 +2,7 @@
 
 Outstanding work for the Stocker Backend, grouped by area.
 
-Last updated: 20/09/2026
+Last updated: 21/09/2026
 
 ## Repo-wide: Spring Boot 4 modular autoconfiguration gaps (fixed)
 
@@ -31,6 +31,30 @@ boot against a real database for the first time in this project's history:
   registered) rather than migrating to the Jackson 3 API. If any other
   service starts autowiring `ObjectMapper` as a Spring bean, it will hit the
   same gap and need the same fix (or a real migration to Jackson 3).
+
+## Shopping list -> price comparison -> frontend (`services/shopping`, `services/pricing`, `gateway`)
+
+- [x] **End-to-end flow implemented.** Add item (`POST /api/shopping/items`, 201 + `pending`, never waits on pricing) ->
+  one deadline-bound gRPC `CompareItemPrices` call to pricing (no retry) -> comparison persisted (`available`) ->
+  shopping POSTs the full item state to the gateway's internal endpoint -> gateway relays it on the user's SSE stream
+  (`GET /api/updates/shopping`). If pricing is slow/down the item stays `pending` and shopping backfills from
+  `PriceRecordCaptured` events on `stocker.pricing.events.v1` through the same notify path. Details in each module's `AGENT.md`.
+  Verified with unit tests, a real-Postgres integration test (`ShoppingItemPostgresIT`) and a real run of the shopping
+  service with pricing down (201 in <0.5s, stays pending, one attempt, no retry).
+- [ ] **Not yet verified together:** the full stack (gateway + pricing + Kafka + shopping) has not been run end to end; the Kafka
+  consumer and the gateway push have only been tested in isolation, and pricing needs `STOCKER_SPREAD_API_KEY` (now passed through
+  compose) to return real prices. The frontend does not consume any of this yet (it needs a fetch-based SSE client and calls to `/api/shopping/items`).
+- [ ] Shopping has no list entity, edit/delete/check-off endpoints or household sharing; the gateway push is per-instance.
+- [ ] `gateway/src/main/resources/application.yml`: the inventory route reuses `id: catalog` (duplicate route id) - one may shadow the other.
+- [ ] Pricing's "cheapest" for a keyword is the cheapest matching listing, not a guaranteed identical product (see the pending match task in `CLAUDE.md`).
+
+## Price match (`GET /api/pricing/match`) - done, ingest-based
+
+- [x] `MatchItem` RPC + gateway endpoint: per-chain best match + labelled alternatives from the ingest's own scraped data; chosen products stored under the caller's item id for `compare`. Verified live: ingest scraped 83 milk products across New World / PAK'nSave / Woolworths, `match` returned one product per chain, `compare` priced them.
+- [x] **Gateway identity-header bug fixed** (`JwtClaimForwardFilter` never ran after `StripPrefix`; identity headers were spoofable). Regression test added.
+- [ ] Only milk is configured for ingest; Tim Tams / other categories need verified category URLs. `productUrl` is never populated.
+- [ ] Matching is word overlap; a semantic matcher would slot in behind `matchMethod`.
+- [ ] The compose pricing container: set `STOCKER_INGEST_DRY_RUN=false` in `.env` to persist scraped rows (default is dry-run).
 
 ## Price engine (`services/pricing`)
 
