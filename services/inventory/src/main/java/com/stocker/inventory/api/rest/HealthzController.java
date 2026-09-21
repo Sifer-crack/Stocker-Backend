@@ -1,4 +1,4 @@
-package com.stocker.analytics.api.rest;
+package com.stocker.inventory.api.rest;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,7 +12,7 @@ public class HealthzController {
 
 	@GetMapping
 	public Map<String, String> healthz() {
-		return Map.of("service", "analytics", "status", "UP");
+		return Map.of("service", "inventory", "status", "UP");
 	}
 
 }
