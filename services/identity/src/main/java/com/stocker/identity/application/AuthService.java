@@ -6,6 +6,11 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.stocker.identity.api.rest.dto.AuthResponse;
 import com.stocker.identity.api.rest.dto.LoginRequest;
@@ -17,6 +22,8 @@ import com.stocker.identity.infrastructure.security.JwtService;
 
 @Service
 public class AuthService {
+
+	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
@@ -105,6 +112,31 @@ public class AuthService {
 		return toResponse(userRepository.save(user));
 	}
 
+	public String getSpendingReport() {
+		JsonNode report = currentUser().getSpendingReport();
+		return report == null ? null : report.toString();
+	}
+
+	@Transactional
+	public String updateSpendingReport(String spendingReport) {
+		User user = currentUser();
+		String normalized = normalizeSpendingReport(spendingReport);
+		userRepository.updateSpendingReport(user.getUserId(), normalized);
+		return normalized;
+	}
+
+	private static String normalizeSpendingReport(String spendingReport) {
+		if (spendingReport == null || spendingReport.isBlank()) {
+			return null;
+		}
+		try {
+			JsonNode node = OBJECT_MAPPER.readTree(spendingReport);
+			return node == null || node.isNull() ? null : node.toString();
+		} catch (JsonProcessingException ex) {
+			throw new InvalidSpendingReportException(ex);
+		}
+	}
+
 	private User currentUser() {
 		var authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (!(authentication instanceof JwtAuthenticationToken jwtAuth)) {
@@ -135,5 +167,11 @@ public class AuthService {
 	}
 
 	public static class UserNotFoundException extends RuntimeException {
+	}
+
+	public static class InvalidSpendingReportException extends RuntimeException {
+		public InvalidSpendingReportException(Throwable cause) {
+			super(cause);
+		}
 	}
 }
