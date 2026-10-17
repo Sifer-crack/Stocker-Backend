@@ -3,6 +3,11 @@ package com.stocker.identity.domain;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import com.fasterxml.jackson.databind.JsonNode;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -32,6 +37,10 @@ public class User {
 
 	@Column(name = "grocery_budget", columnDefinition = "DOUBLE PRECISION")
 	private Double groceryBudget;
+
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(name = "spending_report")
+	private JsonNode spendingReport;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
@@ -85,6 +94,14 @@ public class User {
 
 	public void setGroceryBudget(Double groceryBudget) {
 		this.groceryBudget = groceryBudget;
+	}
+
+	public JsonNode getSpendingReport() {
+		return spendingReport;
+	}
+
+	public void setSpendingReport(JsonNode spendingReport) {
+		this.spendingReport = spendingReport;
 	}
 
 	public Instant getCreatedAt() {
