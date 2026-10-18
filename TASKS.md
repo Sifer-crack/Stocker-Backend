@@ -22,15 +22,6 @@ boot against a real database for the first time in this project's history:
   empty database — exactly the symptom `INGEST_MODULE.md`'s "Known Risks"
   section had already flagged (that database had simply never successfully
   booted this stack before).
-- [x] **The Spring-managed `ObjectMapper` bean is Jackson 3**
-  (`tools.jackson.databind.ObjectMapper`, a new groupId/major version), not
-  the classic `com.fasterxml.jackson.databind.ObjectMapper` this codebase's
-  Kafka payload (de)serialization already uses and is tested against.
-  `services/pricing/infrastructure/config/JacksonConfig` now explicitly
-  provides a classic Jackson 2 `ObjectMapper` bean (with `JavaTimeModule`
-  registered) rather than migrating to the Jackson 3 API. If any other
-  service starts autowiring `ObjectMapper` as a Spring bean, it will hit the
-  same gap and need the same fix (or a real migration to Jackson 3).
 
 ## Price engine (`services/pricing`)
 
@@ -70,7 +61,7 @@ boot against a real database for the first time in this project's history:
   common local frontend dev ports.
 
 - [x] **`price_stats` summary table added** — `model/PriceStats` + `repository/PriceStatsRepository`
-  + `service/PriceStatsService` (current/lowest/highest/median price plus a JSONB history, one row
+  - `service/PriceStatsService` (current/lowest/highest/median price plus a JSONB history, one row
   per item_id+store_id), recomputed by `PriceStatsService.recordObservation` alongside every
   `price_records` write (ingest batch persist, on-demand search persist, and the gRPC `Save` RPC).
   `price_records` is unchanged and remains the raw, append-only source of truth this is derived
@@ -112,14 +103,3 @@ boot against a real database for the first time in this project's history:
 
 - [ ] **Tests still missing**: `PriceFetcherService` (`Fetch`/`Save` entry points) has no dedicated
   unit test. Declare an in-process gRPC test dependency for a real `Search`/`Save` RPC-level test.
-
-## Cross-cutting blockers (outside pricing)
-
-These make `./gradlew build` fail but are unrelated to the price engine. `:services:pricing:build`
-passes in isolation.
-
-- [ ] `services/identity/.../application/HouseholdEventService.java:3` imports a missing
-  `com.stocker.identity.domain.port.EventConsumer`.
-- [ ] `services/analytics/.../test/.../HealthzControllerTest.java:12` references the deleted
-  `HealthzController`.
-- [ ] The uncommitted hexagonal refactor is inconsistent (pricing not migrated; docs out of sync).

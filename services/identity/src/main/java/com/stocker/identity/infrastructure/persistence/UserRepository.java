@@ -14,6 +14,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
 	Optional<User> findByEmail(String email);
 
+	Optional<User> findByOauthProviderAndOauthProviderId(String oauthProvider, String oauthProviderId);
+
 	@Modifying
 	@Query(value = "UPDATE users SET spending_report = CAST(:report AS jsonb), updated_at = now() WHERE user_id = :userId",
 		nativeQuery = true)

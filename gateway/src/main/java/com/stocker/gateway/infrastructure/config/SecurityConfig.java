@@ -43,6 +43,9 @@ public class SecurityConfig {
 				// CORS preflights carry no credentials and must never require auth.
 				.pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				.pathMatchers(HttpMethod.GET, "/healthz", "/actuator/health", "/actuator/info").permitAll()
+				.pathMatchers(HttpMethod.GET,
+					"/api/identity/oauth2/authorization/**",
+					"/api/identity/login/oauth2/code/**").permitAll()
 				.pathMatchers(HttpMethod.POST,
 					"/api/identity/register",
 					"/api/identity/login",

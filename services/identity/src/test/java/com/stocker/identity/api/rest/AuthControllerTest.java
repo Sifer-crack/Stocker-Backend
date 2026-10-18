@@ -29,6 +29,7 @@ import jakarta.servlet.http.Cookie;
 @WebMvcTest(controllers = AuthController.class)
 @org.springframework.context.annotation.Import({
 	com.stocker.identity.infrastructure.security.SecurityConfig.class,
+	com.stocker.identity.infrastructure.security.RefreshTokenCookieFactory.class,
 	org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration.class })
 class AuthControllerTest {
 
@@ -46,6 +47,21 @@ class AuthControllerTest {
 
 	@MockitoBean
 	private org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder;
+
+	@MockitoBean
+	private com.stocker.identity.infrastructure.security.GithubOAuth2UserService githubOAuth2UserService;
+
+	@MockitoBean
+	private com.stocker.identity.infrastructure.security.CookieOAuth2AuthorizationRequestRepository cookieOAuth2AuthorizationRequestRepository;
+
+	@MockitoBean
+	private com.stocker.identity.infrastructure.security.OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+
+	@MockitoBean
+	private com.stocker.identity.infrastructure.security.OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
+
+	@MockitoBean
+	private org.springframework.security.oauth2.client.registration.ClientRegistrationRepository clientRegistrationRepository;
 
 	@Test
 	void registerReturns201WithoutAuthHeader() throws Exception {

@@ -26,8 +26,17 @@ public class User {
 	@Column(name = "email", nullable = false, unique = true)
 	private String email;
 
-	@Column(name = "password_hash", nullable = false)
+	@Column(name = "password_hash")
 	private String passwordHash;
+
+	@Column(name = "oauth_provider")
+	private String oauthProvider;
+
+	@Column(name = "oauth_provider_id")
+	private String oauthProviderId;
+
+	@Column(name = "avatar_url")
+	private String avatarUrl;
 
 	@Column(name = "first_name")
 	private String firstName;
@@ -70,6 +79,30 @@ public class User {
 
 	public void setPasswordHash(String passwordHash) {
 		this.passwordHash = passwordHash;
+	}
+
+	public String getOauthProvider() {
+		return oauthProvider;
+	}
+
+	public void setOauthProvider(String oauthProvider) {
+		this.oauthProvider = oauthProvider;
+	}
+
+	public String getOauthProviderId() {
+		return oauthProviderId;
+	}
+
+	public void setOauthProviderId(String oauthProviderId) {
+		this.oauthProviderId = oauthProviderId;
+	}
+
+	public String getAvatarUrl() {
+		return avatarUrl;
+	}
+
+	public void setAvatarUrl(String avatarUrl) {
+		this.avatarUrl = avatarUrl;
 	}
 
 	public String getFirstName() {
