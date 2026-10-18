@@ -125,9 +125,9 @@ services:
       dockerfile: services/shopping/Dockerfile
     environment:
       SERVER_PORT: 8083
-      STOCKER_DB_URL: jdbc:postgresql://postgres:5432/shopping
-      STOCKER_DB_USER: stocker
-      STOCKER_DB_PASSWORD: stocker
+      STOCKER_DB_URL: ${STOCKER_DB_URL}
+      STOCKER_DB_USER: ${STOCKER_DB_USER}
+      STOCKER_DB_PASSWORD: ${STOCKER_DB_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
       - "8083:8083"

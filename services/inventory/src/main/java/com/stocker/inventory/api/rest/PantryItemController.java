@@ -9,7 +9,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/pantry-items")
-@CrossOrigin(origins = "http://localhost:5173") // TODO: domain for the frontend
+@CrossOrigin(origins = "http://localhost:5173") // TODO: domain for the frontend'
 public class PantryItemController {
     private final PantryItemService pantryItemService;
 
