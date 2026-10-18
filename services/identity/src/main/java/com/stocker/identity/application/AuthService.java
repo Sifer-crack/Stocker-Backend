@@ -63,6 +63,40 @@ public class AuthService {
 		return tokens(user);
 	}
 
+	@Transactional
+	public Tokens provisionOAuthUser(String provider, String providerId, String email, String firstName,
+		String lastName, String avatarUrl) {
+		if (provider == null || providerId == null || email == null || email.isBlank()) {
+			throw new BadCredentialsException();
+		}
+		User user = userRepository.findByOauthProviderAndOauthProviderId(provider, providerId)
+			.orElseGet(() -> userRepository.findByEmail(email)
+				.map(existing -> linkOAuth(existing, provider, providerId, avatarUrl))
+				.orElseGet(() -> createOAuthUser(provider, providerId, email, firstName, lastName, avatarUrl)));
+		return tokens(user);
+	}
+
+	private User linkOAuth(User user, String provider, String providerId, String avatarUrl) {
+		user.setOauthProvider(provider);
+		user.setOauthProviderId(providerId);
+		if (avatarUrl != null) {
+			user.setAvatarUrl(avatarUrl);
+		}
+		return userRepository.save(user);
+	}
+
+	private User createOAuthUser(String provider, String providerId, String email, String firstName,
+		String lastName, String avatarUrl) {
+		User user = new User();
+		user.setEmail(email);
+		user.setOauthProvider(provider);
+		user.setOauthProviderId(providerId);
+		user.setFirstName(firstName);
+		user.setLastName(lastName);
+		user.setAvatarUrl(avatarUrl);
+		return userRepository.save(user);
+	}
+
 	public Tokens refresh(String refreshToken) {
 		if (refreshToken == null || refreshToken.isBlank()) {
 			throw new BadCredentialsException();

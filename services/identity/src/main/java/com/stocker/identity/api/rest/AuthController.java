@@ -1,11 +1,7 @@
 package com.stocker.identity.api.rest;
 
-import java.time.Duration;
-
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -20,7 +16,7 @@ import com.stocker.identity.api.rest.dto.LoginRequest;
 import com.stocker.identity.api.rest.dto.RegisterRequest;
 import com.stocker.identity.api.rest.dto.UserResponse;
 import com.stocker.identity.application.AuthService;
-import com.stocker.identity.infrastructure.security.JwtService;
+import com.stocker.identity.infrastructure.security.RefreshTokenCookieFactory;
 
 import jakarta.validation.Valid;
 
@@ -29,14 +25,11 @@ import jakarta.validation.Valid;
 public class AuthController {
 
 	private final AuthService authService;
-	private final JwtService jwtService;
-	private final boolean cookieSecure;
+	private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 
-	public AuthController(AuthService authService, JwtService jwtService,
-		@Value("${stocker.auth.cookie.secure:false}") boolean cookieSecure) {
+	public AuthController(AuthService authService, RefreshTokenCookieFactory refreshTokenCookieFactory) {
 		this.authService = authService;
-		this.jwtService = jwtService;
-		this.cookieSecure = cookieSecure;
+		this.refreshTokenCookieFactory = refreshTokenCookieFactory;
 	}
 
 	@PostMapping("/register")
@@ -49,7 +42,7 @@ public class AuthController {
 	public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
 		AuthService.Tokens tokens = authService.login(request);
 		return ResponseEntity.ok()
-			.header(HttpHeaders.SET_COOKIE, refreshCookie(tokens.refreshToken()).toString())
+			.header(HttpHeaders.SET_COOKIE, refreshTokenCookieFactory.create(tokens.refreshToken()).toString())
 			.body(tokens.body());
 	}
 
@@ -58,31 +51,14 @@ public class AuthController {
 		@CookieValue(value = "refreshToken", required = false) String refreshToken) {
 		AuthService.Tokens tokens = authService.refresh(refreshToken);
 		return ResponseEntity.ok()
-			.header(HttpHeaders.SET_COOKIE, refreshCookie(tokens.refreshToken()).toString())
+			.header(HttpHeaders.SET_COOKIE, refreshTokenCookieFactory.create(tokens.refreshToken()).toString())
 			.body(tokens.body());
 	}
 
 	@PostMapping("/logout")
 	public ResponseEntity<Void> logout() {
-		ResponseCookie cleared = ResponseCookie.from("refreshToken", "")
-			.httpOnly(true)
-			.secure(cookieSecure)
-			.path("/")
-			.maxAge(0)
-			.sameSite("Lax")
-			.build();
 		return ResponseEntity.noContent()
-			.header(HttpHeaders.SET_COOKIE, cleared.toString())
-			.build();
-	}
-
-	private ResponseCookie refreshCookie(String refreshToken) {
-		return ResponseCookie.from("refreshToken", refreshToken)
-			.httpOnly(true)
-			.secure(cookieSecure)
-			.path("/")
-			.maxAge(Duration.ofSeconds(jwtService.refreshTtlSeconds()))
-			.sameSite("Lax")
+			.header(HttpHeaders.SET_COOKIE, refreshTokenCookieFactory.clear().toString())
 			.build();
 	}
 

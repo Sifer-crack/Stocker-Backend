@@ -54,7 +54,11 @@ public class SecurityConfig {
 	}
 
 	@Bean
-	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+	SecurityFilterChain securityFilterChain(HttpSecurity http,
+		GithubOAuth2UserService githubOAuth2UserService,
+		CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository,
+		OAuth2AuthenticationSuccessHandler oauth2SuccessHandler,
+		OAuth2AuthenticationFailureHandler oauth2FailureHandler) throws Exception {
 		return http
 			.csrf(AbstractHttpConfigurer::disable)
 			.cors(Customizer.withDefaults())
@@ -65,8 +69,19 @@ public class SecurityConfig {
 				// CORS preflights carry no credentials and must never require auth.
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				.requestMatchers(HttpMethod.GET, "/healthz", "/actuator/health", "/actuator/info").permitAll()
+				.requestMatchers(HttpMethod.GET, "/oauth2/authorization/**", "/identity/login/oauth2/code/**").permitAll()
 				.requestMatchers(HttpMethod.POST, "/identity/register", "/identity/login", "/identity/refresh", "/identity/logout").permitAll()
 				.anyRequest().authenticated())
+			.oauth2Login(oauth2 -> oauth2
+				.authorizationEndpoint(endpoint -> endpoint
+					.baseUri("/identity/oauth2/authorization")
+					.authorizationRequestRepository(authorizationRequestRepository))
+				.redirectionEndpoint(endpoint -> endpoint
+					.baseUri("/identity/login/oauth2/code/*"))
+				.userInfoEndpoint(endpoint -> endpoint
+					.userService(githubOAuth2UserService))
+				.successHandler(oauth2SuccessHandler)
+				.failureHandler(oauth2FailureHandler))
 			.oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
 			.build();
 	}

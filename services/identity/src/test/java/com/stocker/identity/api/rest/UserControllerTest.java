@@ -43,6 +43,21 @@ class UserControllerTest {
 	@MockitoBean
 	private org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder;
 
+	@MockitoBean
+	private com.stocker.identity.infrastructure.security.GithubOAuth2UserService githubOAuth2UserService;
+
+	@MockitoBean
+	private com.stocker.identity.infrastructure.security.CookieOAuth2AuthorizationRequestRepository cookieOAuth2AuthorizationRequestRepository;
+
+	@MockitoBean
+	private com.stocker.identity.infrastructure.security.OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+
+	@MockitoBean
+	private com.stocker.identity.infrastructure.security.OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
+
+	@MockitoBean
+	private org.springframework.security.oauth2.client.registration.ClientRegistrationRepository clientRegistrationRepository;
+
 	@Test
 	void getMeReturns200WithToken() throws Exception {
 		UUID id = UUID.randomUUID();
