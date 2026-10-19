@@ -55,6 +55,23 @@ carried on through its whole list. Two changes, for all three chains (New World,
 - **Blocked is not empty.** A blocked page is neither visited nor a zero-result page, so `CategoryHealth` never
   quarantines a category because of a block.
 
+## Crawl all three chains at once (crawl-only profile)
+
+`STOCKER_INGEST_PARALLEL_CHAINS=true` (default `false`) makes the scheduled/startup crawl run New World, PAK'nSave and
+Woolworths concurrently, each with its own Firefox, lock, pace, daily budget and circuit breaker (design: `INGEST_MODULE.md`,
+"Parallel chains"). It needs about three times the browser memory, so it ships as a separate override file that is meant only
+for a machine where every other service is stopped:
+
+```bash
+# .env: STOCKER_INGEST_ENABLED=true  STOCKER_INGEST_DRY_RUN=false  STOCKER_INGEST_RUN_ON_STARTUP=true
+docker compose -f docker-compose.yml -f docker-compose.limits.yml -f docker-compose.crawl.yml \
+    up -d --build kafka kafka-init pricing
+```
+
+Pricing then gets 4608m (normal 2304m), `shm_size` 768m and `MaxRAMPercentage=25`; with Kafka 1024m the total is 5632 MiB
+(5888 MiB while kafka-init runs), under the 8 GiB cap. Do not start gateway/identity/... on top of it. Going back: stop it and
+start the normal stack without `docker-compose.crawl.yml`.
+
 ## Limits to know
 
 - The catalog map plus the configured pages come to about 153 pages per Foodstuffs chain and 137 for Woolworths (first pages

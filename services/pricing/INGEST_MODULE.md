@@ -81,6 +81,25 @@ caller for `breaker-cooldown` (PT6H), doubling per consecutive trip to `breaker-
 wins. `DailyPageBudget.reserve` returns 0 while open, so the cron, the startup run and `OnDemandRefreshService` (which reports
 the chain as `skipped`; `IngestScheduler.isChainBlocked`) share one gate. Details: `docs/features/price-engine-reliability.md`.
 
+### Parallel chains (`app.ingest.parallel-chains`)
+
+Default `false`: `runAll()` crawls New World, PAK'nSave and Woolworths one after another on ONE shared `Browser`, guarded by
+one fair `ReentrantLock` (Playwright objects are not thread-safe). With `STOCKER_INGEST_PARALLEL_CHAINS=true` the scheduled
+and startup run start one daemon thread per chain (`ingest-newworld`, ...) and wait for all three. Each chain has its own
+Playwright driver + headless Firefox, started on first use (`ChainBrowsers` / `PerChainBrowsers`; the shared `Browser`
+and `Playwright` beans are not created in this mode) and its own lock. Pacing, `DailyPageBudget` and `CrawlBreaker` were
+already per chain and stay independent: a breaker trip, a failure or a browser that fails to start in one chain is logged
+and the other two carry on. On-demand refresh (`refreshCategories`) takes the chain's own lock in both modes, so it never
+runs two scrapes on one Browser, and in parallel mode does not wait for another chain's scrape. Spring closes every browser
+and driver on shutdown (`PerChainBrowsers.close()`, one failing close does not skip the rest). Browsers stay open between
+runs (idle Firefox is a few hundred MiB each).
+
+Memory: three Firefox instead of one. Use `docker-compose.crawl.yml` (pricing 4608m, `shm_size` 768m, heap 25%) only when
+the other services are stopped; the normal limit (2304m) is sized for one Firefox. Exact command in
+`docs/features/price-engine-reliability.md`. Wall-clock time of a full crawl drops to roughly the slowest chain; the
+per-chain page rate (20-40 s pause) and the 140 pages/chain/day cap are unchanged, so each supermarket sees no more load
+than before.
+
 ## Pagination, crawl order and the daily cap
 
 - **Pagination (New World, PAK'nSAVE).** Live probe 2026-10-20 (`PaginationLiveProbeTest`, `chips-nuts--snacks`): every
@@ -252,6 +271,7 @@ WARN makes the gap visible instead of hiding it.
 STOCKER_INGEST_ENABLED=false             # launches Playwright/Firefox when true - see Known Risks
 STOCKER_INGEST_DRY_RUN=true              # true = scrape + log only, never persist
 STOCKER_INGEST_CRON="0 0 3 * * *"
+STOCKER_INGEST_PARALLEL_CHAINS=false     # true = three chains at once, one Firefox each (~3x browser memory)
 
 STOCKER_INGEST_NEWWORLD_ENABLED=false
 STOCKER_INGEST_NEWWORLD_STORE_ID=

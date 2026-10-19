@@ -18,6 +18,12 @@ public class IngestProperties {
 	private String cron = "0 0 3 * * *";
 	private String cronZone = "Pacific/Auckland";
 	private boolean runOnStartup = false;
+	/**
+	 * Crawl the three chains at the same time (one thread and one Firefox per chain) instead of one after another.
+	 * Needs roughly three times the browser memory: see docker-compose.crawl.yml. Pacing, the daily page budget and the
+	 * circuit breaker stay per chain.
+	 */
+	private boolean parallelChains = false;
 	private int navigationTimeoutSeconds = 30;
 	/** Most pages (pg=1,2,...) walked for one multi-page category; every page after the first counts against the daily cap. */
 	private int maxPagesPerCategory = 8;
