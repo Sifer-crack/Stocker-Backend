@@ -126,6 +126,33 @@ class ProductSearchControllerTest {
 	}
 
 	@Test
+	void statusAndPerChainRefreshStateArePassedThrough() {
+		when(stub.searchProducts(any(SearchProductsRequest.class))).thenReturn(SearchProductsResponse.newBuilder()
+				.setQuery(ParsedQuery.newBuilder().setTerm("shaoxingshiye cooking wine 2.5L"))
+				.setMatchMethod("generic-fallback").setStatus("refreshing")
+				.putRefresh("newworld", "pending").putRefresh("paknsave", "done").putRefresh("woolworths", "skipped")
+				.build());
+
+		webTestClient.get().uri("/api/pricing/products?term=x&itemId=i")
+				.exchange().expectStatus().isOk().expectBody()
+				.jsonPath("$.matchMethod").isEqualTo("generic-fallback")
+				.jsonPath("$.status").isEqualTo("refreshing")
+				.jsonPath("$.refresh.newworld").isEqualTo("pending")
+				.jsonPath("$.refresh.paknsave").isEqualTo("done")
+				.jsonPath("$.refresh.woolworths").isEqualTo("skipped");
+	}
+
+	@Test
+	void noRefreshInFlightIsAnEmptyObjectNotNull() {
+		when(stub.searchProducts(any(SearchProductsRequest.class))).thenReturn(SearchProductsResponse.newBuilder()
+				.setQuery(ParsedQuery.newBuilder().setTerm("quinoa")).setMatchMethod("lexical").setStatus("not-found").build());
+
+		webTestClient.get().uri("/api/pricing/products?term=quinoa&itemId=i").exchange().expectBody(String.class)
+				.value(body -> org.assertj.core.api.Assertions.assertThat(body)
+						.contains("\"status\":\"not-found\"").contains("\"refresh\":{}"));
+	}
+
+	@Test
 	void invalidArgumentBecomes422WithTheMessage() {
 		when(stub.searchProducts(any(SearchProductsRequest.class)))
 				.thenThrow(Status.INVALID_ARGUMENT.withDescription("term and itemId are required").asRuntimeException());

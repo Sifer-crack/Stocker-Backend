@@ -10,6 +10,7 @@ import com.stocker.pricing.normalize.ParsedQuery;
 import com.stocker.pricing.normalize.ProductNormalizer;
 import com.stocker.pricing.normalize.QueryParser;
 import com.stocker.pricing.refresh.OnDemandRefreshService;
+import com.stocker.pricing.refresh.RefreshState;
 import com.stocker.pricing.service.cache.PricingCacheProperties;
 import com.stocker.pricing.service.match.ItemPriceStore;
 import com.stocker.pricing.service.match.NameMatcher;
@@ -56,6 +57,13 @@ public class ProductSearchService {
 	public static final int MAX_ALTERNATIVES = 5;
 	public static final String METHOD_CANONICAL = "canonical";
 	public static final String METHOD_LEXICAL = "lexical";
+	/** Nothing matched every word; the products below share the product-type words and ignore brand-like words and size. */
+	public static final String METHOD_GENERIC = "generic-fallback";
+
+	public static final String STATUS_FOUND = "found";
+	public static final String STATUS_ALTERNATIVES_ONLY = "alternatives-only";
+	public static final String STATUS_REFRESHING = "refreshing";
+	public static final String STATUS_NOT_FOUND = "not-found";
 
 	/** Words that mark a product as a variant of the plain one; a plain search ranks them after the plain product. */
 	private static final Set<String> VARIANT_WORDS = Set.of("lite", "light", "trim", "skim", "skimmed", "a2",
@@ -75,8 +83,13 @@ public class ProductSearchService {
 			String unit, BigDecimal unitPrice, String cheapestChainId, Map<String, ChainPrice> prices) {
 	}
 
+	/**
+	 * @param status  found | alternatives-only | refreshing | not-found (see docs/features/price-search-v2.md)
+	 * @param refresh per-chain state of the background refresh (lower-case chain id -> pending|done|failed|skipped);
+	 *                empty when no refresh is known for this search
+	 */
 	public record SearchResult(Query query, String matchMethod, boolean stale, List<Product> products,
-			List<Product> alternatives) {
+			List<Product> alternatives, String status, Map<String, String> refresh) {
 	}
 
 	public record SelectedProduct(String itemId, String productKey, List<String> chains) {
@@ -163,6 +176,14 @@ public class ProductSearchService {
 			}
 		}
 		SearchResult result = assemble(term, query, common, categoryHint, pool, max, stale);
+		if (result.products().isEmpty() && (result.alternatives().isEmpty() || METHOD_LEXICAL.equals(pool.method))) {
+			// nothing matched every word: the products that share the product-type words beat partial word overlaps
+			Pool generic = genericPool(common, query, since);
+			if (generic != null) {
+				result = assemble(term, query, common, categoryHint, generic, max, stale);
+			}
+		}
+		result = withStatus(result, progress(common, term));
 		if (result.products().isEmpty() && result.alternatives().isEmpty()) {
 			persistExecutor.execute(() -> {
 				try {
@@ -207,7 +228,7 @@ public class ProductSearchService {
 		if (listings.isEmpty()) {
 			throw new ProductNotFoundException(productKey);
 		}
-		store.store(itemId, listings);
+		store.replace(itemId, listings);
 		return new SelectedProduct(itemId, productKey,
 				listings.stream().map(row -> row.getChainId().toLowerCase(Locale.ROOT)).sorted().toList());
 	}
@@ -298,6 +319,93 @@ public class ProductSearchService {
 		return new Pool(METHOD_LEXICAL, group(scored));
 	}
 
+	/**
+	 * Nothing matched every query word: drop the words no stored product has (a brand nobody lists) and the size, then
+	 * the leading modifier words one by one (never below the last two words), and offer the products that contain all
+	 * the words left. They are alternatives only (never {@code products}) and never dishes or condiments made with the
+	 * product ("Rice Wine Vinegar" is not wine).
+	 */
+	private Pool genericPool(CommonProduct common, ParsedQuery query, OffsetDateTime since) {
+		Map<NormalizedProduct, Set<String>> wordsOf = new LinkedHashMap<>();
+		Set<String> vocabulary = new LinkedHashSet<>();
+		for (NormalizedProduct row : snapshot.findByCapturedAtAfter(since)) {
+			if (usable(row)) {
+				Set<String> words = ProductNormalizer.words(row.getDisplayName());
+				wordsOf.put(row, words);
+				vocabulary.addAll(words);
+			}
+		}
+		List<String> known = query.words().stream().filter(vocabulary::contains).toList();
+		if (known.isEmpty()) {
+			return null;
+		}
+		int floor = Math.min(2, known.size());
+		for (int from = 0; known.size() - from >= floor; from++) {
+			List<String> tokens = known.subList(from, known.size());
+			Set<String> tokenSet = new LinkedHashSet<>(tokens);
+			List<Scored> scored = new ArrayList<>();
+			for (Map.Entry<NormalizedProduct, Set<String>> entry : wordsOf.entrySet()) {
+				NormalizedProduct row = entry.getKey();
+				if (!entry.getValue().containsAll(tokenSet)) {
+					continue;
+				}
+				String name = row.getDisplayName();
+				if (followedByDishWord(ProductNormalizer.wordList(name), tokenSet, query.words())
+						|| (common != null && !catalog.accepts(common, name, query.words()))) {
+					continue;
+				}
+				double relevance = NameMatcher.wordScore(
+						new ParsedQuery(String.join(" ", tokens), tokenSet, tokens, null, null, null), name);
+				scored.add(new Scored(row, ProductIdentity.canonical(row), Math.max(relevance, 0.01), false, false, 0));
+			}
+			if (!scored.isEmpty()) {
+				return new Pool(METHOD_GENERIC, group(scored));
+			}
+		}
+		return null;
+	}
+
+	/** A dish or condiment word AFTER the last product-type word ("Rice Wine Vinegar"); "Cooking Rice Wine" is fine. */
+	private static boolean followedByDishWord(List<String> productWords, Set<String> tokens, Set<String> asked) {
+		int last = -1;
+		for (int i = 0; i < productWords.size(); i++) {
+			if (tokens.contains(productWords.get(i))) {
+				last = i;
+			}
+		}
+		for (int i = last + 1; i < productWords.size(); i++) {
+			String word = productWords.get(i);
+			if (CommonProductCatalog.DISH_WORDS.contains(word) && !asked.contains(word)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** found / alternatives-only / refreshing / not-found, plus the per-chain refresh states. */
+	private SearchResult withStatus(SearchResult result, Map<ChainId, RefreshState> progress) {
+		Map<String, String> refresh = new TreeMap<>();
+		progress.forEach((chain, state) -> refresh.put(chain.name().toLowerCase(Locale.ROOT), state.wire()));
+		boolean pending = progress.containsValue(RefreshState.PENDING);
+		String status = !result.products().isEmpty() ? STATUS_FOUND
+				: pending ? STATUS_REFRESHING
+				: !result.alternatives().isEmpty() ? STATUS_ALTERNATIVES_ONLY
+				: STATUS_NOT_FOUND;
+		return new SearchResult(result.query(), result.matchMethod(), result.stale(), result.products(),
+				result.alternatives(), status, Map.copyOf(refresh));
+	}
+
+	private Map<ChainId, RefreshState> progress(CommonProduct common, String term) {
+		Map<ChainId, RefreshState> merged = new java.util.EnumMap<>(ChainId.class);
+		if (common != null) {
+			merged.putAll(refreshService.progressForCommon(common));
+		}
+		refreshService.progressForTerm(term).forEach((chain, state) -> merged.merge(chain, state,
+				(a, b) -> a == RefreshState.PENDING || b == RefreshState.PENDING ? RefreshState.PENDING
+						: a.compareTo(b) <= 0 ? a : b));
+		return merged;
+	}
+
 	/** Chains without an eligible product, or whose product is old: they get the term's one category page loaded. */
 	private Set<ChainId> chainsNeedingRefresh(Pool pool) {
 		Set<ChainId> needed = new LinkedHashSet<>(List.of(ChainId.values()));
@@ -343,7 +451,8 @@ public class ProductSearchService {
 				new Query(term, List.copyOf(query.words()), query.measure() == null ? null : query.measure().label(),
 						query.count() == null ? null : query.count().quantity().intValue(),
 						query.eggGrade() == null ? null : query.eggGrade().toString(), category),
-				pool.method, stale, products, alternatives.stream().map(group -> toProduct(group, staleBefore)).toList());
+				pool.method, stale, products, alternatives.stream().map(group -> toProduct(group, staleBefore)).toList(),
+				STATUS_NOT_FOUND, Map.of());
 	}
 
 	private Product toProduct(Group group, OffsetDateTime staleBefore) {

@@ -5,6 +5,7 @@ import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.PlaywrightException;
+import com.microsoft.playwright.Response;
 import com.microsoft.playwright.options.Cookie;
 import com.stocker.pricing.fetch.model.RawProduct;
 import com.stocker.pricing.ingest.ChainId;
@@ -15,6 +16,7 @@ import com.stocker.pricing.ingest.model.ScrapeException;
 import com.stocker.pricing.ingest.model.ScrapeResult;
 import com.stocker.pricing.ingest.parse.FoodstuffsProductCardExtractor;
 import com.stocker.pricing.ingest.parse.ProductCardFields;
+import com.stocker.pricing.ingest.impl.PaginatedCategoryWalker.LoadedPage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -100,19 +102,27 @@ public class FoodstuffsChainScraper implements ChainScraper {
 				}
 				firstPage = false;
 				try {
-					page.navigate(categoryUrl);
-					waitForProductCards(page);
-					List<Locator> cards = page.locator(PRODUCT_CARD_SELECTOR).all();
+					PaginatedCategoryWalker<ProductCardFields> walker = new PaginatedCategoryWalker<>(
+							config.getMaxPagesPerCategory(), config.getExtraPageGate(),
+							() -> ScrapePacer.pauseBetweenPages(config), () -> config.getCancellation().isCancelled());
+					PaginatedCategoryWalker.Walk<ProductCardFields> walk = walker.walk(categoryUrl, url -> loadPage(page, url));
 					visited.add(categoryUrl);
-					if (cards.isEmpty()) {
+					if (walk.items().isEmpty()) {
 						zeroResultCategoryUrls.add(categoryUrl);
 						log.warn("{}: zero product cards found at {} (selector may be stale, see class javadoc)",
 								chainId, categoryUrl);
 						continue;
 					}
-					for (Locator card : cards) {
-						FoodstuffsProductCardExtractor.parse(extractFields(card), chainId, config.getStoreId())
-								.ifPresent(products::add);
+					for (ProductCardFields fields : walk.items()) {
+						FoodstuffsProductCardExtractor.parse(fields, chainId, config.getStoreId()).ifPresent(products::add);
+					}
+					if (walk.extraPages() > 0) {
+						log.info("{}: {} had {} product(s) over {} pages", chainId, categoryUrl, walk.items().size(),
+								walk.pagesLoaded());
+					}
+					if (walk.warning() != null) {
+						warnings.add(walk.warning());
+						log.warn("{}: {}", chainId, walk.warning());
 					}
 				} catch (PlaywrightException e) {
 					String warning = "Failed to scrape " + categoryUrl + ": " + e.getMessage();
@@ -131,6 +141,22 @@ public class FoodstuffsChainScraper implements ChainScraper {
 				.zeroResultCategoryUrls(zeroResultCategoryUrls)
 				.warnings(warnings)
 				.build();
+	}
+
+	/** Loads one category page and reads its tiles plus the visible text (for the "Showing A - B of M" line). */
+	private LoadedPage<ProductCardFields> loadPage(Page page, String url) {
+		Response response = page.navigate(url);
+		int status = response == null ? 200 : response.status();
+		if (status == 403 || status == 429 || status == 503) {
+			throw new PlaywrightException("HTTP " + status + " (blocked or rate limited) at " + url);
+		}
+		waitForProductCards(page);
+		List<ProductCardFields> cards = new ArrayList<>();
+		for (Locator card : page.locator(PRODUCT_CARD_SELECTOR).all()) {
+			cards.add(extractFields(card));
+		}
+		String text = cards.isEmpty() ? "" : page.locator("body").innerText();
+		return new LoadedPage<>(cards, text);
 	}
 
 	/**

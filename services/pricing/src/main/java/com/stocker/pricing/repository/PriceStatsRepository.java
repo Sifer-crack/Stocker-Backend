@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PriceStatsRepository extends JpaRepository<PriceStats, UUID> {
@@ -12,6 +13,9 @@ public interface PriceStatsRepository extends JpaRepository<PriceStats, UUID> {
 	Optional<PriceStats> findByItemIdAndStoreId(String itemId, String storeId);
 
 	List<PriceStats> findByItemId(String itemId);
+
+	@Transactional
+	void deleteByItemId(String itemId);
 
 	List<PriceStats> findByItemIdIn(Collection<String> itemIds);
 }

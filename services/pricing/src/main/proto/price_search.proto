@@ -28,6 +28,10 @@ message SearchProductsResponse {
   bool stale = 3;
   repeated Product products = 4;
   repeated Product alternatives = 5;
+  // found | alternatives-only | refreshing | not-found (docs/features/price-search-v2.md)
+  string status = 6;
+  // per-chain background refresh state, key = lower-case chain id, value = pending | done | failed | skipped; empty = none known
+  map<string, string> refresh = 7;
 }
 
 message ParsedQuery {

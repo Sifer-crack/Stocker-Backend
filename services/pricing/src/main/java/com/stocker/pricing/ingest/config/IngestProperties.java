@@ -1,5 +1,6 @@
 package com.stocker.pricing.ingest.config;
 
+import com.stocker.pricing.ingest.DailyPageBudget;
 import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
@@ -16,7 +17,8 @@ public class IngestProperties {
 	private String cronZone = "Pacific/Auckland";
 	private boolean runOnStartup = false;
 	private int navigationTimeoutSeconds = 30;
-	private int maxPagesPerCategory = 5;
+	/** Most pages (pg=1,2,...) walked for one multi-page category; every page after the first counts against the daily cap. */
+	private int maxPagesPerCategory = 8;
 	private int sitemapCacheTtlDays = 7;
 	/** Random pause between two page loads on the same chain (politeness / rate limit). */
 	private long pageDelayMinMillis = 4000;
@@ -28,7 +30,18 @@ public class IngestProperties {
 	/** 0 = every configured category on each run (full daily coverage). */
 	private int maxCategoriesPerRun = 0;
 	/** Hard cap on category pages loaded per chain per Auckland day, scheduled and on-demand together. */
-	private int maxPagesPerChainPerDay = 80;
+	private int maxPagesPerChainPerDay = DailyPageBudget.DEFAULT_CAP_PER_CHAIN;
+	/**
+	 * When the category list is longer than the day's budget, this many pages are held back from the first page of
+	 * each category so the later pages of multi-page staples can still be walked.
+	 */
+	private int extraPagesReservePerRun = 20;
+	/** A page crawled less than this many hours ago goes to the back of the queue (cut first when the cap bites). */
+	private int recrawlFreshnessHours = 20;
+	/** Add sitemap category pages that match a staple keyword to the crawl (unverified; CategoryHealth drops dead ones). */
+	private boolean stapleDiscoveryEnabled = true;
+	/** Most sitemap-discovered staple pages added per chain. */
+	private int maxDiscoveredPagesPerChain = 40;
 	/** Consecutive zero-product runs of one category page before it is quarantined. */
 	private int quarantineAfterZeroRuns = 2;
 	/** Days a quarantined page is skipped before it is retried once. */

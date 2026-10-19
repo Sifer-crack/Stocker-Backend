@@ -1,0 +1,906 @@
+URL: https://www.paknsave.co.nz/shop/category/pantry/chips-nuts--snacks?pg=10
+TILES: 50
+SHOWING: Showing 451 - 500 of 520 products
+
+PAGINATION MARKUP: [<nav role="navigation" aria-label="pagination"><ul class="_3a8x9c0"><li><a href="?pg=9" data-testid="pagination-decrement" theme="secondary" class="_1c9qavo0 _1c9qavo2 _1c9qavoa"><span data-testid="visually-hidden" class="_1dfig0v0">Previous page</span><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M14.2322 6.32438C14.0371 6.34284 13.8663 6.41892 13.7186 6.55321C13.6896 6.57962 12.6342 7.63338 11.3733 8.89491C9.80672 10.4624 9.0687 11.204 9.0424 11.2371C8.89823 11.419 8.81141 11.6236 8.78095 11.8534C8.77762 11.8785 8.7749 11.9454 8.7749 12.0022C8.7749 12.059 8.77762 12.1259 8.78095 12.151C8.81141 12.3807 8.8982 12.5853 9.04239 12.7673C9.08785 12.8246 13.7077 17.4472 13.7622 17.4899C13.8792 17.5815 14.0043 17.6405 14.1348 17.6657C14.399 17.7167 14.6552 17.661 14.8585 17.5083C14.9042 17.474 14.9802 17.4012 15.0191 17.3544C15.1937 17.1447 15.2598 16.8726 15.204 16.5928C15.1788 16.4661 15.1207 16.342 15.0348 16.231C15.0215 16.2138 14.0666 15.2553 12.9126 14.101L10.8146 12.0022L12.9126 9.90339C14.0666 8.74906 15.0215 7.79055 15.0348 7.77339C15.1207 7.6624 15.1788 7.53829 15.204 7.41156C15.2598 7.13177 15.1937 6.85967 15.0191 6.64995C14.8209 6.41185 14.5393 6.29533 14.2322 6.32438Z" fill="currentColor"></path></svg></a></li><li aria-hidden="true" class="_3a8x9c3"></li><li class="_3a8x9c3"><a aria-current="false" href="/shop/category/pantry/chips-nuts--snacks" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">1</p></a></li><li aria-hidden="true" class="_3a8x9c3"><span>…</span></li><li class="_3a8x9c3"><a aria-current="false" href="?pg=7" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">7</p></a></li><li aria-hidden="true" class="_3a8x9c3"></li><li class="_3a8x9c3"><a aria-current="false" href="?pg=8" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">8</p></a></li><li aria-hidden="true" class="_3a8x9c3"></li><li class="_3a8x9c3"><a aria-current="false" href="?pg=9" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">9</p></a></li><li aria-hidden="true" class="_3a8x9c3", <a href="?pg=9" data-testid="pagination-decrement" theme="secondary" class="_1c9qavo0 _1c9qavo2 _1c9qavoa"><span data-testid="visually-hidden" class="_1dfig0v0">Previous page</span><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M14.2322 6.32438C14.0371 6.34284 13.8663 6.41892 13.7186 6.55321C13.6896 6.57962 12.6342 7.63338 11.3733 8.89491C9.80672 10.4624 9.0687 11.204 9.0424 11.2371C8.89823 11.419 8.81141 11.6236 8.78095 11.8534C8.77762 11.8785 8.7749 11.9454 8.7749 12.0022C8.7749 12.059 8.77762 12.1259 8.78095 12.151C8.81141 12.3807 8.8982 12.5853 9.04239 12.7673C9.08785 12.8246 13.7077 17.4472 13.7622 17.4899C13.8792 17.5815 14.0043 17.6405 14.1348 17.6657C14.399 17.7167 14.6552 17.661 14.8585 17.5083C14.9042 17.474 14.9802 17.4012 15.0191 17.3544C15.1937 17.1447 15.2598 16.8726 15.204 16.5928C15.1788 16.4661 15.1207 16.342 15.0348 16.231C15.0215 16.2138 14.0666 15.2553 12.9126 14.101L10.8146 12.0022L12.9126 9.90339C14.0666 8.74906 15.0215 7.79055 15.0348 7.77339C15.1207 7.6624 15.1788 7.53829 15.204 7.41156C15.2598 7.13177 15.1937 6.85967 15.0191 6.64995C14.8209 6.41185 14.5393 6.29533 14.2322 6.32438Z" fill="currentColor"></path></svg></a>, <a aria-current="false" href="/shop/category/pantry/chips-nuts--snacks" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">1</p></a>, <p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">1</p>, <a aria-current="false" href="?pg=7" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">7</p></a>, <p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">7</p>, <a aria-current="false" href="?pg=8" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">8</p></a>, <p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">8</p>, <a aria-current="false" href="?pg=9" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">9</p></a>, <p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">9</p>, <a aria-current="page" href="?pg=10" data-testid="pagination-number" theme="tertiary" class="_1c9qavo0 _1c9qavo3 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">10</p></a>, <p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">10</p>, <a aria-current="false" href="?pg=11" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">11</p></a>, <p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">11</p>, <p data-testid="pagination-mobile" class="_10e5eu850">Page 10 of 11</p>, <a href="?pg=11" data-testid="pagination-increment" theme="secondary" class="_1c9qavo0 _1c9qavo2 _1c9qavoa"><span data-testid="visually-hidden" class="_1dfig0v0">Next page</span><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M9.58358 6.32427C9.37564 6.34393 9.20145 6.4243 9.04904 6.57088C8.86196 6.75082 8.77019 6.96506 8.77002 7.22223C8.76989 7.42212 8.82927 7.60096 8.949 7.76128C8.96803 7.78677 9.68378 8.50601 11.0782 9.90088L13.1787 12.0021L11.0782 14.1033C9.68378 15.4981 8.96803 16.2174 8.949 16.2429C8.82901 16.4036 8.76989 16.5816 8.77002 16.7819C8.77019 17.0391 8.86196 17.2533 9.04904 17.4333C9.12775 17.509 9.1936 17.5552 9.28605 17.5995C9.41885 17.6632 9.58644 17.6936 9.73566 17.6811C9.9223 17.6654 10.0637 17.613 10.2076 17.5061C10.2335 17.4869 11.0058 16.7178 12.5889 15.1346C15.111 12.6125 14.9648 12.7615 15.0415 12.6357C15.1038 12.5335 15.1632 12.3862 15.1896 12.2685C15.2109 12.1736 15.2178 12.1079 15.2178 12.0021C15.2178 11.935 15.2152 11.8854 15.2096 11.8461C15.1767 11.6146 15.082 11.3974 14.9395 11.2261C14.8798 11.1545 10.2546 6.53297 10.2076 6.49803C10.0255 6.3627 9.81041 6.30281 9.58358 6.32427Z" fill="currentColor"></path></svg></a>]
+
+BODY TEXT (first 6000 chars):
+Skip to main content
+
+Your store is PAK'nSAVE Royal Oak
+
+Choose a timeslot
+
+Log in or join
+
+Hi there,
+
+You’re currently shopping from PAK'nSAVE Royal Oak.
+Change store
+Start shopping
+Close
+Search
+0
+
+$0.00
+
+Groceries
+Deals
+My Lists
+More
+
+Pantry
+
+Chips, Nuts & Snacks
+
+Chips, Nuts & Snacks
+
+Chips
+
+Corn Chips & Salsa
+
+Muesli & Snack Bars
+
+Nuts & Trail Mixes
+
+Popcorn
+
+Nutritional Bars & Snacks
+
+Meat Snacks
+
+Vege & Savoury Snacks
+
+Show more
+
+Categories
+Categories
+Dietary
+Dietary
+Brands
+Brands
+
+Deals only
+
+Sorted by:
+Relevance
+
+Tasti Choc Chip Oat Baked Squares
+
+150g
+
+3
+
+59
+
+ea
+
+$2.39/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Natural Abundance Almond Apple Crumble Superfoods Brekkie Bars
+
+100G
+
+6
+
+49
+
+ea
+
+$6.49/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Calbee Harvest Snaps Salt & Vinegar Flavour Baked Pea Crisps
+
+120g
+
+2
+
+99
+
+ea
+
+$2.49/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Calbee Hooleys Original Onion Flavour Chips
+
+90g
+
+3
+
+99
+
+ea
+
+$4.43/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Calbee Harvest Snaps Wasabi Flavour Baked Pea Crisps
+
+120g
+
+5.0 out of 5 stars. 1 review for Calbee Harvest Snaps Wasabi Flavour Baked Pea Crisps.
+
+2
+
+99
+
+ea
+
+$2.49/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Calbee Harvest Snaps Original Salted Baked Pea Crisps
+
+120g
+
+2
+
+99
+
+ea
+
+$2.49/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Ceres Organics Salted Pea Chips
+
+100g
+
+3
+
+99
+
+ea
+
+$3.99/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Ceres Organics Salt & Vinegar Pea Chips
+
+100g
+
+3
+
+99
+
+ea
+
+$3.99/100g
+
+Add to list
+Quantity
+ea
+Add
+
+NinetyNine Street Casstavas Sour Cream & Chives Multipack
+
+12 x 8g
+
+4
+
+99
+
+ea
+
+$5.20/100g
+
+Add to list
+Quantity
+ea
+Add
+
+NinetyNine Street Casstavas Original Single Serve Multi Pack
+
+12 x 8g
+
+4
+
+99
+
+ea
+
+$5.20/100g
+
+Add to list
+Quantity
+ea
+Add
+
+NinetyNine Street Casstavas Single Serve Multi Pack
+
+12 x 8g
+
+4
+
+99
+
+ea
+
+$5.20/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Nibblish Gently Baked Mango
+
+80g
+
+5
+
+99
+
+ea
+
+$74.88/1kg
+
+Add to list
+Quantity
+ea
+Add
+
+Kettle Chip Company Honey Soy Chicken Potato Chips
+
+5 x 22g
+
+3
+
+69
+
+ea
+
+$3.35/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Kettle Chip Company Original Sea Salt Potato Chips
+
+5 x 22g
+
+3
+
+69
+
+ea
+
+$3.35/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Eta Uppercuts Sea Salt Potato Chips
+
+6 x 18g
+
+3
+
+69
+
+ea
+
+$3.42/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Eta Uppercuts Sea Salt & Balsamic Vinegar Potato Chips
+
+6 x 18g
+
+3
+
+69
+
+ea
+
+$3.42/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Iddy Biddy Fruit Bits Disney Princess Mixed Berry Flavoured Snacks
+
+8 x 20g
+
+3
+
+59
+
+ea
+
+$2.24/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Tasti Protein Fix Triple Chocolate Bars
+
+5 x 45g
+
+6
+
+09
+
+ea
+
+$2.71/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Tasti Protein Fix Salted Caramel Bars
+
+5 x 45g
+
+6
+
+09
+
+ea
+
+$2.71/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Tasti Protein Fix Peanut Butter Bars
+
+5 x 45g
+
+6
+
+09
+
+ea
+
+$2.71/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Nibblish Raspberry Pure Fruit Swirls
+
+5 x 20g
+
+3
+
+00
+
+ea
+
+$3.00/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Nibblish Strawberry Pure Fruit Swirls
+
+5 x 20g
+
+5
+
+99
+
+ea
+
+$5.99/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Sunbites Grain Waves Sweet Chilli Wholegrain Chips
+
+140g
+
+2
+
+19
+
+ea
+
+$1.56/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Tom & Luke Triple Chocolate Brownie Choc 66% Dark Chocolate Coated Snackaballs
+
+128g
+
+6
+
+89
+
+ea
+
+$5.38/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bumper Peanut Chocolate Extreme Protein Trail Bites
+
+5 x 37g
+
+6
+
+99
+
+ea
+
+$3.78/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Noshu Low Carb Peanut & Caramel Nougat Indulgence Bars
+
+5 x 32g
+
+7
+
+79
+
+ea
+
+$4.87/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Noshu Low Carb Cherry & Coconut Indulgence Bars
+
+5 x 32g
+
+7
+
+79
+
+ea
+
+$4.87/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Tasti Fruit + Vege Strawberry & Beetroot Wholefood Balls
+
+207g
+
+5
+
+49
+
+ea
+
+$2.65/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Old El Paso Hot Chunky Salsa Dip
+
+312g
+
+4
+
+49
+
+ea
+
+$1.44/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Old El Paso Mild Chunky Salsa Dip
+
+312g
+
+4
+
+49
+
+ea
+
+$1.44/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Mother Earth Lightly Salted Roasted Deluxe Mixed Nuts
+
+400g
+
+13
+
+29
+
+ea
+
+$3.32/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Delisio English Deli-Style Sea Salt Potato Chips
+
+140g
+
+3
+
+09
+
+ea
+
+$2.21/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Delisio Thai Style Sweet Chilli Relish Potato Chips
+
+140g
+
+3
+
+09
+
+ea
+
+$2.21/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Delisio Tuscan Style Caramelised Onion & Balsamic Vinegar Potato Chips
+
+140g
+
+3
+
+09
+
+ea
+
+$2.21/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Ceres Organics Original Organic Seaweed Mulitpack
+
+6 x 5g
+
+8
+
+99
+
+ea
+
+$29.97/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Pams Butter Flavour Microwave Popcorn
+
+85g
+
+1
+
+19
+
+ea
+
+$1.40/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Pams Butter Flavour Microwave Popcorn
+
+3 x 85g
+
+3
+
+49
+
+ea
+
+$1.37/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Pams Extra Butter Flavour Microwave Popcorn
+
+85g
+
+1
+
+19
+
+ea
+
+$1.40/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Pams Sweet & Salty Microwave Popcorn
+
+3 x 85g
+
+3
+
+49
+
+ea
+
+$1.37/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Pams Sweet & Salty Microwave Popcorn
+
+85g
+
+1
+
+19
+
+ea
+
+$1.40/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Pams Extra Butter Flavour Microwave Popcorn
+
+3 x 85g
+
+3
+
+49
+
+ea
+
+$1.37/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Tostitos Rounds Mild Mexican Salsa Tortilla Chips
+
+290g
+
+4
+
+49
+
+ea
+
+$1.55/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Tostitos Rounds Lightly Salted Tortilla Chips
+
+290g
+
+4
+
+49
+
+ea
+
+$1.55/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Heartland Extreme Crunch Sweet Chilli Kettle Waves Potato Chips
+
+150g
+
+4
+
+19
+
+ea
+
+$2.79/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Heartland Extreme Crunch Southern Sea Salt Kettle Waves Potato Chips
+
+150g
+
+4
+
+19
+
+ea
+
+$2.79/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Heartland Extreme Crunch Maple Bacon Kettle Waves Potato Chips
+
+150g
+
+4
+
+19
+
+ea
+
+$2.79/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Heartland Extreme Crunch Apple Cider Vinegar Kettle Waves Potato Chips
+
+150g
+
+4
+
+19
+
+ea
+
+$2.79/100g
+
+Add to list
+Quantity
+ea
+Add
+
+2 for
+
+5.
+
+00
+
+$2.31/100g
+
+See all
+
+Bluebird Twisties Cheese Corn Snacks Multipack
+
+6 x 18g
+
+2
+
+99
+
+ea
+
+$2.77/100g
+
+Add to list
+Quantity
+ea
+Add
+
+2 for
+
+5.
+
+00
+
+$2.78/100g
+
+See all
+
+Bluebird Delisio Thai Style Swee

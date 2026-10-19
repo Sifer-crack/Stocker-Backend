@@ -16,7 +16,7 @@ milk-uht|dairy|UHT milk|uht milk;long life milk|milk|1l|coconut;soy;oat;almond
 milk-powder|dairy|Milk powder|milk powder;powdered milk|milk|900g|
 milk-condensed|dairy|Condensed milk|condensed milk;sweetened condensed|condensed|395g|
 milk-evaporated|dairy|Evaporated milk|evaporated milk|evaporated|410g|
-cream|dairy|Cream|cream;whipping cream;thickened cream;pouring cream|cream|300ml|coconut;sour;cheese;ice;cracker
+cream|dairy|Cream|cream;whipping cream;thickened cream;pouring cream|cream|300ml|coconut;sour;cheese;ice;cracker;reduced
 sour-cream|dairy|Sour cream|sour cream|cream|250g|
 butter|dairy|Butter|butter;salted butter;unsalted butter|butter|500g|peanut;almond;nut;cookie;biscuit;chicken;bean;cashew
 margarine|dairy|Margarine spread|margarine;spread;flora;olivani|spread|500g|
@@ -73,8 +73,8 @@ limes|fruit|Limes|lime|lime|1kg|juice
 pears|fruit|Pears|pear;nashi|pear|1kg|
 kiwifruit|fruit|Kiwifruit|kiwifruit;gold kiwifruit;green kiwifruit|kiwifruit|1kg|
 grapes|fruit|Grapes|grape;seedless grape|grape|500g|juice
-strawberries|fruit|Strawberries|strawberry|strawberr|250g|jam;yogurt;milk;ice
-blueberries|fruit|Blueberries|blueberry|blueberr|125g|jam;yogurt;muffin
+strawberries|fruit|Strawberries|strawberry|strawberr|250g|jam;yogurt;milk;ice;frozen
+blueberries|fruit|Blueberries|blueberry|blueberr|125g|jam;yogurt;muffin;frozen
 avocado|fruit|Avocado|avocado;hass avocado|avocado|1pk|oil
 mango|fruit|Mango|mango|mango|1pk|chutney;juice;pickle
 pineapple|fruit|Pineapple|pineapple|pineapple|1pk|juice;canned
@@ -94,7 +94,7 @@ ginger|vegetable|Ginger|ginger;fresh ginger|ginger|100g|beer;ale;nut;biscuit;pow
 carrots|vegetable|Carrots|carrot|carrot|1kg|cake;juice
 tomatoes|vegetable|Tomatoes|tomato;truss tomato;cherry tomato;roma tomato|tomato|500g|canned;paste;sauce;puree;chopped;diced;crushed;passata;soup;relish
 cucumber|vegetable|Cucumber|cucumber|cucumber|1pk|pickled
-lettuce|vegetable|Lettuce|lettuce;iceberg;cos lettuce|lettuce|1pk|
+lettuce|vegetable|Lettuce|lettuce;iceberg;cos lettuce;mixed green;salad leaves;salad mix;mesclun;rocket;baby leaves|lettuce|1pk|
 broccoli|vegetable|Broccoli|broccoli|broccoli|500g|
 cauliflower|vegetable|Cauliflower|cauliflower|cauliflower|1pk|
 cabbage|vegetable|Cabbage|cabbage;chinese cabbage|cabbage|1pk|kimchi
@@ -115,7 +115,7 @@ chilli|vegetable|Fresh chilli|chilli;red chilli|chilli|50g|sauce;powder;flake;oi
 rice-white|grains|White rice|rice;white rice;long grain rice;jasmine rice;basmati rice|rice|1kg|cake;cracker;noodle;paper;wine;vinegar;milk;bubble;fried;egg
 rice-brown|grains|Brown rice|brown rice|rice|1kg|
 flour|baking|Flour|flour;plain flour;wheat flour;high grade flour;self raising flour;all purpose flour|flour|1.5kg|almond;rice;coconut;corn;gluten
-sugar|baking|White sugar|sugar;white sugar;caster sugar;fine sugar|sugar|1.5kg|brown;icing;rock;free;cane;syrup
+sugar|baking|White sugar|sugar;white sugar;caster sugar;fine sugar|sugar|1.5kg|brown;icing;rock;free;cane;syrup;raw;demerara
 sugar-brown|baking|Brown sugar|brown sugar|sugar|500g|
 sugar-icing|baking|Icing sugar|icing sugar|sugar|500g|
 baking-powder|baking|Baking powder|baking powder|baking|100g|
@@ -123,17 +123,17 @@ baking-soda|baking|Baking soda|baking soda;bicarb soda;bicarbonate|baking|200g|
 vanilla|baking|Vanilla essence|vanilla essence;vanilla extract|baking|50ml|
 cocoa|baking|Cocoa powder|cocoa;cocoa powder|baking|250g|
 oats|breakfast|Rolled oats|oat;rolled oat;porridge oat;oats|oats|1kg|milk;drink;biscuit;bar
-cereal|breakfast|Breakfast cereal|cereal;cornflake;muesli;granola|cereal|500g|bar
+cereal|breakfast|Breakfast cereal|cereal;cornflake;muesli;granola;corn flake;rice bubble;rice snap;cocoa pop;bran flake;special k;nutri grain|cereal|500g|bar
 pasta|pasta|Dried pasta|pasta;spaghetti;penne;fusilli;macaroni;linguine;lasagne|pasta|500g|sauce;salad;noodle
-noodles|pasta|Instant noodles|noodle;instant noodle;ramen;udon|noodle|5pk|
+noodles|pasta|Instant noodles|noodle;instant noodle;ramen;udon;mi goreng;goreng;cup noodle;noodle cup;cup ramen;ramen cup;instant lunch;cup noodle soup;instant noodle soup;ramen noodle soup;udon soup;noodle soup cup|noodle|5pk|
 pasta-sauce|pantry|Pasta sauce|pasta sauce;bolognese sauce;tomato pasta sauce|pasta-sauce|500g|
-tomatoes-canned|pantry|Canned tomatoes|canned tomato;tinned tomato;chopped tomato;diced tomato;crushed tomato;peeled tomato|canned|400g|
+tomatoes-canned|pantry|Canned tomatoes|canned tomato;tinned tomato;chopped tomato;diced tomato;crushed tomato;peeled tomato;passata;pureed tomato;tomato puree canned|canned|400g|
 tomato-paste|pantry|Tomato paste|tomato paste;tomato puree|sauce|140g|
-tomato-sauce|pantry|Tomato sauce|tomato sauce;ketchup|sauce|500ml|
-beans-baked|pantry|Baked beans|baked bean;spaghetti;baked beans|canned|420g|
+tomato-sauce|pantry|Tomato sauce|tomato sauce;ketchup|sauce|500ml|baked
+beans-baked|pantry|Baked beans|baked bean;spaghetti;baked beans;baked bean tomato sauce;baked bean sauce|canned|420g|
 beans-canned|pantry|Canned beans|kidney bean;black bean;chickpea;cannellini;lentil;canned bean|canned|400g|
-corn-canned|pantry|Canned corn|canned corn;creamed corn;corn kernel|canned|420g|
-soup|pantry|Soup|soup;packet soup;canned soup|soup|1pk|
+corn-canned|pantry|Canned corn|canned corn;creamed corn;corn kernel;creamed sweetcorn;canned sweetcorn|canned|420g|
+soup|pantry|Soup|soup;packet soup;canned soup;noodle soup;chicken noodle soup|soup|1pk|
 peanut-butter|pantry|Peanut butter|peanut butter|spread|380g|
 jam|pantry|Jam|jam;strawberry jam;raspberry jam;marmalade|spread|375g|
 honey|pantry|Honey|honey;manuka honey|honey|500g|mustard
@@ -143,7 +143,7 @@ oil-olive|pantry|Olive oil|olive oil;extravirgin olive oil|oil|500ml|spray
 oil-vegetable|pantry|Vegetable oil|vegetable oil;canola oil;sunflower oil;cooking oil;rice bran oil|oil|1l|olive;sesame;spray;peanut;mustard;chilli
 oil-peanut|pantry|Peanut oil|peanut oil|oil|1l|
 oil-sesame|pantry|Sesame oil|sesame oil|oil|150ml|
-vinegar|pantry|Vinegar|vinegar;white vinegar;malt vinegar;balsamic vinegar|vinegar|750ml|
+vinegar|pantry|Vinegar|vinegar;white vinegar;malt vinegar|vinegar|750ml|
 soy-sauce|pantry|Soy sauce|soy sauce;soya sauce|asian|500ml|
 sauce-sweet-chilli|pantry|Sweet chilli sauce|sweet chilli sauce;chilli sauce|sauce|300ml|
 sauce-bbq|pantry|BBQ sauce|bbq sauce;barbecue sauce|sauce|500ml|
@@ -160,12 +160,12 @@ garam-masala|pantry|Garam masala|garam masala|spice|100g|
 masala-blend|pantry|Masala and curry blends|masala;tandoori masala;meat masala;curry powder;sambhar masala|spice|100g|garam
 nutmeg|pantry|Nutmeg|nutmeg|spice|50g|
 chilli-powder|pantry|Chilli powder|chilli powder;kashmiri chilli;cayenne;cayenne pepper;chilli flake|spice|100g|
-dried-herbs|pantry|Dried herbs|oregano;mixed herb;thyme;basil dried;parsley dried;coriander seed|spice|20g|
+dried-herbs|pantry|Dried herbs|oregano;mixed herb;thyme;basil dried;parsley dried;coriander seed;rosemary;bay leaves;ground coriander;dried basil;sage;dill;parsley flake|spice|20g|
 almonds|snacks|Almonds|almond;raw almond;sliced almond;almond kernel|nut|500g|milk;flour;butter;oil;drink
 cashews|snacks|Cashews|cashew;cashew nut|nut|500g|milk;butter
 walnuts|snacks|Walnuts|walnut|nut|200g|
 peanuts|snacks|Peanuts|peanut;roasted peanut;peanut kernel|nut|500g|butter;oil;sauce
-mixed-nuts|snacks|Mixed nuts|mixed nut;pistachio;macadamia;hazelnut;brazil nut;pecan|nut|200g|butter;milk;oil;flour;spread;chocolate
+mixed-nuts|snacks|Mixed nuts|mixed nut;pistachio;macadamia;hazelnut;brazil nut;pecan;pine nut;nut mix;trail mix|nut|200g|butter;milk;oil;flour;spread;chocolate
 chips|snacks|Potato chips|chip;potato chip;crisp;corn chip;pringles|chip|150g|
 crackers|snacks|Crackers|cracker;rice cracker;water cracker;cruskit;vita weat|cracker|200g|
 biscuits|snacks|Biscuits|biscuit;chocolate biscuit;cream biscuit;shortbread;digestive|biscuit|200g|
@@ -204,14 +204,53 @@ mochi|frozen|Mochi|mochi|frozen-dessert|1pk|
 ghee|dairy|Ghee|ghee|butter|500g|
 syrup|pantry|Maple and golden syrup|maple syrup;golden syrup;syrup|honey|250ml|cough;chocolate;coffee;cordial
 corn-starch|baking|Corn starch|corn starch;cornflour;corn flour;starch;cassava starch|flour|400g|
-cooking-wine|pantry|Cooking wine|cooking wine;shaoxing wine|asian|500ml|
+cooking-wine|pantry|Cooking wine|cooking wine;shaoxing wine;shao xing wine;shao xing;shaoxing;rice wine;mirin|asian|500ml|vinegar
 miso|pantry|Miso|miso;miso paste|asian|300g|
 chocolate-pie|snacks|Chocolate pie|chocolate pie;choco pie|biscuit|6pk|
 rock-sugar|baking|Rock sugar|rock sugar;rock candy;rock suger|sugar|500g|
-instant-ramen|pasta|Korean instant ramen|ramen;shin ramyun;buldak|noodle|5pk|
+instant-ramen|pasta|Korean instant ramen|ramen;shin ramyun;buldak;cup noodle;noodle cup;instant lunch;cup noodle soup;ramen noodle soup;instant noodle soup;yakisoba;sapporo ichiban|noodle|5pk|
 # --- branded high-traffic NZ items (own key = own price line; each needs a category-map.txt line) ---
 tim-tams|snacks|Tim Tams|tim tam;tim tams;timtam|biscuit|200g|
-weetbix|breakfast|Weet-Bix|weet bix;weetbix;weet-bix|cereal|375g|
-milo|drinks|Milo|milo|chocolate|400g|
+weetbix|breakfast|Weet-Bix|weet bix;weetbix;weet-bix;wheat biscuit|cereal|375g|
+milo|drinks|Milo|milo;malt drink;chocolate malt drink|chocolate|400g|
 dairy-milk|snacks|Cadbury Dairy Milk|cadbury dairy milk;dairy milk chocolate;dairy milk block;dairy milk|chocolate|180g|
 pineapple-lumps|snacks|Pineapple Lumps|pineapple lumps;pineapple lump|confectionery|180g|
+# --- staples from docs/features/coverage-staples.md (community list + PAK'nSAVE pantry staples) ---
+spaghetti-canned|pantry|Canned spaghetti|canned spaghetti;watties spaghetti;spaghetti tomato sauce;spaghetti sauce;spaghetti in sauce;heinz spaghetti|canned|420g|
+sausages-pork|meat|Pork sausages|pork sausage;pork sausages;thick pork sausage|sausage|1kg|
+sugar-raw|baking|Raw sugar|raw sugar;demerara sugar;golden sugar|sugar|1.5kg|
+garlic-crushed|pantry|Crushed garlic|crushed garlic;minced garlic;garlic paste;chopped garlic|garlic|250g|
+garlic-powder|pantry|Garlic powder|garlic powder;garlic granule|spice|50g|
+ginger-ground|pantry|Ground ginger|ground ginger;ginger powder|spice|30g|
+vinegar-apple-cider|pantry|Apple cider vinegar|apple cider vinegar;cider vinegar|vinegar|750ml|
+vinegar-balsamic|pantry|Balsamic vinegar|balsamic vinegar;balsamic|vinegar|250ml|
+pretzels|snacks|Pretzels|pretzel|chip|250g|
+dried-apricots|dried-fruit|Dried apricots|dried apricot;apricot|dried-fruit|250g|jam;canned;nectar;juice;yogurt;halve
+gravy|pantry|Gravy mix|gravy;gravy mix;gravox|gravy|200g|
+grains-other|grains|Quinoa, couscous, bulgur and polenta|quinoa;couscous;cous cous;bulgur;polenta;cornmeal;semolina|grains|500g|
+salmon-canned|seafood|Canned salmon|canned salmon;tinned salmon;pink salmon;red salmon|canned-fish|210g|
+beetroot-canned|pantry|Canned beetroot|beetroot;sliced beetroot;baby beetroot|canned|425g|
+corned-beef|pantry|Corned beef|corned beef|canned-meat|340g|
+creamed-rice|pantry|Creamed rice|creamed rice;rice pudding|canned|425g|
+cream-reduced|dairy|Reduced cream|reduced cream;nestle cream|condensed|250g|
+cream-uht|dairy|Long life cream|long life cream;uht cream;longlife cream|milk|250ml|
+fruit-canned|pantry|Canned fruit|canned peach;canned pear;canned apple;canned pineapple;canned fruit;fruit salad;peach slice;peach halve;pear halve;pear slice;pineapple slice;pineapple piece;pineapple chunk;apricot halve;canned apricot;sliced peach;diced peach;sliced pear;diced pear;peach piece|canned-fruit|410g|
+olives|pantry|Olives|olive;kalamata olive;green olive;black olive|olives|350g|oil;tapenade
+capers|pantry|Capers|caper;capers|olives|100g|
+worcestershire|pantry|Worcestershire sauce|worcestershire sauce;worcestershire;lea perrins|worcestershire|150ml|
+asian-sauces|pantry|Hoisin, oyster and fish sauce|hoisin sauce;hoisin;oyster sauce;fish sauce;teriyaki sauce;black bean sauce|asian|250ml|
+hot-sauce|pantry|Hot sauce|hot sauce;tabasco;sriracha;sambal;sambal oelek;sriracha chilli sauce;hot chilli sauce|hot-sauce|150ml|
+pickles|pantry|Pickles, gherkins and relish|pickle;pickled gherkin;gherkin;dill pickle;relish;chutney|pickles|350g|
+curry-paste|pantry|Curry paste|curry paste;red curry paste;green curry paste;laksa paste;korma paste;tikka paste;thai curry paste|curry-paste|400g|
+apple-sauce|pantry|Apple sauce|apple sauce;applesauce|fruit-sauce|440g|
+lemon-juice|pantry|Lemon and lime juice|lemon juice;lime juice|juice|250ml|
+salad-dressing|pantry|Salad dressing|salad dressing;ranch dressing;caesar dressing;french dressing;italian dressing;vinaigrette|dressing|500ml|
+flour-gluten-free|baking|Gluten free flour|gluten free flour;gluten free plain flour;gluten free self raising flour|gluten-free|500g|
+yeast|baking|Yeast|yeast;dried yeast;instant yeast;active yeast|baking|50g|
+cream-of-tartar|baking|Cream of tartar|cream of tartar|baking|50g|
+gelatine|baking|Gelatine|gelatine;gelatin;gelatine powder|baking|25g|
+kale|vegetable|Kale|kale;cavolo nero|spinach|1pk|chip
+corn-frozen|frozen|Frozen sweetcorn|frozen corn;frozen sweetcorn;frozen corn kernel;corn kernel frozen|frozen-vegetable|1kg|
+fruit-frozen|frozen|Frozen fruit|frozen berry;frozen mixed berry;frozen blueberry;frozen raspberry;frozen strawberry;frozen mango;frozen peach;frozen fruit;frozen mixed fruit|frozen-fruit|500g|
+pastry-frozen|frozen|Frozen pastry|puff pastry;flaky pastry;shortcrust pastry;pastry sheet;filo pastry;pastry|frozen-pastry|1kg|pie
+pizza-base|bakery|Pizza bases|pizza base;pizza bases|pizza-bases|2pk|

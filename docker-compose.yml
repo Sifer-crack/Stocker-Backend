@@ -161,6 +161,13 @@ services:
       # on-demand refresh of stale pages (default on; it shares the same daily page budget as the crawl).
       STOCKER_INGEST_RUN_ON_STARTUP: ${STOCKER_INGEST_RUN_ON_STARTUP:-false}
       STOCKER_PRICING_ON_DEMAND_ENABLED: ${STOCKER_PRICING_ON_DEMAND_ENABLED:-true}
+      # Crawl load limits (see docs/features/price-engine-reliability.md). 140 pages per chain per Auckland day is the
+      # hard cap for the scheduled crawl and on-demand refresh together; extra pages of a multi-page category count too.
+      STOCKER_INGEST_MAX_PAGES_PER_CHAIN_PER_DAY: ${STOCKER_INGEST_MAX_PAGES_PER_CHAIN_PER_DAY:-140}
+      STOCKER_INGEST_MAX_PAGES_PER_CATEGORY: ${STOCKER_INGEST_MAX_PAGES_PER_CATEGORY:-8}
+      STOCKER_INGEST_EXTRA_PAGES_RESERVE_PER_RUN: ${STOCKER_INGEST_EXTRA_PAGES_RESERVE_PER_RUN:-20}
+      STOCKER_INGEST_STAPLE_DISCOVERY_ENABLED: ${STOCKER_INGEST_STAPLE_DISCOVERY_ENABLED:-true}
+      STOCKER_INGEST_MAX_DISCOVERED_PAGES_PER_CHAIN: ${STOCKER_INGEST_MAX_DISCOVERED_PAGES_PER_CHAIN:-40}
     ports:
       - "8084:8084"
       - "9094:9094"
