@@ -28,6 +28,7 @@
 - `ShoppingUpdatesControllerTest` (`@SpringBootTest`, real signed JWTs) covers token rejection, per-user isolation and the pushed payload.
 - `HealthzControllerTest` (`@WebFluxTest`, no broker needed); `PricingControllerCompareTest`
   (`@WebFluxTest` + `@MockitoBean` stub) covers the success shape and the 422 error-mapping path.
+- Client abort -> `Mono` dispose -> boundedElastic thread interrupted -> blocking gRPC call CANCELLED -> pricing's call Context cancelled. Verified for search/compare/match by `PricingControllerCancellationTest` (real gRPC server on loopback); keep every blocking stub call inside `Mono.fromCallable(...).subscribeOn(boundedElastic)`.
 
 ## Stubbed / TODO
 

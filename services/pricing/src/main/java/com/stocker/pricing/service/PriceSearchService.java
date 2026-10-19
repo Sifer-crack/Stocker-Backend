@@ -1,6 +1,7 @@
 package com.stocker.pricing.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.stocker.pricing.cancel.CancellationToken;
 import com.stocker.pricing.domain.port.EventPublisher;
 import com.stocker.pricing.fetch.WebFetcher;
 import com.stocker.pricing.fetch.model.RawProduct;
@@ -11,6 +12,7 @@ import com.stocker.pricing.repository.PriceRecordRepository;
 import com.stocker.pricing.service.cache.PriceCache;
 import com.stocker.pricing.service.cache.PricingCacheProperties;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -67,15 +69,30 @@ public class PriceSearchService {
 	 * refresh to the async Kafka consumer rather than blocking the caller further.
 	 */
 	public List<PriceRecord> search(String searchTerm, String itemId, List<String> storeUrls, String category) {
+		return search(searchTerm, itemId, storeUrls, category, CancellationToken.current());
+	}
+
+	/**
+	 * As above, for a request that may be abandoned: once {@code cancellation} is cancelled no provider call is
+	 * started, the one in flight is dropped, and no refresh request is queued for a caller that is gone.
+	 */
+	public List<PriceRecord> search(String searchTerm, String itemId, List<String> storeUrls, String category,
+			CancellationToken cancellation) {
+		if (cancellation.isCancelled()) {
+			return List.of();
+		}
 		List<PriceRecord> cached = safeGetFresh(itemId);
 		if (!cached.isEmpty()) {
 			log.info("Cache hit for itemId={}", itemId);
 			return cached;
 		}
+		if (cancellation.isCancelled()) {
+			return List.of();
+		}
 
-		Future<List<PriceRecord>> future =
-				priceFallbackExecutor.submit(() -> refreshFromProvider(searchTerm, itemId, storeUrls, category));
-		try {
+		Future<List<PriceRecord>> future = priceFallbackExecutor
+				.submit(() -> refreshFromProvider(searchTerm, itemId, storeUrls, category, cancellation));
+		try (CancellationToken.Registration ignored = cancellation.onCancel(() -> future.cancel(true))) {
 			return future.get(cacheProperties.getFallback().getTimeout().toMillis(), TimeUnit.MILLISECONDS);
 		} catch (TimeoutException e) {
 			future.cancel(true);
@@ -83,6 +100,10 @@ public class PriceSearchService {
 			publishRefreshRequest(searchTerm, itemId, storeUrls, category);
 			return safeGetStale(itemId);
 		} catch (Exception e) {
+			if (cancellation.isCancelled() || e instanceof CancellationException) {
+				log.info("Fallback fetch for itemId={} cancelled with its request", itemId);
+				return List.of();
+			}
 			log.error("Fallback fetch failed for itemId={}, term={}; deferring to async refresh", itemId, searchTerm, e);
 			publishRefreshRequest(searchTerm, itemId, storeUrls, category);
 			return safeGetStale(itemId);
@@ -97,10 +118,18 @@ public class PriceSearchService {
 	 */
 	public List<PriceRecord> refreshFromProvider(String searchTerm, String itemId, List<String> storeUrls,
 			String category) {
+		return refreshFromProvider(searchTerm, itemId, storeUrls, category, CancellationToken.NONE);
+	}
+
+	/** As above; throws {@link CancellationException} without calling the provider if {@code cancellation} is cancelled. */
+	public List<PriceRecord> refreshFromProvider(String searchTerm, String itemId, List<String> storeUrls,
+			String category, CancellationToken cancellation) {
+		cancellation.throwIfCancelled();
 		WebFetchRequest request = WebFetchRequest.builder()
 				.searchTerm(searchTerm)
 				.storeUrls(storeUrls)
 				.category(category)
+				.cancellation(cancellation)
 				.build();
 		List<RawProduct> products = webFetcher.fetch(request);
 		List<PriceRecord> saved = products.stream()
