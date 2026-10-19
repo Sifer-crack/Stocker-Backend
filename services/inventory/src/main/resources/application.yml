@@ -37,6 +37,9 @@ management:
         include: health,info,prometheus
 
 app:
+  catalog:
+    # Pantry add looks products up in catalog over REST (service-to-service). Compose passes http://catalog:8082.
+    base-url: ${STOCKER_CATALOG_URL:http://localhost:8082}
   kafka:
     consumer:
       topics: stocker.household.events.v1,stocker.catalog.events.v1,stocker.shopping.events.v1,stocker.promotions.events.v1,stocker.pricing.events.v1

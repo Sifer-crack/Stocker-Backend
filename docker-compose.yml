@@ -3,23 +3,6 @@ name: stocker
 services:
   # --- infrastructure ---
 
-  postgres:
-    image: postgres:17
-    environment:
-      POSTGRES_USER: stocker
-      POSTGRES_PASSWORD: stocker
-      POSTGRES_DB: stocker
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stocker -d stocker"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   kafka:
     image: apache/kafka:4.3.1
     environment:
@@ -82,9 +65,10 @@ services:
       - pricing
       - catalog
       - inventory
+      - shopping
+      - notifications
 
-  # identity talks to Neon (see .env.example), not the local postgres below —
-  # so it waits on kafka only. catalog/shopping still use local postgres.
+  # Every service talks to its own Neon database (see .env.example); there is no local Postgres.
   identity:
     build:
       context: .
@@ -106,6 +90,8 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
   catalog:
     build:
@@ -117,13 +103,14 @@ services:
       STOCKER_DB_USER: ${STOCKER_DB_USER}
       STOCKER_DB_PASSWORD: ${STOCKER_DB_PASSWORD}
       SPRING_FLYWAY_ENABLED: "false"
-
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
       - "8082:8082"
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
   shopping:
     build:
@@ -146,6 +133,8 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
   pricing:
     build:
@@ -172,10 +161,10 @@ services:
       - "8084:8084"
       - "9094:9094"
     depends_on:
-      postgres:
-        condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
   inventory:
     build:
@@ -187,13 +176,16 @@ services:
       STOCKER_DB_URL: ${STOCKER_DB_URL}
       STOCKER_DB_USER: ${STOCKER_DB_USER}
       STOCKER_DB_PASSWORD: ${STOCKER_DB_PASSWORD}
-
+      # Pantry add looks products up in catalog (service-to-service REST, not via the gateway).
+      STOCKER_CATALOG_URL: http://catalog:8082
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
       - "8087:8087"
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
   notifications:
     build:
@@ -207,12 +199,18 @@ services:
       STOCKER_DB_PASSWORD: ${STOCKER_DB_PASSWORD}
       # Service-to-service: the expiring-items list is not exposed through the gateway.
       STOCKER_INVENTORY_URL: http://inventory:8087
+      # How often the expiry scan polls inventory (ISO-8601). Short defaults here so a manual test sees a
+      # notification within about a minute; the production default in application.yml is PT15M.
+      STOCKER_NOTIFICATIONS_SCAN_INTERVAL: ${STOCKER_NOTIFICATIONS_SCAN_INTERVAL:-PT30S}
+      STOCKER_NOTIFICATIONS_SCAN_INITIAL_DELAY: ${STOCKER_NOTIFICATIONS_SCAN_INITIAL_DELAY:-PT10S}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
       - "8085:8085"
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       inventory:
         condition: service_started
 
@@ -228,7 +226,8 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
 volumes:
-  postgres-data:
   kafka-data:

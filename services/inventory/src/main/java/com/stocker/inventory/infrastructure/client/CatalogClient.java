@@ -1,5 +1,6 @@
 package com.stocker.inventory.infrastructure.client;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
@@ -9,8 +10,9 @@ public class CatalogClient {
     private final RestClient restClient;
 
     // use the catalog api
-    public CatalogClient() {
-        this.restClient = RestClient.builder().baseUrl("http://localhost:8082").build();
+    // base URL: STOCKER_CATALOG_URL (docker compose passes http://catalog:8082); default is the local-run value
+    public CatalogClient(@Value("${app.catalog.base-url:http://localhost:8082}") String baseUrl) {
+        this.restClient = RestClient.builder().baseUrl(baseUrl).build();
     }
 
     public ProductResponse findByNameAndUnit(String name, String unit) {
