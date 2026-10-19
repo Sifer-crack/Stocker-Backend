@@ -10,8 +10,17 @@ TIMEOUT="${STACK_UP_TIMEOUT:-420}"
 DOCKER_CTX="$(pick_context)"
 
 echo
-echo "Starting the stack (first run builds every image; this takes several minutes and a lot of memory)..."
-dc up -d --build
+# One image at a time: building all eight in parallel (each runs its own Gradle build) can exhaust memory and crash
+# the machine. Set BUILD_ALL_AT_ONCE=1 to skip this on a machine with plenty of headroom.
+export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-1}"
+if [ "${BUILD_ALL_AT_ONCE:-0}" != "1" ]; then
+  for svc in identity catalog inventory pricing shopping notifications analytics gateway; do
+    echo "Building image: ${svc} ..."
+    dc build "${svc}"
+  done
+fi
+echo "Starting the stack (the first build takes several minutes)..."
+dc up -d
 
 echo
 echo "Waiting up to ${TIMEOUT}s for each /healthz..."

@@ -178,3 +178,5 @@ click and collect 3.50.
 - `notifications` and `analytics` Kafka handling is stubbed; shopping's outbox publisher is a stub.
 - The shopping list's SSE stream (`GET /api/updates/shopping`) is relayed by the gateway, but the frontend does not use it yet.
 - Region/service-area list is a placeholder (auckland, wellington, christchurch) pending sign-off; fees do not model express delivery, surcharges or Club+.
+
+> `scripts/manual-test/stack-up.sh` builds the images **one at a time** (each image runs a Gradle build; all eight at once can exhaust RAM). Close heavy applications first and expect several minutes. Set `BUILD_ALL_AT_ONCE=1` only on a machine with plenty of free memory.
