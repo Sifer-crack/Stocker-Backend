@@ -157,6 +157,10 @@ services:
       # STOCKER_INGEST_DRY_RUN=false to store the rows (the default is dry-run: scrape + log, persist nothing).
       STOCKER_INGEST_ENABLED: ${STOCKER_INGEST_ENABLED:-false}
       STOCKER_INGEST_DRY_RUN: ${STOCKER_INGEST_DRY_RUN:-true}
+      # One extra crawl right after startup (default off: the scheduled crawl runs at 03:00 Auckland time) and the
+      # on-demand refresh of stale pages (default on; it shares the same daily page budget as the crawl).
+      STOCKER_INGEST_RUN_ON_STARTUP: ${STOCKER_INGEST_RUN_ON_STARTUP:-false}
+      STOCKER_PRICING_ON_DEMAND_ENABLED: ${STOCKER_PRICING_ON_DEMAND_ENABLED:-true}
     ports:
       - "8084:8084"
       - "9094:9094"

@@ -1,8 +1,8 @@
 # Resource caps for running the whole stack on a developer machine: at most 8 GiB of RAM and 6 CPU cores in total.
 # Used automatically by scripts/manual-test/stack-up.sh (set STACK_LIMITS=off to run without it).
 #
-# RAM (MiB): gateway/identity/catalog/shopping/inventory/notifications 640 each = 3840, analytics 512, pricing 1536,
-# kafka 1024, kafka-init 256  ->  7168 MiB (7.0 GiB), under the 8 GiB cap with headroom.
+# RAM (MiB): gateway/identity/catalog/shopping/inventory/notifications 640 each = 3840, analytics 384, pricing 2304
+# (the JVM heap plus headless Firefox for the crawl), kafka 1024, kafka-init 256  ->  7808 MiB (7.6 GiB), under 8 GiB.
 # CPU: every container is pinned to cores 0-5 (six cores). The JVMs size their heap from the container limit.
 x-jvm: &jvm
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=65 -XX:+UseSerialGC -Xss512k"
@@ -41,10 +41,13 @@ services:
     cpuset: "0-5"
     environment: *jvm
   analytics:
-    mem_limit: 512m
+    mem_limit: 384m
     cpuset: "0-5"
     environment: *jvm
   pricing:
-    mem_limit: 1536m
+    mem_limit: 2304m
+    shm_size: 256m          # headless Firefox needs more than the 64 MiB default shared memory
     cpuset: "0-5"
-    environment: *jvm
+    environment:
+      # a smaller heap than the other services: the rest of the limit is for Firefox when the crawl is on
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=40 -XX:+UseSerialGC -Xss512k"

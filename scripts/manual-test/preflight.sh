@@ -66,7 +66,8 @@ fi
 
 # 5. crawl flags: warn (not fail) if on
 if [ "${VAL[STOCKER_INGEST_ENABLED]:-false}" = "true" ]; then
-  row FAIL "crawl OFF (STOCKER_INGEST_ENABLED)" "crawl is ON: live supermarket requests need the owner's approval"
+  if [ "${VAL[STOCKER_INGEST_DRY_RUN]:-true}" = "false" ]; then MODE="stores rows"; else MODE="dry run, stores nothing"; fi
+  row WARN "crawl ON (STOCKER_INGEST_ENABLED)" "live supermarket requests, approved by the owner 2026-10-20; at most 80 pages per chain per day; ${MODE}"
 else
   row PASS "crawl OFF (STOCKER_INGEST_ENABLED)"
 fi

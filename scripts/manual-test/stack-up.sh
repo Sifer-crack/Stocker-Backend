@@ -21,7 +21,7 @@ if docker --context "$DOCKER_CTX" buildx inspect stocker-limited >/dev/null 2>&1
   echo "Using the resource-limited builder 'stocker-limited' (4 GiB, cores 0-5)."
 fi
 if [ "${BUILD_ALL_AT_ONCE:-0}" != "1" ]; then
-  for svc in identity catalog inventory pricing shopping notifications analytics gateway; do
+  for svc in ${BUILD_SERVICES:-identity catalog inventory pricing shopping notifications analytics gateway}; do
     echo "Building image: ${svc} ..."
     dc build "${svc}"
   done
