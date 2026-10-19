@@ -17,6 +17,9 @@ import org.slf4j.LoggerFactory;
  * skip it, so it spends none of the capped daily page budget, until the quarantine period is over. It is then retried
  * once; a zero on that retry quarantines it again at once, a non-zero result clears the page.
  *
+ * <p>Site-wide guard: when more than the configured share of the pages visited in one run (at least 4 pages) are
+ * zero, the run is ignored entirely (nothing counted, nothing cleared), as that points at the site, not the pages.
+ *
  * <p>Only a clean zero counts. A page that failed (scrape error, warning, never visited) neither counts as zero nor
  * clears the counter. State is in memory only: a restart forgets every quarantine, and each page then needs the
  * configured number of zero runs again.
@@ -40,10 +43,20 @@ public class CategoryHealth {
 
 	private final int zeroRunsBeforeQuarantine;
 	private final Duration quarantinePeriod;
+	private final double siteWideZeroShare;
 	private final Clock clock;
 	private final Map<Key, State> states = new HashMap<>();
 
+	/** Runs visiting fewer pages than this never trip the site-wide guard. */
+	static final int MIN_PAGES_FOR_GUARD = 4;
+
 	public CategoryHealth(int zeroRunsBeforeQuarantine, Duration quarantinePeriod, Clock clock) {
+		this(zeroRunsBeforeQuarantine, quarantinePeriod, 0.5, clock);
+	}
+
+	public CategoryHealth(int zeroRunsBeforeQuarantine, Duration quarantinePeriod, double siteWideZeroShare,
+			Clock clock) {
+		this.siteWideZeroShare = siteWideZeroShare;
 		this.zeroRunsBeforeQuarantine = Math.max(1, zeroRunsBeforeQuarantine);
 		this.quarantinePeriod = quarantinePeriod;
 		this.clock = clock;
@@ -102,6 +115,14 @@ public class CategoryHealth {
 		}
 		List<String> zero = result.getZeroResultCategoryUrls() == null ? List.of() : result.getZeroResultCategoryUrls();
 		List<String> warnings = result.getWarnings() == null ? List.of() : result.getWarnings();
+		int visited = result.getCategoriesVisited().size();
+		long zeros = result.getCategoriesVisited().stream().filter(zero::contains).count();
+		if (visited >= MIN_PAGES_FOR_GUARD && (double) zeros / visited > siteWideZeroShare) {
+			log.warn("{}: {} of {} visited pages ({}%) returned zero products, treating it as a site-wide problem "
+					+ "(markup change, block page or outage); not counting these zeros toward quarantine",
+					chain, zeros, visited, Math.round(100.0 * zeros / visited));
+			return;
+		}
 		for (String url : result.getCategoriesVisited()) {
 			if (warnings.stream().anyMatch(w -> w != null && w.contains(url))) {
 				continue;

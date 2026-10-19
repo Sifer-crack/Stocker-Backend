@@ -112,6 +112,7 @@ app:
     # A page with this many zero-product runs in a row is skipped for quarantine-days, then retried once (in memory).
     quarantine-after-zero-runs: ${STOCKER_INGEST_QUARANTINE_AFTER_ZERO_RUNS:2}
     quarantine-days: ${STOCKER_INGEST_QUARANTINE_DAYS:7}
+    quarantine-site-wide-zero-share: ${STOCKER_INGEST_QUARANTINE_SITE_WIDE_ZERO_SHARE:0.5}
     newworld:
       enabled: ${STOCKER_INGEST_NEWWORLD_ENABLED:true}
       store-id: ${STOCKER_INGEST_NEWWORLD_STORE_ID:}

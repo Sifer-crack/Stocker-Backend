@@ -34,7 +34,9 @@ The next daily crawl picks the page up. Use `unmatched_search_terms` to find wha
   page budget, and it is then retried once (a zero on the retry quarantines it again at once; products clear it). A page
   that failed with a scrape error or warning is not counted as zero. Quarantine state is in memory only: a restart
   forgets it, so each empty page needs the zero runs again. Quarantined pages are logged (WARN on entry, INFO on retry,
-  and a list at the end of each full run).
+  and a list at the end of each full run). Site-wide guard: if more than half of the pages visited in one run
+  (`quarantine-site-wide-zero-share`, default 0.5; runs under 4 pages are exempt) are zero, that run is ignored for
+  quarantine (one WARN) so a markup change, block page or outage cannot quarantine a whole chain.
 - Copies stored under a caller's item id are written in the background; a `POST /api/pricing/compare` for an item id
   within about a second of its `/match` can see no stored price yet.
 - Neon is in us-east-1; from New Zealand each query costs about 190 ms (Sydney, ap-southeast-2: about 31 ms). The snapshot hides this

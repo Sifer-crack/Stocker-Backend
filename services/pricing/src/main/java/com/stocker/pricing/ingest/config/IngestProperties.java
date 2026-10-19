@@ -33,6 +33,8 @@ public class IngestProperties {
 	private int quarantineAfterZeroRuns = 2;
 	/** Days a quarantined page is skipped before it is retried once. */
 	private int quarantineDays = 7;
+	/** A run (>= 4 pages) with a larger zero share than this is treated as a site-wide problem and ignored. */
+	private double quarantineSiteWideZeroShare = 0.5;
 	private ChainConfig newworld = new ChainConfig();
 	private ChainConfig paknsave = new ChainConfig();
 	private ChainConfig woolworths = new ChainConfig();

@@ -62,7 +62,7 @@ public class IngestScheduler {
 			Clock clock) {
 		this(chainScrapers, browser, properties, priceRecordRepository, priceStatsService, categoryMap, clock,
 				new CategoryHealth(properties.getQuarantineAfterZeroRuns(),
-						Duration.ofDays(properties.getQuarantineDays()), clock));
+						Duration.ofDays(properties.getQuarantineDays()), properties.getQuarantineSiteWideZeroShare(), clock));
 	}
 
 	public IngestScheduler(List<ChainScraper> chainScrapers, Browser browser, IngestProperties properties,

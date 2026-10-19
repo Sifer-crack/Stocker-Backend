@@ -116,4 +116,41 @@ class IngestSchedulerQuarantineTest {
 
 		assertThat(scraped.get(0)).contains(EMPTY);
 	}
+
+	@Test
+	void aSiteWideZeroRunNeverQuarantinesAnything() {
+		// every page empty on every run: 4 of 4 zero trips the guard
+		IngestProperties properties = new IngestProperties();
+		properties.setDryRun(true);
+		properties.setMaxPagesPerChainPerDay(4);
+		properties.getNewworld().setEnabled(true);
+		properties.getNewworld().setCategoryUrls(List.of("a", "b", "c", "d"));
+		List<List<String>> seen = new ArrayList<>();
+		ChainScraper allEmpty = new ChainScraper() {
+			@Override
+			public ChainId chainId() {
+				return ChainId.NEWWORLD;
+			}
+
+			@Override
+			public ScrapeResult scrape(Browser browser, ChainScraperConfig config) {
+				seen.add(config.getCategoryUrls());
+				return ScrapeResult.builder().chainId(ChainId.NEWWORLD).products(List.of())
+						.categoriesVisited(config.getCategoryUrls()).zeroResultCategoryUrls(config.getCategoryUrls())
+						.warnings(List.of()).build();
+			}
+		};
+		CategoryHealth health = new CategoryHealth(2, Duration.ofDays(7), 0.5, clock);
+		IngestScheduler s = new IngestScheduler(List.of(allEmpty), mock(Browser.class), properties,
+				mock(PriceRecordRepository.class), mock(PriceStatsService.class), CategoryMap.empty(), clock, health);
+
+		for (int day = 0; day < 4; day++) {
+			s.runAll();
+			nextDay();
+		}
+
+		assertThat(seen).hasSize(4);
+		assertThat(seen).allSatisfy(pages -> assertThat(pages).hasSize(4));
+		assertThat(health.snapshot()).isEmpty();
+	}
 }

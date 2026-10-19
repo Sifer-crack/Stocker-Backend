@@ -25,7 +25,7 @@ public class IngestSchedulerConfig {
 			PriceStatsService priceStatsService, CategoryMap categoryMap) {
 		Clock clock = Clock.systemUTC();
 		CategoryHealth categoryHealth = new CategoryHealth(properties.getQuarantineAfterZeroRuns(),
-				Duration.ofDays(properties.getQuarantineDays()), clock);
+				Duration.ofDays(properties.getQuarantineDays()), properties.getQuarantineSiteWideZeroShare(), clock);
 		return new IngestScheduler(chainScrapers, browser, properties, priceRecordRepository, priceStatsService,
 				categoryMap, clock, categoryHealth);
 	}

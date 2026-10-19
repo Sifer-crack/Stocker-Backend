@@ -139,4 +139,63 @@ class CategoryHealthTest {
 
 		assertThat(health.isQuarantined(ChainId.NEWWORLD, "https://example.test/x?pg=1")).isTrue();
 	}
+
+	private static List<String> pages(int n) {
+		return java.util.stream.IntStream.range(0, n).mapToObj(i -> "p" + i).toList();
+	}
+
+	@Test
+	void guardTripsAboveTheShareAndCreatesNoQuarantine() {
+		List<String> all = pages(4);
+		for (int i = 0; i < 3; i++) {   // 3 of 4 zero = 75% > 50%
+			health.record(ChainId.NEWWORLD, result(all, List.of("p0", "p1", "p2"), List.of()));
+		}
+		assertThat(health.snapshot()).isEmpty();
+		assertThat(health.isQuarantined(ChainId.NEWWORLD, "p0")).isFalse();
+	}
+
+	@Test
+	void guardDoesNotTripAtTheShare() {
+		List<String> all = pages(4);
+		health.record(ChainId.NEWWORLD, result(all, List.of("p0", "p1"), List.of()));   // exactly 50%
+		health.record(ChainId.NEWWORLD, result(all, List.of("p0", "p1"), List.of()));
+
+		assertThat(health.isQuarantined(ChainId.NEWWORLD, "p0")).isTrue();
+		assertThat(health.isQuarantined(ChainId.NEWWORLD, "p2")).isFalse();
+	}
+
+	@Test
+	void aTrippedRunDoesNotClearExistingCounters() {
+		health.record(ChainId.NEWWORLD, result(pages(4), List.of("p0"), List.of()));          // p0 zero #1
+		health.record(ChainId.NEWWORLD, result(pages(4), List.of("p1", "p2", "p3"), List.of()));   // tripped
+		health.record(ChainId.NEWWORLD, result(pages(4), List.of("p0"), List.of()));          // p0 zero #2
+
+		assertThat(health.isQuarantined(ChainId.NEWWORLD, "p0")).isTrue();
+	}
+
+	@Test
+	void smallRunsNeverTripTheGuard() {
+		List<String> three = pages(3);
+		health.record(ChainId.NEWWORLD, result(three, three, List.of()));
+		health.record(ChainId.NEWWORLD, result(three, three, List.of()));
+
+		assertThat(health.snapshot()).hasSize(3);
+	}
+
+	@Test
+	void guardIsPerChainAndConfigurable() {
+		List<String> all = pages(4);
+		health.record(ChainId.NEWWORLD, result(all, all, List.of()));       // tripped for NEWWORLD
+		health.record(ChainId.PAKNSAVE, result(all, List.of("p0"), List.of()));
+		health.record(ChainId.NEWWORLD, result(all, all, List.of()));
+		health.record(ChainId.PAKNSAVE, result(all, List.of("p0"), List.of()));
+
+		assertThat(health.isQuarantined(ChainId.NEWWORLD, "p0")).isFalse();
+		assertThat(health.isQuarantined(ChainId.PAKNSAVE, "p0")).isTrue();
+
+		CategoryHealth strict = new CategoryHealth(2, Duration.ofDays(7), 0.2, clock);
+		strict.record(ChainId.NEWWORLD, result(all, List.of("p0", "p1"), List.of()));   // 50% > 20%
+		strict.record(ChainId.NEWWORLD, result(all, List.of("p0", "p1"), List.of()));
+		assertThat(strict.snapshot()).isEmpty();
+	}
 }
