@@ -112,30 +112,27 @@ public class ShoppingListComparisonService {
 				? EnumSet.allOf(FulfilmentMethod.class)
 				: EnumSet.copyOf((Collection<FulfilmentMethod>) allowedMethods);
 
+		// A chain that offers methods but none allowed is left out entirely (not returned, not in savings, never
+		// cheapest). A chain that offers no method at all has no fee and stays.
 		List<ChainTotal> chainTotals = new ArrayList<>();
-		// A chain that offers methods but none allowed is excluded (listed last, never recommended). A chain that
-		// offers no method at all has no fee and stays eligible.
-		Set<String> excluded = new java.util.HashSet<>();
 		for (Map.Entry<String, Map<String, PriceStats>> chainEntry : cheapestRowByChainThenItem.entrySet()) {
 			ChainFees fees = fulfilmentProperties.forChain(chainEntry.getKey());
 			ChainTotal total = toChainTotal(chainEntry.getKey(), chainEntry.getValue(), quantitiesByItemId, fees,
 					allowed, island);
-			chainTotals.add(total);
-			if (total.fulfilmentOptions().isEmpty() && fees != null && fees.offersAnyMethod(island)) {
-				excluded.add(total.chainId());
+			boolean noAllowedMethod = total.fulfilmentOptions().isEmpty() && fees != null && fees.offersAnyMethod(island);
+			if (!noAllowedMethod) {
+				chainTotals.add(total);
 			}
 		}
-		chainTotals.sort(Comparator.comparing((ChainTotal c) -> excluded.contains(c.chainId()))
-				.thenComparing(ChainTotal::totalWithFulfilment)
+		chainTotals.sort(Comparator.comparing(ChainTotal::totalWithFulfilment)
 				.thenComparing(ChainTotal::totalAmount)
 				.thenComparing(ChainTotal::chainId));
 
-		List<ChainTotal> eligible = chainTotals.stream().filter(c -> !excluded.contains(c.chainId())).toList();
-		String cheapestChainId = eligible.stream()
+		String cheapestChainId = chainTotals.stream()
 				.filter(ChainTotal::hasFullCoverage)
 				.findFirst()
 				.map(ChainTotal::chainId)
-				.orElseGet(() -> eligible.isEmpty() ? "" : eligible.get(0).chainId());
+				.orElseGet(() -> chainTotals.isEmpty() ? "" : chainTotals.get(0).chainId());
 
 		return new ComparisonResult(chainTotals, cheapestChainId);
 	}

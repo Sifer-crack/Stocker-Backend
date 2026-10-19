@@ -208,39 +208,56 @@ class ShoppingListFulfilmentTest {
 	}
 
 	@Test
-	void aChainThatOffersMethodsButNoneAllowedIsReturnedUnrecommendedAndSortedLast() {
+	void aChainThatOffersMethodsButNoneAllowedIsLeftOutOfTheResultsEntirely() {
 		// "a" is cheaper but only offers click and collect; "b" delivers.
 		var service = serviceWith(Map.of("a", fees(null, "1.00", null), "b", fees("5.00", null, null)),
 				price("a", "8.00"), price("b", "10.00"));
 
 		ComparisonResult result = service.compare(ONE_X, "auckland", Set.of(DELIVERY));
 
-		ChainTotal a = chain(result, "a");
-		assertThat(a.bestOption()).isNull();
-		assertThat(a.fulfilmentOptions()).isEmpty();
-		assertThat(a.totalWithFulfilment()).isEqualByComparingTo("8.00");
+		assertThat(result.chainTotals()).extracting(ChainTotal::chainId).containsExactly("b");
 		assertThat(result.cheapestChainId()).isEqualTo("b");
-		assertThat(result.chainTotals()).extracting(ChainTotal::chainId).containsExactly("b", "a");
 	}
 
 	@Test
-	void excludedChainSortsAfterAnUnconfiguredEligibleChainEvenWhenCheaper() {
+	void anExcludedChainIsDroppedWhileAnUnconfiguredChainStaysWithNoFee() {
 		var service = serviceWith(Map.of("a", fees(null, "1.00", null)), price("a", "5.00"), price("z", "20.00"));
 
 		ComparisonResult result = service.compare(ONE_X, "auckland", Set.of(DELIVERY));
 
-		assertThat(result.chainTotals()).extracting(ChainTotal::chainId).containsExactly("z", "a");
+		assertThat(result.chainTotals()).extracting(ChainTotal::chainId).containsExactly("z");
+		ChainTotal z = chain(result, "z");
+		assertThat(z.bestOption()).isNull();
+		assertThat(z.totalWithFulfilment()).isEqualByComparingTo("20.00");
 		assertThat(result.cheapestChainId()).isEqualTo("z");
 	}
 
 	@Test
-	void whenNoChainIsEligibleThereIsNoRecommendation() {
+	void whenEveryChainIsExcludedTheResultIsEmptyWithNoRecommendation() {
 		var service = serviceWith(Map.of("a", fees(null, "1.00", null)), price("a", "8.00"));
 
 		ComparisonResult result = service.compare(ONE_X, "auckland", Set.of(DELIVERY));
 
 		assertThat(result.cheapestChainId()).isEmpty();
-		assertThat(result.chainTotals()).hasSize(1);
+		assertThat(result.chainTotals()).isEmpty();
+	}
+
+	@Test
+	void anExcludedCheaperChainCannotBeCheapestEvenWithoutFullCoverageElsewhere() {
+		// "b" has only partial coverage; "a" (excluded) has full coverage. The fallback picks the best remaining chain.
+		RequestedItem y = new RequestedItem("y", 1);
+		PriceStats aX = price("a", "5.00");
+		PriceStats aY = price("a", "5.00");
+		aY.setItemId("y");
+		PriceStats bX = price("b", "9.00");
+		when(repository.findByItemIdIn(any())).thenReturn(List.of(aX, aY, bX));
+		var service = new ShoppingListComparisonService(repository, area,
+				properties(Map.of("a", fees(null, "1.00", null), "b", fees("2.00", null, null))));
+
+		ComparisonResult result = service.compare(List.of(new RequestedItem("x", 1), y), "auckland", Set.of(DELIVERY));
+
+		assertThat(result.chainTotals()).extracting(ChainTotal::chainId).containsExactly("b");
+		assertThat(result.cheapestChainId()).isEqualTo("b");
 	}
 
 	@Test

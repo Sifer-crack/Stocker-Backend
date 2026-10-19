@@ -167,10 +167,10 @@ class FulfilmentTiersTest {
 	}
 
 	@Test
-	void paknsaveWithOnlyDeliveryAllowedHasNoOptionAndIsNeverRecommended() {
+	void paknsaveWithOnlyDeliveryAllowedIsLeftOutOfTheResults() {
 		var r = compare(Map.of("paknsave", paknsave(), "woolworths", woolworths()), "auckland", Set.of(DELIVERY),
 				price("paknsave", "10.00"), price("woolworths", "30.00"));
-		assertThat(chain(r, "paknsave").bestOption()).isNull();
+		assertThat(r.chainTotals()).extracting(ChainTotal::chainId).containsExactly("woolworths");
 		assertThat(r.cheapestChainId()).isEqualTo("woolworths");
 	}
 

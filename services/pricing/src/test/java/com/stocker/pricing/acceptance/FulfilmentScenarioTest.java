@@ -99,14 +99,18 @@ class FulfilmentScenarioTest {
 	}
 
 	@Test
-	void deliveryOnlyExcludesPaknsaveWhichOffersNoDelivery() {
+	void deliveryOnlyLeavesPaknsaveOutWhichOffersNoDelivery() {
 		ComparisonResult result = compare(mixedReference(), Set.of(FulfilmentMethod.DELIVERY));
 
-		assertThat(totals(result)).isEqualTo("woolworths=31.70 newworld=33.00 paknsave=17.00");
+		assertThat(totals(result)).isEqualTo("woolworths=31.70 newworld=33.00");
 		assertThat(result.cheapestChainId()).isEqualTo("woolworths");
-		ChainTotal paknsave = result.chainTotals().get(2);
-		assertThat(paknsave.bestOption()).isNull();
-		assertThat(paknsave.fulfilmentOptions()).isEmpty();
+		assertThat(result.chainTotals()).extracting(ChainTotal::chainId).doesNotContain("paknsave");
+
+		// savings cover only the remaining chains: no misleading 14.70 (31.70 - 17.00) for paknsave
+		List<ChainSavings> savings = new SavingsCalculatorService().calculate(result.chainTotals(), "woolworths");
+		assertThat(savings).extracting(ChainSavings::chainId).containsExactly("woolworths", "newworld");
+		assertThat(savings.get(0).savingsAmount()).isEqualByComparingTo("0.80");   // own discount only
+		assertThat(savings.get(1).savingsAmount()).isEqualByComparingTo("-1.30");  // 31.70 - 33.00 + 0
 	}
 
 	private static FulfilmentMethod best(ComparisonResult result, String chain) {

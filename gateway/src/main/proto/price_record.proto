@@ -98,7 +98,7 @@ message StoreTotal {
   // total_amount (the items) plus the cost of the best allowed way of getting them; the recommendation and
   // savings_amount use this. Equals total_amount when no fees apply.
   double total_with_fulfilment = 7;
-  string best_method = 8;       // empty when no allowed method is available for this chain
+  string best_method = 8;       // empty when the chain has no fee data (a chain with no allowed method is omitted from store_totals)
   double fulfilment_cost = 9;   // cost of best_method
   repeated FulfilmentOption fulfilment_options = 10;
 }

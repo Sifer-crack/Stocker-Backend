@@ -200,4 +200,27 @@ class FulfilmentCompareTest {
 				.bodyValue("{\"region\":\"auckland\",\"allowedMethods\":[\"in_store\"],\"items\":[]}")
 				.exchange().expectStatus().isEqualTo(422).expectBody().jsonPath("$.error").isEqualTo(message);
 	}
+
+	@Test
+	void aDeliveryOnlyRequestReturnsOnlyTheChainsPricingKept() {
+		// pricing leaves PAK'nSAVE (click and collect only) out; the gateway passes the list through untouched
+		stub("woolworths",
+				chain("woolworths", 17.70, 0.0, "delivery", 14.0, 31.70, opt("delivery", 14.0, 31.70)),
+				chain("newworld", 19.00, -1.3, "delivery", 14.0, 33.00, opt("delivery", 14.0, 33.00)));
+
+		post("{\"region\":\"auckland\",\"allowedMethods\":[\"delivery\"],\"items\":[{\"itemId\":\"milk\",\"quantity\":2}]}")
+				.jsonPath("$.cheapestChainId").isEqualTo("woolworths")
+				.jsonPath("$.storeTotals.length()").isEqualTo(2)
+				.jsonPath("$.storeTotals[?(@.chainId=='paknsave')]").isEmpty();
+	}
+
+	@Test
+	void whenEveryChainIsExcludedTheResponseHasAnEmptyStoreTotalsArrayNotAnError() {
+		stub("");
+
+		post(BODY_ALL)
+				.jsonPath("$.storeTotals").isArray()
+				.jsonPath("$.storeTotals.length()").isEqualTo(0)
+				.jsonPath("$.cheapestChainId").isEqualTo("");
+	}
 }

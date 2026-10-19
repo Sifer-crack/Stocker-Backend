@@ -40,4 +40,29 @@ class SavingsWithFulfilmentTest {
 
 		assertThat(savingFor(savings, "other")).isEqualByComparingTo("-0.50");   // -2.00 fee + 1.50 discount
 	}
+
+	@Test
+	void savingsCoverOnlyTheChainsThatWereLeftInTheResults() {
+		// the excluded chain is simply not in the list handed to the calculator
+		List<ChainSavings> savings = new SavingsCalculatorService()
+				.calculate(List.of(chain("woolworths", "17.70", "14.00", "0.00"), chain("newworld", "19.00", "14.00", "0.00")),
+						"woolworths");
+
+		assertThat(savings).extracting(ChainSavings::chainId).containsExactly("woolworths", "newworld");
+		assertThat(savingFor(savings, "newworld")).isEqualByComparingTo("-1.30");
+	}
+
+	@Test
+	void whenTheSelectedChainIsNotInTheResultsTheBaselineIsZero() {
+		// Existing behaviour, relied on when the selected chain was excluded: baseline 0, so savings = discount - total.
+		List<ChainSavings> savings = new SavingsCalculatorService()
+				.calculate(List.of(chain("other", "12.00", "3.00", "1.00")), "gone");
+
+		assertThat(savingFor(savings, "other")).isEqualByComparingTo("-14.00");   // 0 - 15.00 + 1.00
+	}
+
+	@Test
+	void anEmptyResultYieldsNoSavings() {
+		assertThat(new SavingsCalculatorService().calculate(List.of(), "any")).isEmpty();
+	}
 }

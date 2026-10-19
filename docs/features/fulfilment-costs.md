@@ -25,8 +25,11 @@ Two special cases:
 - **Chain with no fee configuration at all** (offers no method: unknown chain or empty config): no fee applies. It stays
   eligible with `bestOption = null`, `fulfilmentOptions = []`, `totalWithFulfilment = totalAmount`.
 - **Chain that offers methods but none is allowed** (e.g. PAK'nSAVE offers only click-and-collect and the user allowed
-  only delivery): excluded from the recommendation and sorted after eligible chains, with `bestOption = null`,
-  `fulfilmentOptions = []`, `totalWithFulfilment = totalAmount`. If no chain is eligible, `cheapestChainId` is `""`.
+  only delivery): **left out of the results entirely** - not in `chainTotals` / `store_totals`, not in the savings
+  calculation, never `cheapestChainId`. If every chain is left out, `store_totals` is empty and `cheapestChainId` is `""`
+  (the gateway returns an empty `storeTotals` array, not an error). If the user's `selected_chain_id` was left out, it is
+  still echoed as `effective_selected_chain_id`, but it is not in the results, so the savings baseline is 0 (the existing
+  behaviour for any selected chain that is not in the results): each remaining chain's savings = discount - its total.
 
 ## Config (pricing, `application.yml`) - values are data, not code
 
@@ -74,9 +77,8 @@ same-day collection $9, "free over $150 at select stores"); Club+ requirement.
 - `compare(items, region)` keeps working; add `compare(items, region, Set<FulfilmentMethod> allowedMethods)` (empty/null = all).
   `ShoppingListComparisonService` keeps its 2-argument constructor (empty fees) and gains one taking `FulfilmentProperties`.
 - Sorting and `cheapestChainId`: full-coverage chains first by `totalWithFulfilment` (ties: `totalAmount`, then chain id);
-  if no chain has full coverage, the lowest `totalWithFulfilment` overall. A chain that offers methods but has **no allowed method** is excluded from
-  the recommendation and sorted after the eligible chains (`bestOption = null`, `totalWithFulfilment = totalAmount`);
-  a chain that offers no method at all stays eligible (see Model).
+  if no chain has full coverage, the lowest `totalWithFulfilment` overall. A chain that offers methods but has **no allowed method** is removed from
+  the results altogether; a chain that offers no method at all stays eligible (see Model).
 - `SavingsCalculatorService`: savings = `(selected.totalWithFulfilment - chain.totalWithFulfilment) + discountAmount`.
 
 ## Wire contract
@@ -110,8 +112,8 @@ click-and-collect 3.50.
 - All methods allowed: paknsave C&C 17.00+5.00 = 22.00; woolworths C&C 17.70+3.50 = 21.20 (delivery 31.70); newworld C&C 19.00+5.00 = 24.00
   (delivery 33.00). Order: woolworths 21.20, paknsave 22.00, newworld 24.00 -> cheapest **woolworths**, every `bestMethod` `click_and_collect`.
   PAK'nSAVE has the cheapest shelf but not the cheapest basket.
-- `allowedMethods=[delivery]`: woolworths 31.70, newworld 33.00 -> **woolworths**. PAK'nSAVE offers methods but not delivery, so it is excluded:
-  listed last with `bestMethod` null, no options, `totalWithFulfilment` 17.00.
+- `allowedMethods=[delivery]`: woolworths 31.70, newworld 33.00 -> **woolworths**. PAK'nSAVE offers methods but not delivery, so it is
+  left out of the results (and the savings) entirely.
 - `allowedMethods=[click_and_collect]`: woolworths 21.20, paknsave 22.00, newworld 24.00 -> **woolworths**.
 - Savings relative to a selected paknsave (22.00): woolworths (22.00 - 21.20) + 0.80 discount = 1.60; newworld 22.00 - 24.00 = -2.00.
 - `allowedMethods=["in_store"]` -> INVALID_ARGUMENT "... Valid methods: click_and_collect, delivery".
@@ -157,9 +159,9 @@ Errors: an unknown method name or an out-of-area region is HTTP 422 `{ "error": 
 - Per supermarket: the best method (`bestMethod`, e.g. "Click and collect") and its cost (`fulfilmentCost`), with
   `totalWithFulfilment` as the headline total and `totalAmount` as the "items" line. Optionally list `fulfilmentOptions`
   so the user sees the alternatives.
-- A chain with `bestMethod === null` has no fee applied: either it has no fee data, or it offers none of the chosen
-  methods (then it is sorted last and is never `cheapestChainId`). The wire format does not distinguish the two; do not
-  present a null-method chain as cheapest unless it equals `cheapestChainId`.
+- A chain with `bestMethod === null` has no fee data (no fee applied). A chain that offers methods but none of the
+  chosen ones is not returned at all, so the UI may show fewer supermarkets than before (possibly none: an empty
+  `storeTotals` and `cheapestChainId` `""`; explain that no supermarket offers the chosen methods).
 - The recommendation (`cheapestChainId`) already accounts for fulfilment costs: label it "cheapest including
   delivery/collection" and show its best method. `savingsAmount` is relative to the selected chain's
   `totalWithFulfilment`.

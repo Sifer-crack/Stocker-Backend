@@ -69,7 +69,12 @@ class FulfilmentContractAcceptanceTest {
 	}
 
 	private Capture call(String... allowedMethods) {
+		return callSelecting("", allowedMethods);
+	}
+
+	private Capture callSelecting(String selectedChainId, String... allowedMethods) {
 		CompareShoppingListRequest request = CompareShoppingListRequest.newBuilder().setRegion("auckland")
+				.setSelectedChainId(selectedChainId)
 				.addItems(ShoppingListItem.newBuilder().setItemId("milk").setQuantity(2))
 				.addItems(ShoppingListItem.newBuilder().setItemId("eggs").setQuantity(1))
 				.addItems(ShoppingListItem.newBuilder().setItemId("butter").setQuantity(1))
@@ -120,18 +125,29 @@ class FulfilmentContractAcceptanceTest {
 	}
 
 	@Test
-	void restrictingToDeliveryChangesTheOptionsShownAndExcludesPaknsave() {
+	void restrictingToDeliveryLeavesPaknsaveOutOfTheResponse() {
 		CompareShoppingListResponse response = call("delivery").response;
 
 		assertThat(response.getCheapestChainId()).isEqualTo("woolworths");
 		assertThat(response.getStoreTotalsList()).extracting(StoreTotal::getChainId)
-				.containsExactly("woolworths", "newworld", "paknsave");
+				.containsExactly("woolworths", "newworld");
 		assertThat(chain(response, "woolworths").getTotalWithFulfilment()).isEqualTo(31.7);
 		assertThat(chain(response, "newworld").getTotalWithFulfilment()).isEqualTo(33.0);
-		StoreTotal paknsave = chain(response, "paknsave");
-		assertThat(paknsave.getTotalWithFulfilment()).isEqualTo(17.0);
-		assertThat(paknsave.getBestMethod()).isEmpty();
-		assertThat(paknsave.getFulfilmentOptionsList()).isEmpty();
+		// no misleading 14.70 saving: savings only cover the chains that remain
+		assertThat(response.getStoreTotalsList()).extracting(StoreTotal::getSavingsAmount)
+				.allSatisfy(saving -> assertThat(saving).isLessThan(5.0));
+	}
+
+	@Test
+	void whenTheSelectedChainWasExcludedTheBaselineFallsBackToZero() {
+		CompareShoppingListResponse response = callSelecting("paknsave", "delivery").response;
+
+		assertThat(response.getEffectiveSelectedChainId()).isEqualTo("paknsave");
+		assertThat(response.getStoreTotalsList()).extracting(StoreTotal::getChainId)
+				.containsExactly("woolworths", "newworld");
+		// not in the results, so the baseline is 0 (as for any unknown selected chain): savings = discount - total
+		assertThat(chain(response, "woolworths").getSavingsAmount()).isEqualTo(-30.9);   // 0 - 31.70 + 0.80
+		assertThat(chain(response, "newworld").getSavingsAmount()).isEqualTo(-33.0);
 	}
 
 	@Test
