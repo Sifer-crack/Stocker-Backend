@@ -181,12 +181,20 @@ services:
       dockerfile: services/notifications/Dockerfile
     environment:
       SERVER_PORT: 8085
+      # Own `notifications` database on Neon (same host and role as the other services, see .env.example).
+      STOCKER_DB_URL: ${STOCKER_NOTIFICATIONS_DB_URL}
+      STOCKER_DB_USER: ${STOCKER_DB_USER}
+      STOCKER_DB_PASSWORD: ${STOCKER_DB_PASSWORD}
+      # Service-to-service: the expiring-items list is not exposed through the gateway.
+      STOCKER_INVENTORY_URL: http://inventory:8087
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
       - "8085:8085"
     depends_on:
       kafka:
         condition: service_healthy
+      inventory:
+        condition: service_started
 
   analytics:
     build:

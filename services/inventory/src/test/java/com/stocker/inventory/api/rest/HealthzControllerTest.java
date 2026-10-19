@@ -1,4 +1,4 @@
-package com.stocker.analytics.api.rest;
+package com.stocker.inventory.api.rest;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

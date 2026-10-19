@@ -20,7 +20,7 @@ stubs (`// TODO`), and there is no business logic or auth yet.
 | `catalog`     | 8082 | Postgres (`catalog`)  | produces `stocker.catalog.events.v1`   |
 | `shopping`    | 8083 | Postgres (`shopping`) + Outbox | produces `stocker.shopping.events.v1` |
 | `pricing`     | 8084 | MongoDB               | produces `stocker.pricing.events.v1`   |
-| `notifications` | 8085 | -                   | consumes all event topics              |
+| `notifications` | 8085 | PostgreSQL          | expiry notifications; consumes event topics |
 | `analytics`   | 8086 | -                     | consumes all event topics              |
 
 Event-driven flows, Kafka topic registry, and planned C4 docs live in
