@@ -14,6 +14,9 @@ import java.util.function.IntSupplier;
  */
 public class DailyPageBudget {
 
+	/** Approved by the owner on 2026-10-20 (was 80). */
+	public static final int DEFAULT_CAP_PER_CHAIN = 140;
+
 	private static final ZoneId AUCKLAND = ZoneId.of("Pacific/Auckland");
 
 	private static final class Usage {

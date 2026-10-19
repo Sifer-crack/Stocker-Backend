@@ -100,7 +100,7 @@ app:
     # One extra run right after startup (database + scraping); off by default, used to seed fresh data.
     run-on-startup: ${STOCKER_INGEST_RUN_ON_STARTUP:false}
     navigation-timeout-seconds: 30
-    max-pages-per-category: 5
+    max-pages-per-category: ${STOCKER_INGEST_MAX_PAGES_PER_CATEGORY:8}
     sitemap-cache-ttl-days: ${STOCKER_INGEST_SITEMAP_CACHE_TTL_DAYS:7}
     # Rate limiting: a random pause between two page loads on the same chain, and a cap on category
     # pages per chain per run (the rest are visited on following days).
@@ -108,7 +108,14 @@ app:
     page-delay-max-millis: ${STOCKER_INGEST_PAGE_DELAY_MAX_MILLIS:9000}
     max-categories-per-run: ${STOCKER_INGEST_MAX_CATEGORIES_PER_RUN:0}
     # Hard cap on category pages per chain per Auckland day (scheduled run + on-demand refresh together).
-    max-pages-per-chain-per-day: ${STOCKER_INGEST_MAX_PAGES_PER_CHAIN_PER_DAY:80}
+    max-pages-per-chain-per-day: ${STOCKER_INGEST_MAX_PAGES_PER_CHAIN_PER_DAY:140}
+    # Pages held back from the first pages of the list for the further pages of multi-page categories (?pg=2,3,...).
+    extra-pages-reserve-per-run: ${STOCKER_INGEST_EXTRA_PAGES_RESERVE_PER_RUN:20}
+    # A page crawled less than this many hours ago goes to the back of the daily queue.
+    recrawl-freshness-hours: ${STOCKER_INGEST_RECRAWL_FRESHNESS_HOURS:20}
+    # Add sitemap category pages that match a staple keyword (unverified; dead ones are quarantined by the crawl).
+    staple-discovery-enabled: ${STOCKER_INGEST_STAPLE_DISCOVERY_ENABLED:true}
+    max-discovered-pages-per-chain: ${STOCKER_INGEST_MAX_DISCOVERED_PAGES_PER_CHAIN:40}
     # A page with this many zero-product runs in a row is skipped for quarantine-days, then retried once (in memory).
     quarantine-after-zero-runs: ${STOCKER_INGEST_QUARANTINE_AFTER_ZERO_RUNS:2}
     quarantine-days: ${STOCKER_INGEST_QUARANTINE_DAYS:7}

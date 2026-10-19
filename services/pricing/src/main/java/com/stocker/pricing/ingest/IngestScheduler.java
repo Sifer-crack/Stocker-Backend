@@ -15,13 +15,19 @@ import com.stocker.pricing.service.PriceStatsService;
 import com.stocker.pricing.service.RawProductPriceRecordMapper;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
+import com.stocker.pricing.ingest.sitemap.StapleCategoryMatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -51,6 +57,9 @@ public class IngestScheduler {
 	private final CategoryMap categoryMap;
 	private final Clock clock;
 	private final CategoryHealth categoryHealth;
+	private final Function<ChainId, List<String>> discoveredStaplePages;
+	private final Set<String> stapleKeywords = StapleCategoryMatcher.loadKeywords();
+	private final Map<String, Instant> lastCrawled = new ConcurrentHashMap<>();
 
 	public IngestScheduler(List<ChainScraper> chainScrapers, Browser browser, IngestProperties properties,
 			PriceRecordRepository priceRecordRepository, PriceStatsService priceStatsService) {
@@ -69,6 +78,15 @@ public class IngestScheduler {
 	public IngestScheduler(List<ChainScraper> chainScrapers, Browser browser, IngestProperties properties,
 			PriceRecordRepository priceRecordRepository, PriceStatsService priceStatsService, CategoryMap categoryMap,
 			Clock clock, CategoryHealth categoryHealth) {
+		this(chainScrapers, browser, properties, priceRecordRepository, priceStatsService, categoryMap, clock,
+				categoryHealth, chain -> List.of());
+	}
+
+	/** @param discoveredStaplePages sitemap category pages that match a staple keyword, per chain (offline lookup) */
+	public IngestScheduler(List<ChainScraper> chainScrapers, Browser browser, IngestProperties properties,
+			PriceRecordRepository priceRecordRepository, PriceStatsService priceStatsService, CategoryMap categoryMap,
+			Clock clock, CategoryHealth categoryHealth, Function<ChainId, List<String>> discoveredStaplePages) {
+		this.discoveredStaplePages = discoveredStaplePages;
 		this.categoryHealth = categoryHealth;
 		this.chainScrapers = chainScrapers;
 		this.browser = browser;
@@ -100,36 +118,80 @@ public class IngestScheduler {
 			log.info("{}: ingest disabled, skipping", chainId);
 			return;
 		}
-		List<String> fullList = crawlList(chainId, chainConfig);
+		CrawlLists lists = crawlLists(chainId, chainConfig);
+		List<String> fullList = lists.all();
 		// Quarantined pages are dropped BEFORE the budget window is chosen, so they take no slot in it.
-		List<String> crawlList = withoutQuarantined(chainId, fullList);
-		if (crawlList.isEmpty() && !fullList.isEmpty()) {
+		List<String> priority = withoutQuarantined(chainId, lists.priority());
+		List<String> others = withoutQuarantined(chainId, lists.others());
+		int crawlable = priority.size() + others.size();
+		if (crawlable == 0 && !fullList.isEmpty()) {
 			log.info("{}: all {} category page(s) are quarantined, nothing to crawl", chainId, fullList.size());
 			return;
 		}
-		if (crawlList.isEmpty()) {
+		if (crawlable == 0) {
 			log.warn("{}: no category pages to crawl (see app.ingest.{}.category-urls and category-map.txt)",
 					chainId, chainId.name().toLowerCase());
 			return;
 		}
-		// Every page the catalog lists, within today's page budget; when the list is longer than the budget the
-		// window moves on each day, so every page is refreshed within a few days.
+		// Common products and staples first, then a window of the rest that moves on each day. The first page of every
+		// planned category is reserved up front; the budget left over (extra-pages-reserve-per-run, at most a fifth of what is left) pays for the further pages of multi-page categories.
+		int remaining = pageBudget.remaining(chainId);
 		int window = properties.getMaxCategoriesPerRun() > 0
 				? properties.getMaxCategoriesPerRun()
-				: pageBudget.remaining(chainId);
-		scrapeAndPersist(scraper, chainConfig, selectCategories(crawlList, window, dayNumber()), CancellationToken.NONE);
+				: Math.min(crawlable, Math.max(1, remaining - Math.min(properties.getExtraPagesReservePerRun(), remaining / 5)));
+		List<String> planned = CrawlPlanner.plan(priority, others, lastCrawled,
+				Duration.ofHours(properties.getRecrawlFreshnessHours()), clock.instant(), window, dayNumber());
+		log.info("{}: {} priority + {} other page(s) known, {} planned today (budget left {})", chainId, priority.size(),
+				others.size(), planned.size(), remaining);
+		scrapeAndPersist(scraper, chainConfig, planned, CancellationToken.NONE);
 	}
 
-	/** The configured pages plus every page the catalog map lists for this chain, each once. */
-	private List<String> crawlList(ChainId chainId, ChainConfig chainConfig) {
-		Map<String, String> byPage = new LinkedHashMap<>();
-		for (String url : chainConfig.getCategoryUrls()) {
-			byPage.putIfAbsent(pageKey(url), url);
+	private record CrawlLists(List<String> priority, List<String> others) {
+		List<String> all() {
+			List<String> all = new ArrayList<>(priority);
+			all.addAll(others);
+			return all;
 		}
+	}
+
+	/**
+	 * Priority = the catalogue's category pages, then configured pages and sitemap-discovered pages that match a
+	 * staple keyword; others = the remaining configured pages. Each page once.
+	 */
+	private CrawlLists crawlLists(ChainId chainId, ChainConfig chainConfig) {
+		Map<String, String> priority = new LinkedHashMap<>();
+		Map<String, String> others = new LinkedHashMap<>();
 		for (String url : categoryMap.urls(chainId)) {
-			byPage.putIfAbsent(pageKey(url), url);
+			priority.putIfAbsent(pageKey(url), url);
 		}
-		return List.copyOf(byPage.values());
+		for (String url : chainConfig.getCategoryUrls()) {
+			if (priority.containsKey(pageKey(url))) {
+				continue;
+			}
+			if (StapleCategoryMatcher.matches(url, stapleKeywords)) {
+				priority.putIfAbsent(pageKey(url), url);
+			} else {
+				others.putIfAbsent(pageKey(url), url);
+			}
+		}
+		if (properties.isStapleDiscoveryEnabled()) {
+			for (String url : discoverStaplePages(chainId)) {
+				String key = pageKey(url);
+				if (!priority.containsKey(key) && !others.containsKey(key)) {
+					priority.put(key, url);
+				}
+			}
+		}
+		return new CrawlLists(List.copyOf(priority.values()), List.copyOf(others.values()));
+	}
+
+	private List<String> discoverStaplePages(ChainId chainId) {
+		try {
+			return discoveredStaplePages.apply(chainId);
+		} catch (RuntimeException e) {
+			log.warn("{}: sitemap staple discovery failed, crawling the known pages only: {}", chainId, e.getMessage());
+			return List.of();
+		}
 	}
 
 	private List<String> withoutQuarantined(ChainId chainId, List<String> urls) {
@@ -182,6 +244,7 @@ public class IngestScheduler {
 			log.warn("{}: daily page budget leaves {} of {} requested page(s)", chainId, granted, categoryUrls.size());
 			categoryUrls = categoryUrls.subList(0, granted);
 		}
+		AtomicInteger extraPages = new AtomicInteger();
 		ChainScraperConfig config = ChainScraperConfig.builder()
 				.storeId(chainConfig.getStoreId())
 				.storeName(chainConfig.getStoreName())
@@ -191,6 +254,13 @@ public class IngestScheduler {
 				.pageDelayMinMillis(properties.getPageDelayMinMillis())
 				.pageDelayMaxMillis(properties.getPageDelayMaxMillis())
 				.cancellation(cancellation)
+				.extraPageGate(() -> {
+					boolean allowed = pageBudget.reserve(chainId, 1) == 1;
+					if (allowed) {
+						extraPages.incrementAndGet();
+					}
+					return allowed;
+				})
 				.build();
 
 		ScrapeResult result;
@@ -210,6 +280,12 @@ public class IngestScheduler {
 
 		pageBudget.giveBack(chainId, granted - result.getCategoriesVisited().size());   // reserved but never loaded
 		categoryHealth.record(chainId, result);
+		Instant crawledAt = clock.instant();
+		result.getCategoriesVisited().forEach(url -> lastCrawled.put(url, crawledAt));
+		if (extraPages.get() > 0) {
+			log.info("{}: {} further page(s) of multi-page categories loaded, budget left today: {}", chainId,
+					extraPages.get(), pageBudget.remaining(chainId));
+		}
 
 		if (!result.getZeroResultCategoryUrls().isEmpty()) {
 			log.warn("{}: {} of {} category page(s) returned zero products: {}", chainId,
