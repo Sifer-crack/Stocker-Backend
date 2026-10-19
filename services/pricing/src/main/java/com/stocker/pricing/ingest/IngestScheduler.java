@@ -46,10 +46,10 @@ public class IngestScheduler {
 	 * "Cannot find object to call __adopt__". The nightly runs, the startup run and on-demand refreshes all
 	 * take this lock, so exactly one scrape uses the browser at any time.
 	 */
-	private final ReentrantLock browserLock = new ReentrantLock(true);
+	private final Map<Object, ReentrantLock> browserLocks = new ConcurrentHashMap<>();
 
 	private final List<ChainScraper> chainScrapers;
-	private final Browser browser;
+	private final ChainBrowsers browsers;
 	private final IngestProperties properties;
 	private final PriceRecordRepository priceRecordRepository;
 	private final PriceStatsService priceStatsService;
@@ -87,10 +87,32 @@ public class IngestScheduler {
 	public IngestScheduler(List<ChainScraper> chainScrapers, Browser browser, IngestProperties properties,
 			PriceRecordRepository priceRecordRepository, PriceStatsService priceStatsService, CategoryMap categoryMap,
 			Clock clock, CategoryHealth categoryHealth, Function<ChainId, List<String>> discoveredStaplePages) {
+		this(chainScrapers, ChainBrowsers.shared(browser), properties, priceRecordRepository, priceStatsService,
+				categoryMap, clock, categoryHealth, discoveredStaplePages);
+	}
+
+	/** Test seam without the staple discovery. */
+	public IngestScheduler(List<ChainScraper> chainScrapers, ChainBrowsers browsers, IngestProperties properties,
+			PriceRecordRepository priceRecordRepository, PriceStatsService priceStatsService, CategoryMap categoryMap,
+			Clock clock) {
+		this(chainScrapers, browsers, properties, priceRecordRepository, priceStatsService, categoryMap, clock,
+				new CategoryHealth(properties.getQuarantineAfterZeroRuns(),
+						Duration.ofDays(properties.getQuarantineDays()), properties.getQuarantineSiteWideZeroShare(), clock),
+				chain -> List.of());
+	}
+
+	/**
+	 * @param browsers which Browser each chain uses; with app.ingest.parallel-chains the scheduled run starts one
+	 *        thread per chain and every chain has its own browser and lock
+	 * @param discoveredStaplePages sitemap category pages that match a staple keyword, per chain (offline lookup)
+	 */
+	public IngestScheduler(List<ChainScraper> chainScrapers, ChainBrowsers browsers, IngestProperties properties,
+			PriceRecordRepository priceRecordRepository, PriceStatsService priceStatsService, CategoryMap categoryMap,
+			Clock clock, CategoryHealth categoryHealth, Function<ChainId, List<String>> discoveredStaplePages) {
 		this.discoveredStaplePages = discoveredStaplePages;
 		this.categoryHealth = categoryHealth;
 		this.chainScrapers = chainScrapers;
-		this.browser = browser;
+		this.browsers = browsers;
 		this.properties = properties;
 		this.priceRecordRepository = priceRecordRepository;
 		this.priceStatsService = priceStatsService;
@@ -108,14 +130,49 @@ public class IngestScheduler {
 
 	@Scheduled(cron = "${app.ingest.cron}", zone = "${app.ingest.cron-zone:Pacific/Auckland}")
 	public void runAll() {
-		for (ChainScraper scraper : chainScrapers) {
-			runOne(scraper);
+		if (properties.isParallelChains()) {
+			runAllParallel();
+		} else {
+			for (ChainScraper scraper : chainScrapers) {
+				runOne(scraper);
+			}
 		}
 		List<CategoryHealth.QuarantinedPage> quarantined = categoryHealth.snapshot();
 		if (!quarantined.isEmpty()) {
 			log.warn("Quarantined category pages after this run ({}; in memory, a restart resets them): {}",
 					quarantined.size(), quarantined);
 		}
+	}
+
+	/** One thread per chain; a failure in one chain is logged and never stops the others. Waits for all of them. */
+	private void runAllParallel() {
+		log.info("Crawling {} chain(s) in parallel, each with its own browser", chainScrapers.size());
+		List<Thread> threads = new ArrayList<>();
+		for (ChainScraper scraper : chainScrapers) {
+			Thread thread = new Thread(() -> {
+				try {
+					runOne(scraper);
+				} catch (Throwable t) {
+					log.error("{}: crawl failed, the other chains carry on", scraper.chainId(), t);
+				}
+			}, "ingest-" + scraper.chainId().name().toLowerCase());
+			thread.setDaemon(true);
+			threads.add(thread);
+			thread.start();
+		}
+		for (Thread thread : threads) {
+			try {
+				thread.join();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				log.warn("Interrupted while waiting for the parallel crawl; the chain threads finish on their own");
+				return;
+			}
+		}
+	}
+
+	private ReentrantLock lockFor(ChainId chain) {
+		return browserLocks.computeIfAbsent(browsers.lockKey(chain), key -> new ReentrantLock(true));
 	}
 
 	private void runOne(ChainScraper scraper) {
@@ -282,13 +339,14 @@ public class IngestScheduler {
 				.build();
 
 		ScrapeResult result;
+		ReentrantLock browserLock = lockFor(chainId);
 		if (!cancellation.lockUnlessCancelled(browserLock)) {
 			pageBudget.giveBack(chainId, granted);       // cancelled while waiting for the browser: nothing was loaded
 			log.info("{}: refresh cancelled before it started, {} page(s) returned to the budget", chainId, granted);
 			return 0;
 		}
 		try {
-			result = scraper.scrape(browser, config);
+			result = scraper.scrape(browsers.forChain(chainId), config);
 		} catch (ScrapeException e) {
 			log.error("{}: scrape failed, skipping this run", chainId, e);
 			return 0;

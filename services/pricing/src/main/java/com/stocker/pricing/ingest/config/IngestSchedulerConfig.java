@@ -1,6 +1,6 @@
 package com.stocker.pricing.ingest.config;
 
-import com.microsoft.playwright.Browser;
+import com.stocker.pricing.ingest.ChainBrowsers;
 import com.stocker.pricing.ingest.CategoryHealth;
 import com.stocker.pricing.ingest.ChainScraper;
 import com.stocker.pricing.ingest.IngestScheduler;
@@ -26,14 +26,14 @@ import org.springframework.context.annotation.Configuration;
 public class IngestSchedulerConfig {
 
 	@Bean
-	public IngestScheduler ingestScheduler(List<ChainScraper> chainScrapers, Browser browser,
+	public IngestScheduler ingestScheduler(List<ChainScraper> chainScrapers, ChainBrowsers browsers,
 			IngestProperties properties, PriceRecordRepository priceRecordRepository,
 			PriceStatsService priceStatsService, CategoryMap categoryMap,
 			ObjectProvider<SitemapCategoryDiscoveryService> sitemapProvider) {
 		Clock clock = Clock.systemUTC();
 		CategoryHealth categoryHealth = new CategoryHealth(properties.getQuarantineAfterZeroRuns(),
 				Duration.ofDays(properties.getQuarantineDays()), properties.getQuarantineSiteWideZeroShare(), clock);
-		return new IngestScheduler(chainScrapers, browser, properties, priceRecordRepository, priceStatsService,
+		return new IngestScheduler(chainScrapers, browsers, properties, priceRecordRepository, priceStatsService,
 				categoryMap, clock, categoryHealth, stapleDiscovery(sitemapProvider, properties));
 	}
 

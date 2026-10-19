@@ -99,6 +99,9 @@ app:
     cron-zone: ${STOCKER_INGEST_CRON_ZONE:Pacific/Auckland}
     # One extra run right after startup (database + scraping); off by default, used to seed fresh data.
     run-on-startup: ${STOCKER_INGEST_RUN_ON_STARTUP:false}
+    # true: crawl the three chains at the same time, one thread and one Firefox per chain (about 3x the browser memory;
+    # use docker-compose.crawl.yml). Pacing, daily budget and circuit breaker stay per chain.
+    parallel-chains: ${STOCKER_INGEST_PARALLEL_CHAINS:false}
     navigation-timeout-seconds: 30
     max-pages-per-category: ${STOCKER_INGEST_MAX_PAGES_PER_CATEGORY:8}
     sitemap-cache-ttl-days: ${STOCKER_INGEST_SITEMAP_CACHE_TTL_DAYS:7}

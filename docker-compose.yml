@@ -160,6 +160,9 @@ services:
       # One extra crawl right after startup (default off: the scheduled crawl runs at 03:00 Auckland time) and the
       # on-demand refresh of stale pages (default on; it shares the same daily page budget as the crawl).
       STOCKER_INGEST_RUN_ON_STARTUP: ${STOCKER_INGEST_RUN_ON_STARTUP:-false}
+      # true = the three chains are crawled at the same time, one Firefox each (about 3x the browser memory): use it
+      # through docker-compose.crawl.yml with the other services stopped. Default false = one after another.
+      STOCKER_INGEST_PARALLEL_CHAINS: ${STOCKER_INGEST_PARALLEL_CHAINS:-false}
       STOCKER_PRICING_ON_DEMAND_ENABLED: ${STOCKER_PRICING_ON_DEMAND_ENABLED:-true}
       # Crawl load limits (see docs/features/price-engine-reliability.md). 140 pages per chain per Auckland day is the
       # hard cap for the scheduled crawl and on-demand refresh together; extra pages of a multi-page category count too.
