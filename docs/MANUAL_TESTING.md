@@ -180,3 +180,17 @@ click and collect 3.50.
 - Region/service-area list is a placeholder (auckland, wellington, christchurch) pending sign-off; fees do not model express delivery, surcharges or Club+.
 
 > `scripts/manual-test/stack-up.sh` builds the images **one at a time** (each image runs a Gradle build; all eight at once can exhaust RAM). Close heavy applications first and expect several minutes. Set `BUILD_ALL_AT_ONCE=1` only on a machine with plenty of free memory.
+
+## Price search checks (v2)
+
+Use the gateway with a JWT (the frontend, or `curl` with the token). The crawl is off, so only products already stored in Neon appear.
+
+1. `GET /api/pricing/products?term=milk&itemId=test-1`: ONE entry per product with a `prices` object (lower-case chain ids), not one entry per chain.
+2. `term=milk 2L` returns only 2 L products; `term=milk` lists all sizes ordered by unit price. The two results must differ.
+3. `alternatives` never contains a product that is already in `products`, and are other brands, sizes or variants, not the same product at another chain.
+4. `term=eggs size 7` and `term=eggs`: egg fried rice or egg noodles must NOT appear. Carton eggs appear only after the crawl has stored them (empty lists are expected before that).
+5. `term=tim tam` finds Tim Tams only after biscuits have been crawled; before that the result is empty, not an error.
+6. Start a search and abort it (close the tab or cancel the request): `scripts/manual-test/logs.sh pricing` shows "cancelled by the client" and no further work for it.
+7. `PUT /api/pricing/items/test-1/product` with a `productKey` from the previous response returns 200; an unknown key returns 404.
+8. The old `GET /api/pricing/match` still works.
+

@@ -59,7 +59,7 @@ class PricingControllerCancellationTest {
 	@Test
 	void disposingCompareCancelsTheGrpcCall() throws Exception {
 		assertCancelPropagates(controller.compare(new PricingController.CompareShoppingListRequestBody(
-				List.of(new PricingController.ShoppingListItemBody("item-1", 1)), "auckland", null)).subscribe());
+				List.of(new PricingController.ShoppingListItemBody("item-1", 1)), "auckland", null, null)).subscribe());
 	}
 
 	@Test

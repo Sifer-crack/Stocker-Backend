@@ -371,6 +371,27 @@ Semantics (verified in `ShoppingListComparisonService`, `SavingsCalculatorServic
 6. Savings baseline respects the user's pick (needs the casing fix, section 6).
 **Definition of done:** the above verified; token refresh in place so a 20-minute session keeps working; lint + build.
 
+## 4b. NEW: price search v2 (replaces how /match results are shown) - READ docs/features/price-search-v2.md
+
+The owner found that /match "alternatives" were the same product at another chain, that "Milk 2L" and "Milk" gave the same
+list, and that cancelling a search kept the server busy. The backend now offers (additive, /match still works):
+
+- `GET /api/pricing/products?term=&itemId=[&category=][&limit=]` -> `{query, matchMethod, stale, products[], alternatives[]}`.
+  One `Product` per distinct product with `prices` keyed by **lower-case chain id** (`newworld`, `paknsave`, `woolworths`),
+  `unit`/`unitPrice` for comparing sizes, `cheapestChainId`, `productKey`. `alternatives` are genuinely different products
+  (other brand, size or variant), never the same product at another chain. The exact JSON, nullability and rules are in
+  `docs/features/price-search-v2.md` (copy its types into `src/pricing/types.ts`).
+- Size and grade qualifiers are part of the TERM (`2L`, `500g`, `12 pack`, `dozen`, `size 7`); do not add parameters. With a qualifier
+  only that size is a match; without one all sizes are listed, best unit price first.
+- `PUT /api/pricing/items/{itemId}/product` with `{"productKey": "..."}` when the user picks a different product (from
+  `products` or `alternatives`): that product's per-chain prices are stored for compare. Known limitation: compare can still show an
+  earlier product's price for a chain whose earlier price is newer or that does not carry the chosen product (see the doc).
+- UI: show one card per product with a price row per chain (cheapest highlighted, unit price shown), a separate "Alternatives" section,
+  a "stale" hint when `stale` is true, and an empty state meaning "nothing stored yet" (not an error).
+- **Cancellation:** when the user types a new search or leaves the page, ABORT the previous request (`AbortController`). The server then
+  stops work for it (including queued supermarket page loads). Do this for search, compare and store-product requests.
+- Data note: prices exist only for items already crawled. Carton eggs and Tim Tams will show nothing until the daily crawl has run.
+
 ## 5. Feature (d): Fulfilment costs UI
 
 **User story:** compare shopping options including delivery / click-and-collect costs so I see the true cheapest.
