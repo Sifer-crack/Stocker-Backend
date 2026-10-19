@@ -155,8 +155,7 @@ services:
     environment:
       SERVER_PORT: 8084
       STOCKER_GRPC_SERVER_PORT: 9094
-      # Neon (main branch, neondb) when STOCKER_DB_* are set in the root .env; falls back to the
-      # local postgres container otherwise.
+      # Neon (see .env.example). No local-postgres fallback: an unset STOCKER_DB_URL fails fast at startup.
       STOCKER_DB_URL: ${STOCKER_DB_URL}
       STOCKER_DB_USER: ${STOCKER_DB_USER}
       STOCKER_DB_PASSWORD: ${STOCKER_DB_PASSWORD}
@@ -165,10 +164,11 @@ services:
       # must be passed through here or every fetch returns nothing inside Docker.
       STOCKER_FETCH_PROVIDER: ${STOCKER_FETCH_PROVIDER:-spread}
       STOCKER_SPREAD_API_KEY: ${STOCKER_SPREAD_API_KEY:-}
-      # Self-built supermarket scraping (Playwright/Firefox). Defaults are the packaged ones: on, but
-      # dry-run (scrape + log, persist nothing). Set STOCKER_INGEST_DRY_RUN=false in .env to store rows.
-      STOCKER_INGEST_ENABLED: ${STOCKER_INGEST_ENABLED:-true}
-      STOCKER_INGEST_DRY_RUN: ${STOCKER_INGEST_DRY_RUN:-false}
+      # Self-built supermarket scraping (Playwright/Firefox) is OPT-IN, so a plain `docker compose up` never sends a
+      # request to a supermarket. Set STOCKER_INGEST_ENABLED=true in .env to crawl, and additionally
+      # STOCKER_INGEST_DRY_RUN=false to store the rows (the default is dry-run: scrape + log, persist nothing).
+      STOCKER_INGEST_ENABLED: ${STOCKER_INGEST_ENABLED:-false}
+      STOCKER_INGEST_DRY_RUN: ${STOCKER_INGEST_DRY_RUN:-true}
     ports:
       - "8084:8084"
       - "9094:9094"

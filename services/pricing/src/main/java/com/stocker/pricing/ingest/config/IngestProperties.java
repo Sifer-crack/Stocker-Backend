@@ -12,7 +12,7 @@ public class IngestProperties {
 
 	private boolean enabled = false;
 	private boolean dryRun = true;
-	private String cron = "0 0 3,20 * * *";
+	private String cron = "0 0 3 * * *";
 	private String cronZone = "Pacific/Auckland";
 	private boolean runOnStartup = false;
 	private int navigationTimeoutSeconds = 30;
@@ -25,7 +25,10 @@ public class IngestProperties {
 	 * Most category pages loaded per chain in one run. When more are configured the run takes the next
 	 * window of them each day, so every category is still visited regularly but never all at once.
 	 */
-	private int maxCategoriesPerRun = 12;
+	/** 0 = every configured category on each run (full daily coverage). */
+	private int maxCategoriesPerRun = 0;
+	/** Hard cap on category pages loaded per chain per Auckland day, scheduled and on-demand together. */
+	private int maxPagesPerChainPerDay = 80;
 	private ChainConfig newworld = new ChainConfig();
 	private ChainConfig paknsave = new ChainConfig();
 	private ChainConfig woolworths = new ChainConfig();

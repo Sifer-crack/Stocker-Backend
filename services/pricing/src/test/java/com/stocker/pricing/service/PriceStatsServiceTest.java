@@ -29,7 +29,7 @@ class PriceStatsServiceTest {
 	@BeforeEach
 	void setUp() {
 		repository = mock(PriceStatsRepository.class);
-		service = new PriceStatsService(repository, mock(com.stocker.pricing.service.normalize.NormalizedProductService.class));
+		service = new PriceStatsService(new PriceStatsWriter(repository), mock(com.stocker.pricing.service.normalize.NormalizedProductService.class));
 	}
 
 	@Test

@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -20,6 +21,11 @@ public class CategoryMap {
 	private static final String WOOLWORTHS = "https://www.woolworths.co.nz/shop/browse/%s";
 
 	private final Map<String, String[]> byKey = new HashMap<>();
+	private final List<String> orderedKeys = new java.util.ArrayList<>();
+
+	public static CategoryMap empty() {
+		return new CategoryMap();
+	}
 
 	public static CategoryMap loadDefault() {
 		try (InputStream in = CategoryMap.class.getResourceAsStream(RESOURCE)) {
@@ -43,7 +49,9 @@ public class CategoryMap {
 			if (cols.length != 3) {
 				throw new IllegalStateException("Bad category-map line: " + line);
 			}
-			map.byKey.put(cols[0].trim(), new String[] { cols[1].trim(), cols[2].trim() });
+			if (map.byKey.put(cols[0].trim(), new String[] { cols[1].trim(), cols[2].trim() }) == null) {
+				map.orderedKeys.add(cols[0].trim());
+			}
 		}
 		return map;
 	}
@@ -62,6 +70,15 @@ public class CategoryMap {
 			case PAKNSAVE -> FOODSTUFFS_PAKNSAVE;
 			case WOOLWORTHS -> WOOLWORTHS;
 		}, path));
+	}
+
+	/** Every distinct category page of this chain, in file order: the pages worth crawling. "-" (not sold) is skipped. */
+	public List<String> urls(ChainId chain) {
+		java.util.LinkedHashSet<String> urls = new java.util.LinkedHashSet<>();
+		for (String key : orderedKeys) {
+			url(key, chain).ifPresent(urls::add);
+		}
+		return List.copyOf(urls);
 	}
 
 	public int size() {

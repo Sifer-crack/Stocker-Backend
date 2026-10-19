@@ -3,7 +3,7 @@ package com.stocker.pricing.refresh;
 import com.stocker.pricing.ingest.ChainId;
 import com.stocker.pricing.ingest.IngestScheduler;
 import com.stocker.pricing.normalize.CommonProduct;
-import com.stocker.pricing.repository.NormalizedProductRepository;
+import com.stocker.pricing.service.normalize.NormalizedProductSnapshot;
 import com.stocker.pricing.service.cache.PricingCacheProperties;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -45,7 +45,7 @@ public class OnDemandRefreshService {
 	public record Outcome(boolean stale, boolean refreshed) {
 	}
 
-	private final NormalizedProductRepository normalizedRepository;
+	private final NormalizedProductSnapshot normalizedRepository;
 	private final CategoryMap categoryMap;
 	private final CategoryRouter router;
 	private final PricingCacheProperties properties;
@@ -60,7 +60,7 @@ public class OnDemandRefreshService {
 		return thread;
 	});
 
-	public OnDemandRefreshService(NormalizedProductRepository normalizedRepository, CategoryMap categoryMap,
+	public OnDemandRefreshService(NormalizedProductSnapshot normalizedRepository, CategoryMap categoryMap,
 			CategoryRouter router, PricingCacheProperties properties, ObjectProvider<IngestScheduler> ingestScheduler) {
 		this.normalizedRepository = normalizedRepository;
 		this.categoryMap = categoryMap;
@@ -124,6 +124,12 @@ public class OnDemandRefreshService {
 		List<CompletableFuture<Void>> jobs = new ArrayList<>();
 		allowed.forEach((chain, url) -> jobs.add(CompletableFuture.runAsync(() -> load(scheduler, chain, url), executor)));
 		CompletableFuture<Void> all = CompletableFuture.allOf(jobs.toArray(new CompletableFuture[0]));
+		if (config.getDeadline().isZero() || config.getDeadline().isNegative()) {
+			// Never make a lookup wait for a supermarket page: answer with what is stored (flagged stale) and let the
+			// follow-up re-run the match, store the fresh prices and announce them once the pages are loaded.
+			all.thenRun(afterBackgroundRefresh);
+			return new Outcome(outdated.getAsBoolean(), false);
+		}
 		try {
 			all.get(config.getDeadline().toMillis(), TimeUnit.MILLISECONDS);
 		} catch (TimeoutException e) {

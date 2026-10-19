@@ -1,6 +1,7 @@
 package com.stocker.pricing.service;
 
 import com.stocker.pricing.model.PriceRecord;
+import com.stocker.pricing.service.cache.PricingCacheProperties;
 import com.stocker.pricing.service.match.ItemMatchService;
 import com.stocker.pricing.service.servicearea.ServiceAreaException;
 import com.stocker.pricing.service.servicearea.ServiceAreaProperties;
@@ -32,6 +33,7 @@ public class ItemPriceComparisonService {
 	private final PriceSearchService priceSearchService;
 	private final ItemMatchService itemMatchService;
 	private final ServiceAreaProperties serviceAreaProperties;
+	private final PricingCacheProperties properties;
 
 	public record ItemQuery(String itemId, String searchTerm, String category) {
 	}
@@ -64,15 +66,18 @@ public class ItemPriceComparisonService {
 			return new ItemComparison(query.itemId(), List.of());
 		}
 		try {
-			// Common products are priced from the normalised index (refreshed if stale) first; the
-			// third-party provider search is only the fallback for everything else.
-			ItemMatchService.MatchResult matched = itemMatchService.match(query.searchTerm(), query.itemId());
+			// Priced from what is already stored (read only, never a live refresh); the third-party provider
+			// search is an opt-in fallback (app.pricing.match.provider-fallback), off by default.
+			ItemMatchService.MatchResult matched = itemMatchService.matchStored(query.searchTerm(), query.itemId(), null, null, query.category());
 			if (!matched.matches().isEmpty()) {
 				return new ItemComparison(query.itemId(), matched.matches().stream()
 						.map(m -> new StoreQuote(m.chainId().toLowerCase(java.util.Locale.ROOT), m.storeId(),
 								m.priceAmount(), m.currency(), m.promoFlag(), m.capturedAt()))
 						.sorted(Comparator.comparing(StoreQuote::priceAmount).thenComparing(StoreQuote::chainId))
 						.toList());
+			}
+			if (!properties.getMatch().isProviderFallback()) {
+				return new ItemComparison(query.itemId(), List.of());   // nothing stored yet: a normal "not found yet"
 			}
 			List<PriceRecord> records =
 					priceSearchService.search(query.searchTerm(), query.itemId(), List.of(), query.category());

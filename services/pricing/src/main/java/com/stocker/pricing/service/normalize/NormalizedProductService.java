@@ -80,6 +80,24 @@ public class NormalizedProductService {
 		return batch.size();
 	}
 
+	/**
+	 * Runs {@link #backfill} batch after batch until one comes back short, so the whole backlog is caught up and not
+	 * just the first batch. {@code maxRounds} is a safety cap so a backlog that never shrinks still ends.
+	 *
+	 * @return how many rows were read in total
+	 */
+	public int backfillAll(int batchSize, int maxRounds) {
+		int total = 0;
+		for (int round = 0; round < maxRounds; round++) {
+			int read = backfill(batchSize);
+			total += read;
+			if (read < batchSize) {
+				break;
+			}
+		}
+		return total;
+	}
+
 	@Transactional
 	public void recordUnmatched(String term) {
 		String normalized = ProductNormalizer.normalizedName(term);

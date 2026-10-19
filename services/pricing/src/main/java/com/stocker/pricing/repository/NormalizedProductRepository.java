@@ -17,10 +17,16 @@ public interface NormalizedProductRepository extends JpaRepository<NormalizedPro
 
 	List<NormalizedProduct> findByCapturedAtAfter(OffsetDateTime since);
 
-	/** Ingested price_records rows that have no normalized_products row yet (backfill). */
+	/**
+	 * Ingested price_records rows that have no normalized_products row yet (backfill). Only rows the normaliser will
+	 * accept (a name and a positive price): others never get a row, so selecting them would return the same rows on
+	 * every run and crowd out the real backlog.
+	 */
 	@Query(value = """
 			select p.* from price_records p
 			where p.item_id like '%:%'
+			  and nullif(btrim(p.raw_attributes->>'name'), '') is not null
+			  and p.price_amount > 0
 			  and not exists (select 1 from normalized_products n where n.item_id = p.item_id and n.store_id = p.store_id)
 			order by p.captured_at desc
 			limit :batch

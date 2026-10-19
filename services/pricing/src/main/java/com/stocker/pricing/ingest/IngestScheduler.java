@@ -8,9 +8,11 @@ import com.stocker.pricing.ingest.model.ChainScraperConfig;
 import com.stocker.pricing.ingest.model.ScrapeException;
 import com.stocker.pricing.ingest.model.ScrapeResult;
 import com.stocker.pricing.model.PriceRecord;
+import com.stocker.pricing.refresh.CategoryMap;
 import com.stocker.pricing.repository.PriceRecordRepository;
 import com.stocker.pricing.service.PriceStatsService;
 import com.stocker.pricing.service.RawProductPriceRecordMapper;
+import java.time.Clock;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -43,14 +45,27 @@ public class IngestScheduler {
 	private final IngestProperties properties;
 	private final PriceRecordRepository priceRecordRepository;
 	private final PriceStatsService priceStatsService;
+	private final DailyPageBudget pageBudget;
+	private final CategoryMap categoryMap;
+	private final Clock clock;
 
 	public IngestScheduler(List<ChainScraper> chainScrapers, Browser browser, IngestProperties properties,
 			PriceRecordRepository priceRecordRepository, PriceStatsService priceStatsService) {
+		this(chainScrapers, browser, properties, priceRecordRepository, priceStatsService, CategoryMap.empty(),
+				Clock.systemUTC());
+	}
+
+	public IngestScheduler(List<ChainScraper> chainScrapers, Browser browser, IngestProperties properties,
+			PriceRecordRepository priceRecordRepository, PriceStatsService priceStatsService, CategoryMap categoryMap,
+			Clock clock) {
 		this.chainScrapers = chainScrapers;
 		this.browser = browser;
 		this.properties = properties;
 		this.priceRecordRepository = priceRecordRepository;
 		this.priceStatsService = priceStatsService;
+		this.categoryMap = categoryMap;
+		this.clock = clock;
+		this.pageBudget = new DailyPageBudget(properties::getMaxPagesPerChainPerDay, clock);
 	}
 
 	@Scheduled(cron = "${app.ingest.cron}", zone = "${app.ingest.cron-zone:Pacific/Auckland}")
@@ -68,13 +83,34 @@ public class IngestScheduler {
 			log.info("{}: ingest disabled, skipping", chainId);
 			return;
 		}
-		if (chainConfig.getCategoryUrls().isEmpty()) {
-			log.warn("{}: no category-urls configured, skipping (see app.ingest.{}.category-urls)",
+		List<String> crawlList = crawlList(chainId, chainConfig);
+		if (crawlList.isEmpty()) {
+			log.warn("{}: no category pages to crawl (see app.ingest.{}.category-urls and category-map.txt)",
 					chainId, chainId.name().toLowerCase());
 			return;
 		}
-		scrapeAndPersist(scraper, chainConfig, selectCategories(chainConfig.getCategoryUrls(),
-				properties.getMaxCategoriesPerRun(), runNumber()));
+		// Every page the catalog lists, within today's page budget; when the list is longer than the budget the
+		// window moves on each day, so every page is refreshed within a few days.
+		int window = properties.getMaxCategoriesPerRun() > 0
+				? properties.getMaxCategoriesPerRun()
+				: pageBudget.remaining(chainId);
+		scrapeAndPersist(scraper, chainConfig, selectCategories(crawlList, window, dayNumber()));
+	}
+
+	/** The configured pages plus every page the catalog map lists for this chain, each once. */
+	private List<String> crawlList(ChainId chainId, ChainConfig chainConfig) {
+		Map<String, String> byPage = new LinkedHashMap<>();
+		for (String url : chainConfig.getCategoryUrls()) {
+			byPage.putIfAbsent(pageKey(url), url);
+		}
+		for (String url : categoryMap.urls(chainId)) {
+			byPage.putIfAbsent(pageKey(url), url);
+		}
+		return List.copyOf(byPage.values());
+	}
+
+	private static String pageKey(String url) {
+		return url.replaceAll("\\?pg=1$", "");
 	}
 
 	/**
@@ -92,6 +128,16 @@ public class IngestScheduler {
 
 	private int scrapeAndPersist(ChainScraper scraper, ChainConfig chainConfig, List<String> categoryUrls) {
 		ChainId chainId = scraper.chainId();
+		int granted = pageBudget.reserve(chainId, categoryUrls.size());
+		if (granted == 0) {
+			log.warn("{}: daily page budget ({} per day) used up, not loading {} page(s)", chainId,
+					properties.getMaxPagesPerChainPerDay(), categoryUrls.size());
+			return 0;
+		}
+		if (granted < categoryUrls.size()) {
+			log.warn("{}: daily page budget leaves {} of {} requested page(s)", chainId, granted, categoryUrls.size());
+			categoryUrls = categoryUrls.subList(0, granted);
+		}
 		ChainScraperConfig config = ChainScraperConfig.builder()
 				.storeId(chainConfig.getStoreId())
 				.storeName(chainConfig.getStoreName())
@@ -112,6 +158,8 @@ public class IngestScheduler {
 		} finally {
 			browserLock.unlock();
 		}
+
+		pageBudget.giveBack(chainId, granted - result.getCategoriesVisited().size());   // reserved but never loaded
 
 		if (!result.getZeroResultCategoryUrls().isEmpty()) {
 			log.warn("{}: {} of {} category page(s) returned zero products: {}", chainId,
@@ -146,10 +194,9 @@ public class IngestScheduler {
 		return saved;
 	}
 
-	/** Twice-daily run counter in Auckland time, so the 03:00 and 20:00 runs take different windows. */
-	private static long runNumber() {
-		ZonedDateTime now = ZonedDateTime.now(ZoneId.of("Pacific/Auckland"));
-		return now.toLocalDate().toEpochDay() * 2 + (now.getHour() >= 12 ? 1 : 0);
+	/** Auckland day number, so each day takes a different window of a list longer than the daily budget. */
+	private long dayNumber() {
+		return clock.instant().atZone(ZoneId.of("Pacific/Auckland")).toLocalDate().toEpochDay();
 	}
 
 	/** At most {@code budget} URLs: the whole list when it fits, else a window that moves on with each run. */

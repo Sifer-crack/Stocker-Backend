@@ -83,7 +83,12 @@ public class CategoryRouter {
 			if (at < 0) {
 				continue;
 			}
-			String path = token.substring(at + "/shop/browse/".length()).replaceAll("[<>\"]|loc", "").trim();
+			String path = token.substring(at + "/shop/browse/".length());
+			int markup = path.indexOf('<');   // "...block-cheese</loc>": cut the closing tag, keep the path intact
+			if (markup >= 0) {
+				path = path.substring(0, markup);
+			}
+			path = path.replaceAll("[\">]", "").replaceAll("/+$", "").trim();
 			if (!path.isEmpty() && known.add(path)) {
 				add("W|" + path);
 			}

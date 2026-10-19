@@ -69,7 +69,9 @@ class ItemMatchServiceTest {
 					PriceRecord source = sources.get(inv.getArgument(0) + "|" + inv.getArgument(1));
 					return source == null ? List.of() : List.of(source);
 				});
-		service = new ItemMatchService(repository, normalizedRepository, normalizedService, catalog, refreshService, stats, events, properties, provider);
+		properties.getSnapshot().setTtl(java.time.Duration.ZERO);   // pass straight through to the stubbed repository
+		service = new ItemMatchService(repository, new com.stocker.pricing.service.normalize.NormalizedProductSnapshot(normalizedRepository, properties), normalizedService, catalog, refreshService, stats, events, properties, provider);
+		service.setPersistExecutor(Runnable::run);   // store synchronously so the assertions can see it
 	}
 
 	@Test

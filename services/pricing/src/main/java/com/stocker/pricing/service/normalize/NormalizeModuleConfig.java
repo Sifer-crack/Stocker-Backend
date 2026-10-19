@@ -30,7 +30,10 @@ public class NormalizeModuleConfig {
 		return catalog;
 	}
 
-	/** One-off catch-up for rows scraped before normalized_products existed; database work only. */
+	/**
+	 * One-off catch-up for rows scraped before normalized_products existed; database work only. Runs on its own
+	 * daemon thread: a large backlog is thousands of Neon round trips and must not delay startup or block shutdown.
+	 */
 	@Bean
 	ApplicationRunner normalizedProductBackfill(NormalizedProductService service,
 			@Value("${app.normalize.backfill-on-startup:true}") boolean enabled) {
@@ -38,14 +41,19 @@ public class NormalizeModuleConfig {
 			if (!enabled) {
 				return;
 			}
-			try {
-				int done = service.backfill(5000);
-				if (done > 0) {
-					log.info("Backfilled {} normalized products from price_records", done);
+			Thread thread = new Thread(() -> {
+				try {
+					int done = service.backfillAll(500, 200);
+					if (done > 0) {
+						log.info("Backfilled {} normalized products from price_records", done);
+					}
 				}
-			} catch (RuntimeException e) {
-				log.warn("normalized_products backfill skipped: {}", e.getMessage());
-			}
+				catch (RuntimeException e) {
+					log.warn("normalized_products backfill skipped: {}", e.getMessage());
+				}
+			}, "normalize-backfill");
+			thread.setDaemon(true);
+			thread.start();
 		};
 	}
 }

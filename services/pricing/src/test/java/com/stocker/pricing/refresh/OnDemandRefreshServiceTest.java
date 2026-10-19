@@ -48,7 +48,9 @@ class OnDemandRefreshServiceTest {
 		ObjectProvider<IngestScheduler> provider = mock(ObjectProvider.class);
 		when(provider.getIfAvailable()).thenReturn(scheduler);
 		properties = new PricingCacheProperties();
-		service = new OnDemandRefreshService(repository, CategoryMap.loadDefault(), CategoryRouter.loadDefault(), properties, provider);
+		// These tests cover the opt-in waiting mode (deadline > 0); the default never waits: OnDemandRefreshNonBlockingTest.
+		properties.getOnDemand().setDeadline(java.time.Duration.ofSeconds(6));
+		service = new OnDemandRefreshService(passThrough(repository, properties), CategoryMap.loadDefault(), CategoryRouter.loadDefault(), properties, provider);
 	}
 
 	private static Object[] newest(String chain, OffsetDateTime at) {
@@ -162,7 +164,7 @@ class OnDemandRefreshServiceTest {
 		assertTrue(map.url("milk", ChainId.NEWWORLD).orElseThrow().startsWith("https://www.newworld.co.nz/shop/category/"));
 		assertTrue(map.url("milk", ChainId.PAKNSAVE).orElseThrow().startsWith("https://www.paknsave.co.nz/shop/category/"));
 		assertTrue(map.url("milk", ChainId.WOOLWORTHS).orElseThrow().startsWith("https://www.woolworths.co.nz/shop/browse/"));
-		assertTrue(map.url("celery", ChainId.NEWWORLD).isEmpty());
+		assertTrue(map.url("celery", ChainId.NEWWORLD).isPresent());   // shares the salad-greens page (no dedicated one)
 		assertTrue(map.url("not-a-product", ChainId.NEWWORLD).isEmpty());
 		List<String> unused = new ArrayList<>();
 		CommonProductCatalog catalog = CommonProductCatalog.loadDefault();
@@ -170,5 +172,12 @@ class OnDemandRefreshServiceTest {
 			assertTrue(catalog.byKey(key).isPresent(), key);
 		}
 		assertTrue(unused.isEmpty());
+	}
+
+	/** Zero ttl: the snapshot passes straight through to the stubbed repository. */
+	private static com.stocker.pricing.service.normalize.NormalizedProductSnapshot passThrough(
+			com.stocker.pricing.repository.NormalizedProductRepository repository, PricingCacheProperties properties) {
+		properties.getSnapshot().setTtl(java.time.Duration.ZERO);
+		return new com.stocker.pricing.service.normalize.NormalizedProductSnapshot(repository, properties);
 	}
 }

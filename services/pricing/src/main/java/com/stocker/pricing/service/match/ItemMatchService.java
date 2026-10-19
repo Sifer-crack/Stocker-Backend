@@ -11,8 +11,8 @@ import com.stocker.pricing.normalize.PackSize;
 import com.stocker.pricing.normalize.PackUnit;
 import com.stocker.pricing.normalize.ProductNormalizer;
 import com.stocker.pricing.refresh.OnDemandRefreshService;
-import com.stocker.pricing.repository.NormalizedProductRepository;
 import com.stocker.pricing.service.normalize.NormalizedProductService;
+import com.stocker.pricing.service.normalize.NormalizedProductSnapshot;
 import com.stocker.pricing.repository.PriceRecordRepository;
 import com.stocker.pricing.service.PriceStatsService;
 import com.stocker.pricing.service.cache.PricingCacheProperties;
@@ -29,6 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -66,11 +67,11 @@ public class ItemMatchService {
 			boolean stale) {
 	}
 
-	private record Candidate(PriceRecord record, String name, double score) {
+	private record Candidate(NormalizedProduct row, String name, double score) {
 	}
 
 	private final PriceRecordRepository repository;
-	private final NormalizedProductRepository normalizedRepository;
+	private final NormalizedProductSnapshot snapshot;
 	private final NormalizedProductService normalizedService;
 	private final CommonProductCatalog catalog;
 	private final OnDemandRefreshService refreshService;
@@ -85,14 +86,19 @@ public class ItemMatchService {
 		return thread;
 	});
 	private final AtomicBoolean ingestRunning = new AtomicBoolean(false);
+	private Executor persistExecutor = Executors.newSingleThreadExecutor(runnable -> {
+		Thread thread = new Thread(runnable, "match-persist");
+		thread.setDaemon(true);
+		return thread;
+	});
 	private volatile Instant lastIngestTrigger = Instant.EPOCH;
 
-	public ItemMatchService(PriceRecordRepository repository, NormalizedProductRepository normalizedRepository,
+	public ItemMatchService(PriceRecordRepository repository, NormalizedProductSnapshot snapshot,
 			NormalizedProductService normalizedService, CommonProductCatalog catalog,
 			OnDemandRefreshService refreshService, PriceStatsService priceStatsService, EventPublisher eventPublisher, PricingCacheProperties properties,
 			ObjectProvider<IngestScheduler> ingestScheduler) {
 		this.repository = repository;
-		this.normalizedRepository = normalizedRepository;
+		this.snapshot = snapshot;
 		this.normalizedService = normalizedService;
 		this.catalog = catalog;
 		this.refreshService = refreshService;
@@ -117,6 +123,14 @@ public class ItemMatchService {
 	/** @param category optional hint (e.g. the pantry product's grocery type) used to route an unknown item to its page */
 	public MatchResult match(String term, String itemId, BigDecimal weightKg, BigDecimal volumeL, String category) {
 		return match(term, itemId, weightKg, volumeL, category, true);
+	}
+
+	/**
+	 * Like {@link #match(String, String, BigDecimal, BigDecimal, String)} but only reads what is already stored: it
+	 * never starts or waits for a live refresh. This is what comparing a shopping list uses.
+	 */
+	public MatchResult matchStored(String term, String itemId, BigDecimal weightKg, BigDecimal volumeL, String category) {
+		return match(term, itemId, weightKg, volumeL, category, false);
 	}
 
 	private MatchResult match(String term, String itemId, BigDecimal weightKg, BigDecimal volumeL, String category,
@@ -166,13 +180,14 @@ public class ItemMatchService {
 
 		List<Candidate> chosen = new ArrayList<>();
 		for (Lex lex : lexical.chosen()) {
-			sourceRecord(lex.row()).ifPresent(record -> chosen.add(new Candidate(record, lex.row().getDisplayName(), lex.score())));
+			chosen.add(new Candidate(lex.row(), lex.row().getDisplayName(), lex.score()));
 		}
 		List<MatchedProduct> matches = lexical.chosen().stream().map(ItemMatchService::toProduct)
 				.sorted(Comparator.comparing(MatchedProduct::priceAmount)).toList();
 		List<MatchedProduct> alternatives = new ArrayList<>(lexical.alternatives().stream().map(ItemMatchService::toProduct).toList());
 		if (matches.isEmpty() && alternatives.isEmpty()) {
-			normalizedService.recordUnmatched(term);
+			// a database write: not while the user waits
+			persistExecutor.execute(() -> normalizedService.recordUnmatched(term));
 			if (config.isOnDemandIngest()) {
 				triggerIngest();
 			}
@@ -195,7 +210,7 @@ public class ItemMatchService {
 	private Lexical lexical(String term, OffsetDateTime since, PricingCacheProperties.Match config,
 			PricingCacheProperties.OnDemand onDemand) {
 		Map<String, List<Lex>> byChain = new LinkedHashMap<>();
-		for (NormalizedProduct row : dedupe(normalizedRepository.findByCapturedAtAfter(since))) {
+		for (NormalizedProduct row : dedupe(snapshot.findByCapturedAtAfter(since))) {
 			if (!StringUtils.hasText(row.getDisplayName()) || !knownChain(row.getChainId())
 					|| row.getPriceAmount() == null || row.getPriceAmount().signum() <= 0) {
 				continue;
@@ -258,7 +273,7 @@ public class ItemMatchService {
 	 */
 	private MatchResult matchCanonical(String term, String itemId, CommonProduct common, PackSize requested,
 			OffsetDateTime since, PricingCacheProperties.Match config, boolean stale) {
-		List<NormalizedProduct> rows = dedupe(normalizedRepository.findByCanonicalKeyAndCapturedAtAfter(common.key(), since));
+		List<NormalizedProduct> rows = dedupe(snapshot.findByCanonicalKeyAndCapturedAtAfter(common.key(), since));
 		Set<String> termWords = ProductNormalizer.words(term);
 		PackSize wanted = requested != null ? requested : common.typicalSize();
 		Map<String, List<Ranked>> byChain = new LinkedHashMap<>();
@@ -296,8 +311,8 @@ public class ItemMatchService {
 			int firstAlternative = 0;
 			if (requested == null || best.sizeMatch()) {
 				matches.add(toProduct(best, config));
-				sourceRecord(best.row()).ifPresent(record -> chosen.add(new Candidate(record, best.row().getDisplayName(),
-						Math.max(best.coverage(), config.getMinScore()))));
+				chosen.add(new Candidate(best.row(), best.row().getDisplayName(),
+						Math.max(best.coverage(), config.getMinScore())));
 				firstAlternative = 1;
 			}
 			ranked.stream().skip(firstAlternative).limit(config.getMaxAlternativesPerChain())
@@ -325,11 +340,6 @@ public class ItemMatchService {
 		return List.copyOf(newest.values());
 	}
 
-	private Optional<PriceRecord> sourceRecord(NormalizedProduct row) {
-		return repository.findByItemIdAndStoreId(row.getItemId(), row.getStoreId()).stream()
-				.max(Comparator.comparing(PriceRecord::getCapturedAt));
-	}
-
 	private static MatchedProduct toProduct(Ranked ranked, PricingCacheProperties.Match config) {
 		NormalizedProduct row = ranked.row();
 		PackSize size = row.getPackUnit() == null || row.getPackQuantity() == null ? null
@@ -340,32 +350,59 @@ public class ItemMatchService {
 				Math.round(score * 100.0) / 100.0, row.getUnitPrice(), size == null ? null : size.label());
 	}
 
+	/**
+	 * Stores the chosen products under the caller's item id (price_records, price_stats, PriceRecordCaptured) so that
+	 * CompareShoppingList for that item prices exactly them. Runs on a background thread, after the answer is returned:
+	 * it is several database round trips, and the caller must not wait for them.
+	 */
 	private void persistUnderItemId(String itemId, List<Candidate> chosen) {
 		if (!StringUtils.hasText(itemId) || chosen.isEmpty()) {
 			return;
 		}
+		List<Candidate> copy = List.copyOf(chosen);
+		persistExecutor.execute(() -> {
+			try {
+				persistNow(itemId, copy);
+			}
+			catch (RuntimeException e) {
+				log.warn("Could not store the matched prices under item {}: {}", itemId, e.getMessage());
+			}
+		});
+	}
+
+	private void persistNow(String itemId, List<Candidate> chosen) {
 		Set<String> alreadyStored = new HashSet<>();
 		repository.findByItemId(itemId).forEach(row -> alreadyStored.add(storedKey(row)));
 		for (Candidate candidate : chosen) {
-			PriceRecord source = candidate.record();
+			NormalizedProduct source = candidate.row();
 			if (!alreadyStored.add(storedKey(source.getChainId(), source.getStoreId(), source.getCapturedAt()))) {
 				continue;
+			}
+			Map<String, Object> attributes = new LinkedHashMap<>();
+			attributes.put("name", source.getDisplayName());
+			if (StringUtils.hasText(source.getBrand())) {
+				attributes.put("brand", source.getBrand());
 			}
 			PriceRecord saved = repository.save(PriceRecord.builder()
 					.itemId(itemId)
 					.storeId(source.getStoreId())
 					.chainId(source.getChainId())
-					.channel(source.getChannel())
+					.channel("pickup")
 					.priceAmount(source.getPriceAmount())
 					.currency(source.getCurrency())
 					.promoFlag(source.isPromoFlag())
 					.capturedAt(source.getCapturedAt())
-					.rawAttributes(source.getRawAttributes())
+					.rawAttributes(attributes)
 					.createdAt(OffsetDateTime.now(ZoneOffset.UTC))
 					.build());
 			eventPublisher.publishPriceRecordCaptured(saved);
 			priceStatsService.recordObservation(saved);
 		}
+	}
+
+	/** Test seam: the default stores on a daemon background thread. */
+	void setPersistExecutor(Executor persistExecutor) {
+		this.persistExecutor = persistExecutor;
 	}
 
 	/** One background ingest run at most every refresh-cooldown, and never two at once. */

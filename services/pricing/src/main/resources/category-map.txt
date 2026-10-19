@@ -70,7 +70,7 @@ tomato-sauce|pantry/table-sauces-dressings--condiments/tomato-sauce|pantry/sauce
 tomatoes-canned|pantry/canned-foods--packets/canned-tomatoes|pantry/tinned-foods-packets/tinned-tomatoes
 beans-baked|pantry/canned-foods--packets/baked-beans--spaghetti|pantry/tinned-foods-packets/baked-beans-spaghetti
 tuna-canned|pantry/canned-foods--packets/canned-tuna|pantry/tinned-foods-packets/tinned-tuna-seafood
-biscuits|pantry/biscuits--crackers/biscuits--cookies|pantry/biscuits-crackers/biscuits-cookies
+biscuits|pantry/biscuits--crackers|pantry/biscuits-crackers/biscuits-cookies
 chips|pantry/chips-nuts--snacks/chips|pantry/snacks-sweets/chips
 popcorn|pantry/chips-nuts--snacks/popcorn|pantry/snacks-sweets/popcorn-nuts-savoury-snacks
 tea|hot-and-cold-drinks/tea|drinks/tea-milk-drinks/black-breakfast-tea
@@ -194,3 +194,8 @@ kimchi|fridge-deli-and-eggs/dips-hummus--antipasti/kimchi--sauerkraut|-
 hummus|fridge-deli-and-eggs/dips-hummus--antipasti/hummus|fridge-deli/dips-hummus-nibbles/hummus
 miso|pantry/cooking-sauces-stocks--marinades/soy--asian-sauces|-
 mochi|frozen/frozen-dumplings-pies--snacks/frozen-dumplings--asian-snacks|frozen/frozen-desserts
+# No dedicated page exists for these in the chains' sitemaps: they share a page that is already crawled
+# (ghee sits with butter, cooking wine with Asian sauces, celery with salad greens). Check them in the coverage report.
+ghee|fridge-deli-and-eggs/butter--margarine/butter|fridge-deli/eggs-butter-spreads/butter
+cooking-wine|pantry/cooking-sauces-stocks--marinades/soy--asian-sauces|pantry/sauces-pastes/soy-asian-sauces
+celery|fruit-and-vegetables/fresh-salad--herbs/lettuce-spinach--salad-greens|fruit-veg/fresh-salad-herbs/lettuce-salad-greens
