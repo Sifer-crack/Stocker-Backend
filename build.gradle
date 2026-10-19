@@ -41,4 +41,17 @@ subprojects {
 	tasks.named('test') {
 		useJUnitPlatform()
 	}
+
+	// Test layers (see docs/testing.md). `test` runs everything offline; these run one tagged layer only.
+	['service', 'feature-integration'].each { layer ->
+		tasks.register(layer == 'service' ? 'serviceTest' : 'featureIntegrationTest', Test) {
+			description = "Runs only tests tagged @Tag(\"${layer}\")."
+			group = 'verification'
+			testClassesDirs = sourceSets.test.output.classesDirs
+			classpath = sourceSets.test.runtimeClasspath
+			useJUnitPlatform {
+				includeTags layer
+			}
+		}
+	}
 }
