@@ -130,7 +130,19 @@ app:
     quarantine-after-zero-runs: ${STOCKER_INGEST_QUARANTINE_AFTER_ZERO_RUNS:2}
     quarantine-days: ${STOCKER_INGEST_QUARANTINE_DAYS:7}
     quarantine-site-wide-zero-share: ${STOCKER_INGEST_QUARANTINE_SITE_WIDE_ZERO_SHARE:0.5}
+    # Lean page loads (docs/features/price-engine-reliability.md): abort the requests a price page never needs. Kill switch
+    # STOCKER_INGEST_LEAN_PAGES=false restores full page loads. Request log: one line per page with hosts x resource types.
+    lean-pages: ${STOCKER_INGEST_LEAN_PAGES:true}
+    log-requests: ${STOCKER_INGEST_LOG_REQUESTS:false}
+    lean:
+      # Only passive types can be blocked: image, media, font, stylesheet (stylesheet stays OFF until a real crawl proves the tile
+      # extraction does not need layout). Never document / script / xhr / fetch.
+      block-resource-types: ${STOCKER_INGEST_BLOCK_RESOURCE_TYPES:image,media,font}
+      # Case-insensitive substrings of the request HOST; never applied to the chain's own domain.
+      block-host-patterns: ${STOCKER_INGEST_BLOCK_HOST_PATTERNS:google-analytics,googletagmanager,googletagservices,googlesyndication,doubleclick,adservice.google,facebook.net,facebook.com,hotjar,segment.io,segment.com,optimizely,newrelic,nr-data.net,clarity.ms,bat.bing.com,criteo,taboola,outbrain,quantserve,scorecardresearch,fullstory,mouseflow,mixpanel,amplitude.com,snapchat,tiktok,ads-twitter,analytics.twitter,sentry.io,datadoghq,tealiumiq,adobedtm,demdex,omtrdc}
     newworld:
+      lean:
+        enabled: ${STOCKER_INGEST_NEWWORLD_LEAN_ENABLED:true}      # per-chain switch (also needs STOCKER_INGEST_LEAN_PAGES)
       enabled: ${STOCKER_INGEST_NEWWORLD_ENABLED:true}
       page-delay-min-millis: ${STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MIN_MILLIS:}
       page-delay-max-millis: ${STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MAX_MILLIS:}
@@ -201,6 +213,8 @@ app:
         - https://www.newworld.co.nz/shop/category/pantry/oil--vinegar/cooking-oil?pg=1
         - https://www.newworld.co.nz/shop/category/pantry/oil--vinegar/olive--avocado-oil?pg=1
     paknsave:
+      lean:
+        enabled: ${STOCKER_INGEST_PAKNSAVE_LEAN_ENABLED:true}
       enabled: ${STOCKER_INGEST_PAKNSAVE_ENABLED:true}
       page-delay-min-millis: ${STOCKER_INGEST_PAKNSAVE_PAGE_DELAY_MIN_MILLIS:}
       page-delay-max-millis: ${STOCKER_INGEST_PAKNSAVE_PAGE_DELAY_MAX_MILLIS:}
@@ -271,6 +285,8 @@ app:
         - https://www.paknsave.co.nz/shop/category/pantry/oil--vinegar/cooking-oil?pg=1
         - https://www.paknsave.co.nz/shop/category/pantry/oil--vinegar/olive--avocado-oil?pg=1
     woolworths:
+      lean:
+        enabled: ${STOCKER_INGEST_WOOLWORTHS_LEAN_ENABLED:true}
       enabled: ${STOCKER_INGEST_WOOLWORTHS_ENABLED:true}
       page-delay-min-millis: ${STOCKER_INGEST_WOOLWORTHS_PAGE_DELAY_MIN_MILLIS:}
       page-delay-max-millis: ${STOCKER_INGEST_WOOLWORTHS_PAGE_DELAY_MAX_MILLIS:}

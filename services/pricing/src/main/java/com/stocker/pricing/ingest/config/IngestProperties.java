@@ -2,8 +2,10 @@ package com.stocker.pricing.ingest.config;
 
 import com.stocker.pricing.ingest.DailyPageBudget;
 import com.stocker.pricing.ingest.ChainId;
+import com.stocker.pricing.ingest.model.LeanPageOptions;
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -62,6 +64,12 @@ public class IngestProperties {
 	private int quarantineDays = 7;
 	/** A run (>= 4 pages) with a larger zero share than this is treated as a site-wide problem and ignored. */
 	private double quarantineSiteWideZeroShare = 0.5;
+	/** Kill switch for lean page loads (request blocking). false = every request is allowed, as before. */
+	private boolean leanPages = true;
+	/** Log, per page, the request hosts with resource-type counts and which were aborted (tuning aid). */
+	private boolean logRequests = false;
+	/** Shared lean-page defaults; a chain can replace either list under {@code app.ingest.<chain>.lean}. */
+	private LeanConfig lean = LeanConfig.sharedDefaults();
 	private ChainConfig newworld = new ChainConfig();
 	private ChainConfig paknsave = new ChainConfig();
 	private ChainConfig woolworths = new ChainConfig();
@@ -75,6 +83,16 @@ public class IngestProperties {
 	public long pageDelayMaxMillis(ChainId chain) {
 		Long own = chainConfig(chain).getPageDelayMaxMillis();
 		return Math.max(pageDelayMinMillis(chain), own != null ? own : pageDelayMaxMillis);
+	}
+
+	/** What this chain's page loads may drop: kill switch AND the chain's own flag, chain lists else the shared ones. */
+	public LeanPageOptions leanOptions(ChainId chain) {
+		LeanConfig own = chainConfig(chain).getLean();
+		boolean chainEnabled = own.getEnabled() == null || own.getEnabled();
+		return new LeanPageOptions(leanPages && chainEnabled,
+				Set.copyOf(own.getBlockResourceTypes() != null ? own.getBlockResourceTypes() : lean.getBlockResourceTypes()),
+				own.getBlockHostPatterns() != null ? own.getBlockHostPatterns() : lean.getBlockHostPatterns(),
+				logRequests);
 	}
 
 	private ChainConfig chainConfig(ChainId chain) {
@@ -95,5 +113,39 @@ public class IngestProperties {
 		private String storeId = "";
 		private String storeName = "";
 		private List<String> categoryUrls = List.of();
+		/** Per-chain lean-page settings; unset values inherit the shared ones. */
+		private LeanConfig lean = new LeanConfig();
+	}
+
+	/**
+	 * Lean page loads. Resource types are Playwright's ({@code image, media, font, stylesheet}); only passive types are
+	 * ever blocked. Host patterns are case-insensitive substrings of the request host, never applied to the chain's own
+	 * domain. Shared defaults are non-null; on a chain, null = inherit.
+	 */
+	@Getter
+	@Setter
+	public static class LeanConfig {
+		private Boolean enabled;
+		private List<String> blockResourceTypes;
+		private List<String> blockHostPatterns;
+
+		public LeanConfig() {
+		}
+
+		/** Generic analytics / ads / tracking hosts; none of them can serve a chain's product grid. */
+		public static final List<String> DEFAULT_HOST_PATTERNS = List.of("google-analytics", "googletagmanager",
+				"googletagservices", "googlesyndication", "doubleclick", "adservice.google", "facebook.net",
+				"facebook.com", "connect.facebook", "hotjar", "segment.io", "segment.com", "optimizely", "newrelic",
+				"nr-data.net", "clarity.ms", "bat.bing.com", "criteo", "taboola", "outbrain", "quantserve",
+				"scorecardresearch", "fullstory", "mouseflow", "mixpanel", "amplitude.com", "snapchat", "tiktok",
+				"ads-twitter", "analytics.twitter", "sentry.io", "datadoghq", "tealiumiq",
+				"adobedtm", "demdex", "omtrdc");
+
+		static LeanConfig sharedDefaults() {
+			LeanConfig shared = new LeanConfig();
+			shared.blockResourceTypes = List.of("image", "media", "font");
+			shared.blockHostPatterns = DEFAULT_HOST_PATTERNS;
+			return shared;
+		}
 	}
 }

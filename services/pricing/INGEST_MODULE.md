@@ -228,6 +228,31 @@ search URL. `app.ingest.*.category-urls` ships empty by default (see below);
 populate it with real category/listing pages, not search URLs, mirroring
 `pakn-scraper`'s `categories.txt` approach.
 
+## Lean pages and page templates
+
+Added 2026-10-20; the full description, defaults and log guide are in `docs/features/price-engine-reliability.md`
+("Lean page loads and page templates"). In short:
+
+- `impl/LeanPageRouter` (one per scrape, installed on the Playwright context) aborts `image` / `media` / `font` requests (and
+  `stylesheet` only if configured) and requests to third-party tracker hosts; never the navigation, the chain's own domain by
+  host pattern, or script / xhr / fetch / document by type. Options: `model/LeanPageOptions`, built from
+  `IngestProperties.leanOptions(chain)`; the scraper beans get them from `ChainScraperBeansConfig`. The older constructors
+  (`new FoodstuffsChainScraper(chain, baseUrl)`, `new WoolworthsNzChainScraper()`) mean "lean off".
+- `parse/ChainPageTemplate` holds every selector / regex of a chain page: tile, name, brand-slot (pack size), price (schema meta,
+  split dollars + cents, or price text), image, product code (card test id regex, or a link segment), the "Showing A - B of M
+  products" regex and the pagination nav. `impl/TemplatedPageLoader` reads a page through it in one `page.evaluate`, checks that
+  the mandatory fields (name, code, price) appear on at least one tile and logs `chain page url tiles claimed blocked-requests`.
+  `impl/PageCountMonitor` warns when a URL's tile count falls below 80% of the last one seen in this process.
+- Env: `STOCKER_INGEST_LEAN_PAGES` (true), `STOCKER_INGEST_{NEWWORLD,PAKNSAVE,WOOLWORTHS}_LEAN_ENABLED` (true),
+  `STOCKER_INGEST_BLOCK_RESOURCE_TYPES` (image,media,font), `STOCKER_INGEST_BLOCK_HOST_PATTERNS`, `STOCKER_INGEST_LOG_REQUESTS`
+  (false).
+- Tests: `ChainPageTemplateTest`, `LeanPageRouterTest`, `PageCountMonitorTest`, `IngestLeanPropertiesTest` (no browser) and
+  `TemplatePageBrowserTest` (headless Firefox on localhost fixtures, incl. the probe captures in
+  `src/test/resources/ingest/probe/`; those are text-only probes, so the browser test rebuilds a page from their tile count,
+  visible text and pagination markup). Woolworths has no real captured fixture, only `woolworths-milk.html`, written from the
+  selectors of the reference scraper.
+- Does not reduce the number of page loads; correctness of blocking on the real sites is proven only by the first real crawl.
+
 ## Configuration
 
 ```yaml
@@ -298,6 +323,11 @@ STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MIN_MILLIS=    # per-chain override (also PAK
 STOCKER_INGEST_BREAKER_BLOCKED_THRESHOLD=3   # consecutive 429/403/503/captcha responses that open a chain's breaker
 STOCKER_INGEST_BREAKER_COOLDOWN=PT6H         # first cool-down; doubles per consecutive trip
 STOCKER_INGEST_BREAKER_MAX_COOLDOWN=PT24H
+STOCKER_INGEST_LEAN_PAGES=true               # kill switch for request blocking (images / media / fonts / trackers)
+STOCKER_INGEST_NEWWORLD_LEAN_ENABLED=true    # per-chain (also PAKNSAVE_, WOOLWORTHS_)
+STOCKER_INGEST_BLOCK_RESOURCE_TYPES=image,media,font
+STOCKER_INGEST_BLOCK_HOST_PATTERNS=...       # comma list of host substrings; default in application.yml
+STOCKER_INGEST_LOG_REQUESTS=false            # true = per page: request hosts x resource types x aborted
 ```
 
 `category-urls` per chain is list-valued config, not an env var — set it in

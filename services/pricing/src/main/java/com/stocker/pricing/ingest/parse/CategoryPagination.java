@@ -10,8 +10,10 @@ import java.util.regex.Pattern;
  */
 public record CategoryPagination(int from, int to, int total) {
 
-	private static final Pattern SHOWING = Pattern.compile(
-			"(?i)showing\\s+(\\d+)\\s*[-\\u2013]\\s*(\\d+)\\s+of\\s+(\\d+)\\s+products?");
+	/** Regex source shared with the page template (the browser runs it case-insensitively, see ChainPageTemplate). */
+	public static final String SHOWING_SOURCE =
+			"showing\\s+(\\d+)\\s*[-\\u2013]\\s*(\\d+)\\s+of\\s+(\\d+)\\s+products?";
+	private static final Pattern SHOWING = Pattern.compile("(?i)" + SHOWING_SOURCE);
 	private static final Pattern PG_PARAM = Pattern.compile("([?&])pg=\\d+");
 
 	public static Optional<CategoryPagination> parse(String pageText) {
