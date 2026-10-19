@@ -123,7 +123,7 @@ baking-soda|baking|Baking soda|baking soda;bicarb soda;bicarbonate|baking|200g|
 vanilla|baking|Vanilla essence|vanilla essence;vanilla extract|baking|50ml|
 cocoa|baking|Cocoa powder|cocoa;cocoa powder|baking|250g|
 oats|breakfast|Rolled oats|oat;rolled oat;porridge oat;oats|oats|1kg|milk;drink;biscuit;bar
-cereal|breakfast|Breakfast cereal|cereal;cornflake;weet bix;weetbix;muesli;granola|cereal|500g|bar
+cereal|breakfast|Breakfast cereal|cereal;cornflake;muesli;granola|cereal|500g|bar
 pasta|pasta|Dried pasta|pasta;spaghetti;penne;fusilli;macaroni;linguine;lasagne|pasta|500g|sauce;salad;noodle
 noodles|pasta|Instant noodles|noodle;instant noodle;ramen;udon|noodle|5pk|
 pasta-sauce|pantry|Pasta sauce|pasta sauce;bolognese sauce;tomato pasta sauce|pasta-sauce|500g|
@@ -168,8 +168,8 @@ peanuts|snacks|Peanuts|peanut;roasted peanut;peanut kernel|nut|500g|butter;oil;s
 mixed-nuts|snacks|Mixed nuts|mixed nut;pistachio;macadamia;hazelnut;brazil nut;pecan|nut|200g|butter;milk;oil;flour;spread;chocolate
 chips|snacks|Potato chips|chip;potato chip;crisp;corn chip;pringles|chip|150g|
 crackers|snacks|Crackers|cracker;rice cracker;water cracker;cruskit;vita weat|cracker|200g|
-biscuits|snacks|Biscuits|biscuit;tim tam;chocolate biscuit;cream biscuit;shortbread;digestive|biscuit|200g|
-chocolate|snacks|Chocolate block|chocolate;chocolate block;dark chocolate;milk chocolate;cadbury|chocolate|180g|biscuit;milk drink;cake;mix;chip;spread;sauce;pie
+biscuits|snacks|Biscuits|biscuit;chocolate biscuit;cream biscuit;shortbread;digestive|biscuit|200g|
+chocolate|snacks|Chocolate block|chocolate;chocolate block;dark chocolate;milk chocolate;cadbury|chocolate|180g|biscuit;drink;flavoured;milkshake;chocolate milk;cake;mix;chip;spread;sauce;pie
 lollies|snacks|Lollies|lolly;lollies;candy;rock candy;gummy|confectionery|200g|
 popcorn|snacks|Popcorn|popcorn|popcorn|100g|
 # --- drinks ---
@@ -209,3 +209,9 @@ miso|pantry|Miso|miso;miso paste|asian|300g|
 chocolate-pie|snacks|Chocolate pie|chocolate pie;choco pie|biscuit|6pk|
 rock-sugar|baking|Rock sugar|rock sugar;rock candy;rock suger|sugar|500g|
 instant-ramen|pasta|Korean instant ramen|ramen;shin ramyun;buldak|noodle|5pk|
+# --- branded high-traffic NZ items (own key = own price line; each needs a category-map.txt line) ---
+tim-tams|snacks|Tim Tams|tim tam;tim tams;timtam|biscuit|200g|
+weetbix|breakfast|Weet-Bix|weet bix;weetbix;weet-bix|cereal|375g|
+milo|drinks|Milo|milo|chocolate|400g|
+dairy-milk|snacks|Cadbury Dairy Milk|cadbury dairy milk;dairy milk chocolate;dairy milk block;dairy milk|chocolate|180g|
+pineapple-lumps|snacks|Pineapple Lumps|pineapple lumps;pineapple lump|confectionery|180g|

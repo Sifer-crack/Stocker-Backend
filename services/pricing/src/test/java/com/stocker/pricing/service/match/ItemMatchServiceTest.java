@@ -282,4 +282,165 @@ class ItemMatchServiceTest {
 		assertTrue(result.stale());
 		assertEquals(1, result.matches().size(), "old data is still shown, flagged");
 	}
+
+	// ---- search relevance: dishes, qualifiers, sizes, branded items (fixtures: no carton eggs / biscuits are crawled yet) ----
+
+	/** A canonical-index row whose pack size and unit price come from the name, like the real normaliser. */
+	private NormalizedProduct canon(String key, String chain, String itemId, String name, String price) {
+		com.stocker.pricing.normalize.PackSize size = com.stocker.pricing.normalize.ProductNormalizer.sizeOf(name);
+		BigDecimal amount = new BigDecimal(price);
+		return NormalizedProduct.builder().itemId(itemId).storeId(chain + ":").chainId(chain).canonicalKey(key)
+				.normalizedName(name.toLowerCase()).displayName(name)
+				.packUnit(size == null ? null : size.unit().code()).packQuantity(size == null ? null : size.quantity())
+				.unitPrice(size == null ? null : size.unitPrice(amount)).priceAmount(amount).currency("NZD")
+				.capturedAt(NOW).updatedAt(NOW).build();
+	}
+
+	private void indexed(String key, NormalizedProduct... rows) {
+		when(normalizedRepository.findByCanonicalKeyAndCapturedAtAfter(org.mockito.ArgumentMatchers.eq(key), any()))
+				.thenReturn(List.of(rows));
+		when(normalizedRepository.findByCapturedAtAfter(any())).thenReturn(List.of(rows));
+	}
+
+	private static List<String> names(List<ItemMatchService.MatchedProduct> products) {
+		return products.stream().map(ItemMatchService.MatchedProduct::productName).toList();
+	}
+
+	@Test
+	void aDishThatMerelyContainsTheWordEggIsNeverAnEggMatch() {
+		indexed("eggs",
+				canon("eggs", "woolworths", "woolworths:1", "Ben's Original Microwave Rice Egg Fried Rice 250g Pouch", "4.50"),
+				canon("eggs", "newworld", "newworld:1", "Pams Free Range Eggs Size 7 12 Pack", "7.50"));
+
+		for (String term : List.of("eggs", "eggs size 7")) {
+			MatchResult result = service.match(term, "item-" + term);
+			assertEquals(List.of("Pams Free Range Eggs Size 7 12 Pack"), names(result.matches()), term);
+			assertTrue(names(result.alternatives()).stream().noneMatch(n -> n.contains("Fried Rice")), term);
+		}
+	}
+
+	@Test
+	void withOnlyADishStoredEggsFindNothingOnBothPaths() {
+		NormalizedProduct dish = canon("eggs", "woolworths", "woolworths:1",
+				"Ben's Original Microwave Rice Egg Fried Rice 250g Pouch", "4.50");
+		when(normalizedRepository.findByCanonicalKeyAndCapturedAtAfter(org.mockito.ArgumentMatchers.eq("eggs"), any()))
+				.thenReturn(List.of());
+		when(normalizedRepository.findByCapturedAtAfter(any())).thenReturn(List.of(dish));
+
+		MatchResult result = service.match("eggs", "item-1");
+
+		assertTrue(result.matches().isEmpty());
+		assertTrue(result.alternatives().isEmpty());
+	}
+
+	@Test
+	void theLexicalFallbackAlsoRejectsDishesAndKeepsRealEggs() {
+		when(normalizedRepository.findByCanonicalKeyAndCapturedAtAfter(org.mockito.ArgumentMatchers.eq("eggs"), any()))
+				.thenReturn(List.of());
+		when(normalizedRepository.findByCapturedAtAfter(any())).thenReturn(List.of(
+				row("woolworths", "woolworths:1", "Egg Fried Rice 250g", null, "4.50", NOW),
+				row("woolworths", "woolworths:2", "Egg Mayonnaise 400g", null, "4.00", NOW),
+				row("woolworths", "woolworths:3", "Chocolate Easter Egg 100g", null, "3.00", NOW),
+				row("newworld", "newworld:3", "Eggs Cage Free 6 Pack", null, "5.00", NOW)));
+
+		MatchResult result = service.match("eggs", "item-1");
+
+		assertEquals("lexical", result.matchMethod());
+		assertEquals(List.of("Eggs Cage Free 6 Pack"), names(result.matches()));
+		assertTrue(result.alternatives().isEmpty(), names(result.alternatives()).toString());
+	}
+
+	@Test
+	void eggGradeAndPackCountQualifiersKeepOnlyThatEgg() {
+		indexed("eggs",
+				canon("eggs", "newworld", "newworld:1", "Pams Free Range Eggs Size 7 12 Pack", "7.50"),
+				canon("eggs", "newworld", "newworld:2", "Farm Fresh Barn Eggs Size 6 12pk", "6.00"),
+				canon("eggs", "newworld", "newworld:3", "Eggs Cage Free 6 Pack", "4.00"),
+				canon("eggs", "paknsave", "paknsave:1", "Farm Fresh Barn Eggs Size 6 12pk", "5.90"),
+				canon("eggs", "woolworths", "woolworths:1", "Woolworths Free Range Eggs Size 7 12 Pack", "7.20"));
+
+		assertEquals(List.of("Woolworths Free Range Eggs Size 7 12 Pack", "Pams Free Range Eggs Size 7 12 Pack"),
+				names(service.match("eggs size 7", "a").matches()));
+		assertEquals(List.of("Farm Fresh Barn Eggs Size 6 12pk", "Farm Fresh Barn Eggs Size 6 12pk"),
+				names(service.match("eggs s6", "b").matches()));
+		assertEquals(List.of("Eggs Cage Free 6 Pack"), names(service.match("eggs 6 pack", "c").matches()));
+		assertEquals(List.of("Pams Free Range Eggs Size 7 12 Pack"),
+				service.match("size 7 eggs 12 pack", "d").matches().stream().filter(m -> m.chainId().equals("NEWWORLD"))
+						.map(ItemMatchService.MatchedProduct::productName).toList());
+	}
+
+	@Test
+	void aSizedMilkSearchDiffersFromAPlainOneAndNeverFallsBackToTheTypicalSize() {
+		indexed("milk",
+				canon("milk", "newworld", "newworld:1", "Anchor Blue Top Milk 1L", "1.80"),
+				canon("milk", "newworld", "newworld:2", "Anchor Blue Top Milk 2L", "3.90"),
+				canon("milk", "newworld", "newworld:3", "Anchor Blue Top Milk 3L", "6.60"));
+
+		MatchResult plain = service.match("milk", "item-1");
+		MatchResult sized = service.match("milk 2L", "item-2");
+
+		assertEquals(List.of("Anchor Blue Top Milk 1L"), names(plain.matches()), "all sizes, cheapest per litre");
+		assertEquals(List.of("Anchor Blue Top Milk 2L"), names(sized.matches()));
+		assertEquals(List.of("Anchor Blue Top Milk 2L"), names(service.match("milk 2 litres", "item-3").matches()));
+	}
+
+	@Test
+	void timTamsAreFoundByEveryWritingAtAnyChainViaTheCanonicalPath() {
+		indexed("tim-tams",
+				canon("tim-tams", "newworld", "newworld:1", "Arnott's Tim Tam Original 200g", "3.99"),
+				canon("tim-tams", "paknsave", "paknsave:1", "Tim Tam Double Coat 200g", "3.79"),
+				canon("tim-tams", "woolworths", "woolworths:1", "Arnott's TimTam Original 200g", "4.20"));
+
+		for (String term : List.of("tim tam", "tim tams", "timtam", "Tim Tams 200g")) {
+			MatchResult result = service.match(term, "item-" + term);
+			assertEquals(3, result.matches().size(), term);
+			assertEquals("canonical", result.matchMethod(), term);
+		}
+	}
+
+	@Test
+	void timTamsAreFoundByTheLexicalFallbackWhenNothingIsIndexedUnderTheKeyYet() {
+		when(normalizedRepository.findByCanonicalKeyAndCapturedAtAfter(org.mockito.ArgumentMatchers.eq("tim-tams"), any()))
+				.thenReturn(List.of());
+		when(normalizedRepository.findByCapturedAtAfter(any())).thenReturn(List.of(
+				row("newworld", "newworld:1", "Arnott's Tim Tam Original 200g", null, "3.99", NOW),
+				row("paknsave", "paknsave:1", "Tim Tam Double Coat 200g", null, "3.79", NOW)));
+
+		for (String term : List.of("tim tam", "tim tams", "timtam")) {
+			assertEquals(2, service.match(term, "item-" + term).matches().size(), term);
+		}
+	}
+
+	@Test
+	void aChocolateBlockCalledDairyMilkIsNotDroppedByTheMilkExclude() {
+		indexed("chocolate", canon("chocolate", "newworld", "newworld:1", "Cadbury Roses Milk Chocolate Block 180g", "4.50"));
+
+		assertEquals(1, service.match("chocolate", "item-1").matches().size());
+	}
+
+	@Test
+	void productsOfOtherSizesAreKeptInternallyNotAsMatches() {
+		indexed("milk",
+				canon("milk", "newworld", "newworld:1", "Anchor Blue Top Milk 1L", "1.80"),
+				canon("milk", "newworld", "newworld:2", "Anchor Blue Top Milk 2L", "3.90"),
+				canon("milk", "paknsave", "paknsave:1", "Pams Standard Milk 3L", "5.50"));
+
+		ItemMatchService.MatchOutcome sized = service.matchDetailed("milk 2L", "item-1", null, null, null);
+		ItemMatchService.MatchOutcome plain = service.matchDetailed("milk", "item-2", null, null, null);
+
+		assertEquals(List.of("Anchor Blue Top Milk 2L"), names(sized.result().matches()));
+		assertEquals(List.of("Anchor Blue Top Milk 1L", "Pams Standard Milk 3L"), names(sized.otherSizes()));
+		assertTrue(plain.otherSizes().isEmpty(), "no qualifier asked, so no product is 'another size'");
+		assertEquals(2, plain.result().matches().size());
+	}
+
+	@Test
+	void aPantrySizeHintBehavesLikeATypedSize() {
+		indexed("milk",
+				canon("milk", "newworld", "newworld:1", "Anchor Blue Top Milk 1L", "1.80"),
+				canon("milk", "newworld", "newworld:2", "Anchor Blue Top Milk 2L", "3.90"));
+
+		assertEquals(List.of("Anchor Blue Top Milk 2L"),
+				names(service.match("milk", "item-1", null, new BigDecimal("2"), null).matches()));
+	}
 }

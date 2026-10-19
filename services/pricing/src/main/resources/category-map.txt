@@ -199,3 +199,8 @@ mochi|frozen/frozen-dumplings-pies--snacks/frozen-dumplings--asian-snacks|frozen
 ghee|fridge-deli-and-eggs/butter--margarine/butter|fridge-deli/eggs-butter-spreads/butter
 cooking-wine|pantry/cooking-sauces-stocks--marinades/soy--asian-sauces|pantry/sauces-pastes/soy-asian-sauces
 celery|fruit-and-vegetables/fresh-salad--herbs/lettuce-spinach--salad-greens|fruit-veg/fresh-salad-herbs/lettuce-salad-greens
+tim-tams|pantry/biscuits--crackers/chocolate-biscuits--cookies|pantry/biscuits-crackers/biscuits-cookies
+weetbix|pantry/breakfast-cereals/cold-cereals|pantry/cereals-spreads/cereal
+milo|hot-and-cold-drinks/hot-chocolate--milk-drinks/drinking-chocolate--milk-drink-mixes|-
+dairy-milk|pantry/chocolate-sweets--chewing-gum/chocolate-blocks|pantry/snacks-sweets/chocolate-bars-blocks
+pineapple-lumps|pantry/chocolate-sweets--chewing-gum/lollies-sweets--licorice|pantry/snacks-sweets/sweets-lollies-licorice

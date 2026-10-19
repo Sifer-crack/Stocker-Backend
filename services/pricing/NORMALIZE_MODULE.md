@@ -26,8 +26,8 @@ Index item list is only published through Infoshare, which could not be download
 
 ## Search path (`ItemMatchService`)
 
-1. Pack size: request hint (`weightKg` / `volumeL`, e.g. the pantry product's selling weight/volume) -> size in the term -> the common product's typical size.
-2. Term -> common product -> `normalized_products` rows for that key (indexed lookup) -> per chain, same-size first, then word coverage, then lowest unit price. `matchMethod = "canonical"`.
+1. Query parsing (`normalize/QueryParser` -> `ParsedQuery`): the term's size (2L, 1.5 litres, 500g, 330ml, 12 x 330ml), pack count (12 pack, 12pk, 12-pack, 6 pk, x12, dozen = 12, half dozen = 6) and NZ egg grade (size 7, s7) are taken out of its words. A request hint (`weightKg` / `volumeL`) replaces the parsed size.
+2. Term -> common product -> `normalized_products` rows for that key (indexed lookup). A row must pass the product's exclude words and the dish guard (`CommonProductCatalog.accepts`: "Egg Fried Rice", "Egg Noodles", "Egg Mayonnaise" are not eggs; a dish word BEFORE the category word, as in "Sandwich Bread", is fine; the category's own words and the shopper's words are exempt), and share a word with the term. Per chain: with a qualifier only products that have every stated qualifier are matches (ranked word coverage, unasked variants, unit price) - the rest go to `alternatives` and to `MatchOutcome.otherSizes` (`ItemMatchService.matchDetailed`); without a qualifier all sizes compete on word coverage, then unit price. There is no typical-size fallback. `matchMethod = "canonical"`.
 3. Nothing indexed / not a common product -> the older word-overlap match over stored ingest rows (`"lexical"`).
 4. Still nothing -> empty result + a row in `unmatched_search_terms`. **No scrape** unless `app.pricing.match.on-demand-ingest=true` (default `false`).
 

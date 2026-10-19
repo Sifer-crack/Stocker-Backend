@@ -40,4 +40,19 @@ class NameMatcherTest {
 		assertEquals(0.0, NameMatcher.score("", "Milk"));
 		assertEquals(0.0, NameMatcher.score("milk", null));
 	}
+
+	@Test
+	void qualifiersAreNotWordsAndAMissingOrDifferentOneCapsTheScore() {
+		assertTrue(NameMatcher.score("eggs size 7 12 pack", "Pams Free Range Eggs Size 7 12 Pack") >= 0.9);
+		assertTrue(NameMatcher.score("eggs size 7", "Farm Fresh Barn Eggs Size 6 12pk") <= 0.4);
+		assertTrue(NameMatcher.score("milk 2L", "Fresh Milk") <= 0.4, "the product does not state the asked size");
+		assertEquals(1.0, NameMatcher.score("milk", "Milk 2L"), 0.0001, "no qualifier: every size is as relevant");
+		assertEquals(NameMatcher.score("milk", "Milk 1L"), NameMatcher.score("milk", "Milk 3L"));
+	}
+
+	@Test
+	void spacingOfBrandNamesDoesNotMatter() {
+		assertTrue(NameMatcher.score("timtam", "Arnott's Tim Tam Original 200g") >= 0.9);
+		assertTrue(NameMatcher.score("weetbix", "Sanitarium Weet-Bix 375g") >= 0.9);
+	}
 }
