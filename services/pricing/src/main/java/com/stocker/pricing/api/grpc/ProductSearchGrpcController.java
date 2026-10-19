@@ -58,7 +58,9 @@ public class ProductSearchGrpcController extends ProductSearchGrpc.ProductSearch
 		SearchProductsResponse.Builder response = SearchProductsResponse.newBuilder()
 				.setQuery(toProto(result.query()))
 				.setMatchMethod(result.matchMethod())
-				.setStale(result.stale());
+				.setStale(result.stale())
+				.setStatus(result.status())
+				.putAllRefresh(result.refresh());
 		result.products().forEach(product -> response.addProducts(toProto(product)));
 		result.alternatives().forEach(product -> response.addAlternatives(toProto(product)));
 		reply(responseObserver, response.build());

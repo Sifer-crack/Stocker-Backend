@@ -63,7 +63,7 @@ class ProductSearchGrpcControllerTest {
 		Product bare = new Product("bananas", "Bananas", null, null, null, null, null, null, "newworld",
 				Map.of("newworld", new ChainPrice(new BigDecimal("3.50"), null, false, "newworld:", at, false)));
 		return new SearchResult(new Query("eggs size 7", List.of("egg"), null, null, "7", "eggs"), "canonical", true,
-				List.of(eggs), List.of(bare));
+				List.of(eggs), List.of(bare), "found", Map.of("paknsave", "pending", "newworld", "done"));
 	}
 
 	@Test
@@ -77,6 +77,8 @@ class ProductSearchGrpcControllerTest {
 		SearchProductsResponse response = out.values.get(0);
 		assertThat(response.getMatchMethod()).isEqualTo("canonical");
 		assertThat(response.getStale()).isTrue();
+		assertThat(response.getStatus()).isEqualTo("found");
+		assertThat(response.getRefreshMap()).containsOnly(Map.entry("paknsave", "pending"), Map.entry("newworld", "done"));
 		assertThat(response.getQuery().getGrade()).isEqualTo("7");
 		assertThat(response.getQuery().hasSize()).isFalse();
 		assertThat(response.getQuery().hasPackCount()).isFalse();

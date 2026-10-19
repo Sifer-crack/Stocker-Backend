@@ -204,7 +204,7 @@ mochi|frozen|Mochi|mochi|frozen-dessert|1pk|
 ghee|dairy|Ghee|ghee|butter|500g|
 syrup|pantry|Maple and golden syrup|maple syrup;golden syrup;syrup|honey|250ml|cough;chocolate;coffee;cordial
 corn-starch|baking|Corn starch|corn starch;cornflour;corn flour;starch;cassava starch|flour|400g|
-cooking-wine|pantry|Cooking wine|cooking wine;shaoxing wine|asian|500ml|
+cooking-wine|pantry|Cooking wine|cooking wine;shaoxing wine;shao xing wine;shao xing;shaoxing;rice wine;mirin|asian|500ml|vinegar
 miso|pantry|Miso|miso;miso paste|asian|300g|
 chocolate-pie|snacks|Chocolate pie|chocolate pie;choco pie|biscuit|6pk|
 rock-sugar|baking|Rock sugar|rock sugar;rock candy;rock suger|sugar|500g|

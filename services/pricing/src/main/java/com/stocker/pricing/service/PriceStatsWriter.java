@@ -64,6 +64,12 @@ public class PriceStatsWriter {
 		priceStatsRepository.save(stats);
 	}
 
+	/** Forgets the summaries of one item id (used when the product chosen for a list item is replaced). */
+	@Transactional
+	public void clearItem(String itemId) {
+		priceStatsRepository.deleteByItemId(itemId);
+	}
+
 	private static PriceStats newStats(PriceRecord record) {
 		return PriceStats.builder()
 				.itemId(record.getItemId())

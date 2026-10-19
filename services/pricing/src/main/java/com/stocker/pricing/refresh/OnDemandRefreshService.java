@@ -52,6 +52,13 @@ public class OnDemandRefreshService {
 	private final PricingCacheProperties properties;
 	private final ObjectProvider<IngestScheduler> ingestScheduler;
 
+	/** How long a finished state stays readable; after this the product has no progress until a new refresh starts. */
+	private static final java.time.Duration PROGRESS_TTL = java.time.Duration.ofMinutes(30);
+
+	private record Progress(RefreshState state, Instant at) {
+	}
+
+	private final Map<String, Map<ChainId, Progress>> progress = new ConcurrentHashMap<>();
 	private final Map<String, Instant> lastAttempt = new ConcurrentHashMap<>();
 	private final Map<ChainId, ArrayDeque<Instant>> loadsPerChain = new EnumMap<>(ChainId.class);
 	private final Map<ChainId, ReentrantLock> chainLocks = new EnumMap<>(ChainId.class);
@@ -85,7 +92,53 @@ public class OnDemandRefreshService {
 		if (stale.isEmpty()) {
 			return new Outcome(false, false);
 		}
-		return refreshPages(stale, () -> outdated(product, config), product.key(), afterBackgroundRefresh);
+		return refreshPages(stale, () -> outdated(product, config), product.key(), commonLabel(product),
+				afterBackgroundRefresh);
+	}
+
+	/** Per-chain state of the refresh started for this common product; empty when none is known. Reads memory only. */
+	public Map<ChainId, RefreshState> progressForCommon(CommonProduct product) {
+		return progressOf(commonLabel(product));
+	}
+
+	/** Per-chain state of the refresh started for this term; empty when none is known. Reads memory only. */
+	public Map<ChainId, RefreshState> progressForTerm(String term) {
+		return progressOf(termLabel(term));
+	}
+
+	private static String commonLabel(CommonProduct product) {
+		return "common:" + product.key();
+	}
+
+	private static String termLabel(String term) {
+		return "term:" + term.trim().toLowerCase(Locale.ROOT);
+	}
+
+	private Map<ChainId, RefreshState> progressOf(String label) {
+		Map<ChainId, Progress> known = progress.get(label);
+		Map<ChainId, RefreshState> result = new EnumMap<>(ChainId.class);
+		if (known == null) {
+			return result;
+		}
+		Instant oldest = Instant.now().minus(PROGRESS_TTL);
+		known.forEach((chain, entry) -> {
+			if (entry.state() == RefreshState.PENDING || !entry.at().isBefore(oldest)) {
+				result.put(chain, entry.state());
+			}
+		});
+		return result;
+	}
+
+	private void mark(String label, ChainId chain, RefreshState state, boolean onlyIfUnknown) {
+		Map<ChainId, Progress> known = progress.computeIfAbsent(label, key -> new ConcurrentHashMap<>());
+		Instant oldest = Instant.now().minus(PROGRESS_TTL);
+		if (onlyIfUnknown) {
+			known.compute(chain, (key, existing) -> existing != null
+					&& (existing.state() == RefreshState.PENDING || !existing.at().isBefore(oldest)) ? existing
+							: new Progress(state, Instant.now()));
+		} else {
+			known.put(chain, new Progress(state, Instant.now()));
+		}
 	}
 
 	/**
@@ -101,14 +154,15 @@ public class OnDemandRefreshService {
 		if (targets.isEmpty()) {
 			return new Outcome(false, false);
 		}
-		return refreshPages(targets, () -> false, "term '" + term + "'", afterBackgroundRefresh);
+		return refreshPages(targets, () -> false, "term '" + term + "'", termLabel(term), afterBackgroundRefresh);
 	}
 
-	private Outcome refreshPages(Map<ChainId, String> pages, BooleanSupplier outdated, String label,
+	private Outcome refreshPages(Map<ChainId, String> pages, BooleanSupplier outdated, String label, String progressLabel,
 			Runnable afterBackgroundRefresh) {
 		PricingCacheProperties.OnDemand config = properties.getOnDemand();
 		IngestScheduler scheduler = ingestScheduler.getIfAvailable();
 		if (!config.isEnabled() || scheduler == null) {
+			pages.keySet().forEach(chain -> mark(progressLabel, chain, RefreshState.SKIPPED, true));
 			return new Outcome(outdated.getAsBoolean(), false);
 		}
 
@@ -116,6 +170,7 @@ public class OnDemandRefreshService {
 		// threads, so its Context is captured here. A call that merely completes does not cancel the token.
 		CancellationToken cancellation = CancellationToken.current();
 		if (cancellation.isCancelled()) {
+			pages.keySet().forEach(chain -> mark(progressLabel, chain, RefreshState.SKIPPED, true));
 			return new Outcome(outdated.getAsBoolean(), false);
 		}
 
@@ -124,6 +179,9 @@ public class OnDemandRefreshService {
 			Permit permit = permit(chain, url, config);
 			if (permit != null) {
 				allowed.put(chain, permit);
+				mark(progressLabel, chain, RefreshState.PENDING, false);
+			} else {
+				mark(progressLabel, chain, RefreshState.SKIPPED, true);
 			}
 		});
 		if (allowed.isEmpty()) {
@@ -132,7 +190,7 @@ public class OnDemandRefreshService {
 
 		List<CompletableFuture<Void>> jobs = new ArrayList<>();
 		allowed.forEach((chain, permit) -> jobs.add(
-				CompletableFuture.runAsync(() -> load(scheduler, chain, permit, cancellation), executor)));
+				CompletableFuture.runAsync(() -> load(scheduler, chain, permit, cancellation, progressLabel), executor)));
 		CompletableFuture<Void> all = CompletableFuture.allOf(jobs.toArray(new CompletableFuture[0]));
 		Runnable followUp = () -> {
 			if (!cancellation.isCancelled()) {
@@ -172,10 +230,12 @@ public class OnDemandRefreshService {
 		return false;
 	}
 
-	private void load(IngestScheduler scheduler, ChainId chain, Permit permit, CancellationToken cancellation) {
+	private void load(IngestScheduler scheduler, ChainId chain, Permit permit, CancellationToken cancellation,
+			String progressLabel) {
 		ReentrantLock lock = chainLocks.get(chain);
 		if (!cancellation.lockUnlessCancelled(lock)) {
 			refund(permit);
+			mark(progressLabel, chain, RefreshState.SKIPPED, false);
 			log.info("On-demand refresh {} {} cancelled before it started", chain, permit.url());
 			return;
 		}
@@ -183,10 +243,28 @@ public class OnDemandRefreshService {
 			int saved = scheduler.refreshCategories(chain, List.of(permit.url()), cancellation);
 			if (cancellation.isCancelled() && saved == 0) {
 				refund(permit);       // cancelled and nothing came of it: do not charge the cooldown / hourly cap
+				mark(progressLabel, chain, RefreshState.SKIPPED, false);
+			} else {
+				publishToSnapshot(saved);
+				mark(progressLabel, chain, RefreshState.DONE, false);
 			}
 			log.info("On-demand refresh {} {} -> {} records", chain, permit.url(), saved);
+		} catch (RuntimeException e) {
+			mark(progressLabel, chain, RefreshState.FAILED, false);
+			throw e;
 		} finally {
 			lock.unlock();
+		}
+	}
+
+	/** The page is stored; make the in-memory copy show it now, so "done" means a re-asked search sees the prices. */
+	private void publishToSnapshot(int saved) {
+		if (saved > 0) {
+			try {
+				normalizedRepository.refresh();
+			} catch (RuntimeException e) {
+				log.warn("Snapshot refresh after an on-demand load failed: {}", e.getMessage());
+			}
 		}
 	}
 

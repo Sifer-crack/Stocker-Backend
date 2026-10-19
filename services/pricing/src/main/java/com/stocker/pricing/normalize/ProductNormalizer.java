@@ -67,10 +67,22 @@ public final class ProductNormalizer {
 
 	/** Ordered words of the name, repeats kept (position matters to the dish guard). */
 	public static List<String> wordList(String name) {
-		List<String> words = new ArrayList<>();
 		if (name == null) {
-			return words;
+			return new ArrayList<>();
 		}
+		// A pure function of the name, and a search normalises every stored name on every request: remember the result.
+		if (WORD_CACHE.size() > WORD_CACHE_LIMIT) {
+			WORD_CACHE.clear();
+		}
+		return new ArrayList<>(WORD_CACHE.computeIfAbsent(name, ProductNormalizer::computeWordList));
+	}
+
+	private static final int WORD_CACHE_LIMIT = 100_000;
+	private static final java.util.concurrent.ConcurrentHashMap<String, List<String>> WORD_CACHE =
+			new java.util.concurrent.ConcurrentHashMap<>();
+
+	private static List<String> computeWordList(String name) {
+		List<String> words = new ArrayList<>();
 		String text = QueryParser.stripGrade(PackSizeParser.strip(name)).replace("'", "").replace("’", "");
 		for (Map.Entry<String, String> phrase : PHRASES.entrySet()) {
 			text = text.replace(phrase.getKey(), phrase.getValue());
@@ -81,7 +93,7 @@ public final class ProductNormalizer {
 			}
 			words.add(singular(WORDS.getOrDefault(raw, raw)));
 		}
-		return words;
+		return List.copyOf(words);
 	}
 
 	public static String normalizedName(String name) {

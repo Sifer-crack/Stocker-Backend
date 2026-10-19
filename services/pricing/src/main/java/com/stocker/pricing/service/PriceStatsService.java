@@ -34,4 +34,8 @@ public class PriceStatsService {
 			log.warn("normalized_products not updated for item {}: {}", record.getItemId(), e.getMessage());
 		}
 	}
+
+	public void clearItem(String itemId) {
+		priceStatsWriter.clearItem(itemId);
+	}
 }

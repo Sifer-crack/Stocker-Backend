@@ -138,7 +138,7 @@ public class CommonProductCatalog {
 	 * is a legitimate word for many categories (ice cream, biscuits, milk drinks).
 	 */
 	public static final Set<String> DISH_WORDS = Set.of("rice", "noodle", "pasta", "sauce", "soup", "dressing",
-			"mayonnaise", "mayo", "sandwich", "salad", "burger", "cake", "pie", "pizza", "curry", "sushi");
+			"mayonnaise", "mayo", "sandwich", "salad", "burger", "cake", "pie", "pizza", "curry", "sushi", "vinegar");
 
 	/**
 	 * The dish rule on its own, for terms that are not a common product: {@code anchors} are the words the product

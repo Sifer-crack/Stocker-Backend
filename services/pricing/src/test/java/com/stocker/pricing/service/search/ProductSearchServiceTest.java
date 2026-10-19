@@ -238,6 +238,19 @@ class ProductSearchServiceTest {
 	}
 
 	@Test
+	void selectingADifferentProductReplacesWhatWasStoredForTheItem() {
+		SearchHarness h = with(milks());
+		org.mockito.Mockito.when(h.priceRecords.findByItemId("item-1")).thenReturn(List.of(PriceRecord.builder()
+				.itemId("item-1").storeId("paknsave:").chainId("paknsave").capturedAt(NOW.minusDays(3))
+				.priceAmount(BigDecimal.ONE).build()));
+
+		h.service.selectProduct("item-1", "pams-standard-milk|2000ml");
+
+		verify(h.priceRecords).deleteByItemId("item-1");
+		verify(h.stats).clearItem("item-1");
+	}
+
+	@Test
 	void selectingAnAlternativeByItsKeyWorks() {
 		SearchHarness h = with(milks());
 		SearchResult result = h.service.search("milk 2L", "item-1", null, 10);

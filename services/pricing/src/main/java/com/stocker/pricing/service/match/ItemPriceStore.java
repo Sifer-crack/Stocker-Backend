@@ -35,6 +35,24 @@ public class ItemPriceStore {
 		this.eventPublisher = eventPublisher;
 	}
 
+	/**
+	 * Makes these rows THE stored price of the item: what was stored under the id for another product is dropped first
+	 * (price_stats keeps the newest observation per store, so an earlier product observed more recently would otherwise
+	 * keep winning in compare). Nothing changes when the item already holds exactly these observations.
+	 */
+	public void replace(String itemId, List<NormalizedProduct> sources) {
+		List<PriceRecord> existing = repository.findByItemId(itemId);
+		Set<String> wanted = new HashSet<>();
+		sources.forEach(source -> wanted.add(storedKey(source.getChainId(), source.getStoreId(), source.getCapturedAt())));
+		Set<String> held = new HashSet<>();
+		existing.forEach(row -> held.add(storedKey(row)));
+		if (!existing.isEmpty() && !held.equals(wanted)) {
+			repository.deleteByItemId(itemId);
+			priceStatsService.clearItem(itemId);
+		}
+		store(itemId, sources);
+	}
+
 	public void store(String itemId, List<NormalizedProduct> sources) {
 		Set<String> alreadyStored = new HashSet<>();
 		repository.findByItemId(itemId).forEach(row -> alreadyStored.add(storedKey(row)));
