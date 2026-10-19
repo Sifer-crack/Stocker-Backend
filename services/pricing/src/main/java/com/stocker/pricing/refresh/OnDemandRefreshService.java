@@ -1,5 +1,6 @@
 package com.stocker.pricing.refresh;
 
+import com.stocker.pricing.cancel.CancellationToken;
 import com.stocker.pricing.ingest.ChainId;
 import com.stocker.pricing.ingest.IngestScheduler;
 import com.stocker.pricing.normalize.CommonProduct;
@@ -111,10 +112,18 @@ public class OnDemandRefreshService {
 			return new Outcome(outdated.getAsBoolean(), false);
 		}
 
-		Map<ChainId, String> allowed = new EnumMap<>(ChainId.class);
+		// The request this refresh belongs to (the gRPC call running on this thread); background jobs run on other
+		// threads, so its Context is captured here. A call that merely completes does not cancel the token.
+		CancellationToken cancellation = CancellationToken.current();
+		if (cancellation.isCancelled()) {
+			return new Outcome(outdated.getAsBoolean(), false);
+		}
+
+		Map<ChainId, Permit> allowed = new EnumMap<>(ChainId.class);
 		pages.forEach((chain, url) -> {
-			if (permit(chain, url, config)) {
-				allowed.put(chain, url);
+			Permit permit = permit(chain, url, config);
+			if (permit != null) {
+				allowed.put(chain, permit);
 			}
 		});
 		if (allowed.isEmpty()) {
@@ -122,12 +131,18 @@ public class OnDemandRefreshService {
 		}
 
 		List<CompletableFuture<Void>> jobs = new ArrayList<>();
-		allowed.forEach((chain, url) -> jobs.add(CompletableFuture.runAsync(() -> load(scheduler, chain, url), executor)));
+		allowed.forEach((chain, permit) -> jobs.add(
+				CompletableFuture.runAsync(() -> load(scheduler, chain, permit, cancellation), executor)));
 		CompletableFuture<Void> all = CompletableFuture.allOf(jobs.toArray(new CompletableFuture[0]));
+		Runnable followUp = () -> {
+			if (!cancellation.isCancelled()) {
+				afterBackgroundRefresh.run();       // nobody is waiting for the fresh prices any more otherwise
+			}
+		};
 		if (config.getDeadline().isZero() || config.getDeadline().isNegative()) {
 			// Never make a lookup wait for a supermarket page: answer with what is stored (flagged stale) and let the
 			// follow-up re-run the match, store the fresh prices and announce them once the pages are loaded.
-			all.thenRun(afterBackgroundRefresh);
+			all.thenRun(followUp);
 			return new Outcome(outdated.getAsBoolean(), false);
 		}
 		try {
@@ -135,7 +150,7 @@ public class OnDemandRefreshService {
 		} catch (TimeoutException e) {
 			log.info("On-demand refresh for {} still running after {}; answering with stored data", label,
 					config.getDeadline());
-			all.thenRun(afterBackgroundRefresh);
+			all.thenRun(followUp);
 			return new Outcome(outdated.getAsBoolean(), false);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -157,12 +172,19 @@ public class OnDemandRefreshService {
 		return false;
 	}
 
-	private void load(IngestScheduler scheduler, ChainId chain, String url) {
+	private void load(IngestScheduler scheduler, ChainId chain, Permit permit, CancellationToken cancellation) {
 		ReentrantLock lock = chainLocks.get(chain);
-		lock.lock();
+		if (!cancellation.lockUnlessCancelled(lock)) {
+			refund(permit);
+			log.info("On-demand refresh {} {} cancelled before it started", chain, permit.url());
+			return;
+		}
 		try {
-			int saved = scheduler.refreshCategories(chain, List.of(url));
-			log.info("On-demand refresh {} {} -> {} records", chain, url, saved);
+			int saved = scheduler.refreshCategories(chain, List.of(permit.url()), cancellation);
+			if (cancellation.isCancelled() && saved == 0) {
+				refund(permit);       // cancelled and nothing came of it: do not charge the cooldown / hourly cap
+			}
+			log.info("On-demand refresh {} {} -> {} records", chain, permit.url(), saved);
 		} finally {
 			lock.unlock();
 		}
@@ -186,12 +208,16 @@ public class OnDemandRefreshService {
 		return targets;
 	}
 
-	/** Cooldown per page and an hourly cap per chain; records the attempt when it grants permission. */
-	private synchronized boolean permit(ChainId chain, String url, PricingCacheProperties.OnDemand config) {
+	/** One granted page load: what was recorded for it, so a load that never happens can be taken back. */
+	private record Permit(ChainId chain, String url, Instant at, Instant previousAttempt) {
+	}
+
+	/** Cooldown per page and an hourly cap per chain; records the attempt and returns a permit when it grants one. */
+	private synchronized Permit permit(ChainId chain, String url, PricingCacheProperties.OnDemand config) {
 		Instant now = Instant.now();
 		Instant previous = lastAttempt.get(url);
 		if (previous != null && now.isBefore(previous.plus(config.getCategoryCooldown()))) {
-			return false;
+			return null;
 		}
 		ArrayDeque<Instant> loads = loadsPerChain.get(chain);
 		while (!loads.isEmpty() && loads.peekFirst().isBefore(now.minusSeconds(3600))) {
@@ -200,10 +226,22 @@ public class OnDemandRefreshService {
 		if (loads.size() >= config.getMaxPageLoadsPerChainPerHour()) {
 			log.warn("On-demand page-load cap reached for {} ({} per hour); serving stored data", chain,
 					config.getMaxPageLoadsPerChainPerHour());
-			return false;
+			return null;
 		}
 		loads.addLast(now);
 		lastAttempt.put(url, now);
-		return true;
+		return new Permit(chain, url, now, previous);
+	}
+
+	/** Takes back the cooldown stamp and the hourly-cap slot of a page that was never loaded. */
+	private synchronized void refund(Permit permit) {
+		loadsPerChain.get(permit.chain()).removeFirstOccurrence(permit.at());
+		if (permit.url() != null && permit.at().equals(lastAttempt.get(permit.url()))) {
+			if (permit.previousAttempt() == null) {
+				lastAttempt.remove(permit.url());
+			} else {
+				lastAttempt.put(permit.url(), permit.previousAttempt());
+			}
+		}
 	}
 }

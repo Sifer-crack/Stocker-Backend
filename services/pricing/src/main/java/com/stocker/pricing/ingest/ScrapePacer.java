@@ -5,7 +5,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Politeness delay between two page loads on the same chain: a random pause between the
- * configured minimum and maximum, so requests are neither bursty nor evenly spaced.
+ * configured minimum and maximum, so requests are neither bursty nor evenly spaced. The pause ends early when the
+ * config's cancellation token is cancelled.
  */
 public final class ScrapePacer {
 
@@ -19,7 +20,7 @@ public final class ScrapePacer {
 			return;
 		}
 		try {
-			Thread.sleep(min == max ? min : ThreadLocalRandom.current().nextLong(min, max + 1));
+			config.getCancellation().sleep(min == max ? min : ThreadLocalRandom.current().nextLong(min, max + 1));
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 		}

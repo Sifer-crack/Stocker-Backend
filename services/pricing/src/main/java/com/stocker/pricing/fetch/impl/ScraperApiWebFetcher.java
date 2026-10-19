@@ -2,6 +2,7 @@ package com.stocker.pricing.fetch.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.stocker.pricing.fetch.CancellableBlocking;
 import com.stocker.pricing.fetch.WebFetcher;
 import com.stocker.pricing.fetch.config.WebFetcherProperties;
 import com.stocker.pricing.fetch.model.RawProduct;
@@ -56,12 +57,12 @@ public class ScraperApiWebFetcher implements WebFetcher {
 
 			log.info("ScraperAPI fetch: url={}", targetUrl);
 
-			String body = webClient.get()
+			String body = CancellableBlocking.block(webClient.get()
 					.uri(uri)
 					.header("Accept", "text/html,application/json")
 					.retrieve()
-					.bodyToMono(String.class)
-					.block();
+					.bodyToMono(String.class),
+					request.getCancellation());
 
 			allProducts.addAll(parseResponse(body, targetUrl, request));
 		}

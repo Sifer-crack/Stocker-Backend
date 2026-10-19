@@ -25,6 +25,7 @@
   No third-party provider is involved. New World / PAK'nSave scrape the pack size ("2l") into the brand slot; the matcher treats a
   size-shaped brand as part of the name. `RawProductPriceRecordMapper` now keeps name/brand/code/url/image in `raw_attributes` (ingest
   used to store none, so a stored price could not say which product it was).
+- `ProductSearch` gRPC service (`price_search.proto`, `api/grpc/ProductSearchGrpcController`) -> `service/search/ProductSearchService`, behind `GET /api/pricing/products` and `PUT /api/pricing/items/{itemId}/product` (contract: `docs/features/price-search-v2.md`). Reads only the in-memory `NormalizedProductSnapshot` (no DB on a warm request, never waits for a supermarket; common products call `OnDemandRefreshService.ensureFresh` exactly like `ItemMatchService`). One product = all chains' listings merged by `ProductIdentity` (productKey = `<brand+name words>|size-N|<qty><unit>`; identity = sorted normalised word set + grade + pack size). `products` = matches (size/count/grade in the term filter), `alternatives` = other products of the category (max 5, relevance then price closeness). The first product's per-chain rows are stored under the itemId in the background via `service/match/ItemPriceStore` (shared with `ItemMatchService`); `selectProduct(itemId, productKey)` stores another one (unknown key -> `ProductNotFoundException` -> gRPC NOT_FOUND). `/match` + `MatchItem` are unchanged.
 - `normalize/` + `service/normalize/` + V5 (`normalized_products`, `unmatched_search_terms`, view `common_product_price_map`): pack-size
   and name normalisation, the ~180-entry NZ common-products list (`common-products.txt`) and a normalised, indexed copy of every
   scraped product, refreshed by `PriceStatsService.recordObservation`. `MatchItem` answers common products from it
@@ -96,3 +97,7 @@
 - Lombok is used for model/repository beans; logging via SLF4J.
 - Idempotent consumers / at-least-once delivery expected on all Kafka topics (see `infra/kafka/topics.yml`).
 - Only `/healthz` (and actuator) may be exposed; keep the module structurally identical to the other services.
+
+## Request cancellation
+
+`cancel/CancellationToken` carries "the request is gone" down the chain (gRPC Context -> services -> `OnDemandRefreshService` -> `IngestScheduler.refreshCategories(chain, urls, token)` -> `ChainScraperConfig.cancellation` -> scrapers/`ScrapePacer`; legacy provider path via `WebFetchRequest.cancellation` + `fetch/CancellableBlocking`). Scheduled crawls use `CancellationToken.NONE`. See `docs/features/price-engine-reliability.md`.

@@ -270,6 +270,9 @@ app:
   normalize:
     # Normalises price_records rows that predate normalized_products (database work only, no requests).
     backfill-on-startup: ${STOCKER_NORMALIZE_BACKFILL:true}
+    # Re-derives canonical_key / pack size / unit price of stored rows with the current catalog (database work only,
+    # writes only rows that changed). Runs once after the backfill.
+    rekey-on-startup: ${STOCKER_NORMALIZE_REKEY:true}
   pricing:
     # Freshness check before prices are shown: for a common product whose stored prices are older than
     # stale-after, load only that product's category page on the stale chains (see OnDemandRefreshService).

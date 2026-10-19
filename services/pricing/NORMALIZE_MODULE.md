@@ -26,8 +26,8 @@ Index item list is only published through Infoshare, which could not be download
 
 ## Search path (`ItemMatchService`)
 
-1. Pack size: request hint (`weightKg` / `volumeL`, e.g. the pantry product's selling weight/volume) -> size in the term -> the common product's typical size.
-2. Term -> common product -> `normalized_products` rows for that key (indexed lookup) -> per chain, same-size first, then word coverage, then lowest unit price. `matchMethod = "canonical"`.
+1. Query parsing (`normalize/QueryParser` -> `ParsedQuery`): the term's size (2L, 1.5 litres, 500g, 330ml, 12 x 330ml), pack count (12 pack, 12pk, 12-pack, 6 pk, x12, dozen = 12, half dozen = 6) and NZ egg grade (size 7, s7) are taken out of its words. A request hint (`weightKg` / `volumeL`) replaces the parsed size.
+2. Term -> common product -> `normalized_products` rows for that key (indexed lookup). A row must pass the product's exclude words and the dish guard (`CommonProductCatalog.accepts`: "Egg Fried Rice", "Egg Noodles", "Egg Mayonnaise" are not eggs; a dish word BEFORE the category word, as in "Sandwich Bread", is fine; the category's own words and the shopper's words are exempt), and share a word with the term. Per chain: with a qualifier only products that have every stated qualifier are matches (ranked word coverage, unasked variants, unit price) - the rest go to `alternatives` and to `MatchOutcome.otherSizes` (`ItemMatchService.matchDetailed`); without a qualifier all sizes compete on word coverage, then unit price. There is no typical-size fallback. `matchMethod = "canonical"`.
 3. Nothing indexed / not a common product -> the older word-overlap match over stored ingest rows (`"lexical"`).
 4. Still nothing -> empty result + a row in `unmatched_search_terms`. **No scrape** unless `app.pricing.match.on-demand-ingest=true` (default `false`).
 
@@ -82,6 +82,22 @@ before any of them is added to `application.yml` or loaded.
 STOCKER_COVERAGE_REPORT=/path/to/report.txt ./gradlew :services:pricing:test --tests '*CommonProductCoverageReportTest*'
 ```
 Reads `products` / `pantry_items` from the configured database (read-only).
+
+## Re-keying stored rows
+
+`normalized_products` columns derived from the name (`canonical_key`, `normalized_name`, `pack_quantity`, `pack_unit`,
+`unit_price`) are computed when a row is observed, so after a catalog change old rows keep their old keys until the next
+scrape. `NormalizedProductService.rekeyAll(batchSize)` re-derives them from `display_name` with the same function
+`observe` uses and saves ONLY rows whose values changed (a second run changes nothing). It pages through all rows
+(`findAll(PageRequest, sort id)`, 200 per page, one read plus one `saveAll` of the changed rows per page), logs one
+summary line (read / changed / key changed / failed pages, up to 20 `name old -> new` examples), and a failed page is
+logged and counted, never thrown. `brand` is not touched (it comes from the scraped attributes, not the display name).
+Database only: never deletes, never touches `price_records` / `price_stats`.
+
+It runs once at startup on a daemon thread (`normalize-rekey`) after the backfill thread finishes (waits up to 10 min),
+controlled by `app.normalize.rekey-on-startup` (env `STOCKER_NORMALIZE_REKEY`, default true). The in-memory
+`NormalizedProductSnapshot` reloads itself every `app.pricing.snapshot.refresh-interval` (15 s), so corrected keys
+reach lookups within about that long without explicit invalidation.
 
 ## Database / Neon
 

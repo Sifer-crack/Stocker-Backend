@@ -1,6 +1,7 @@
 package com.stocker.pricing.ingest;
 
 import com.microsoft.playwright.Browser;
+import com.stocker.pricing.cancel.CancellationToken;
 import com.stocker.pricing.fetch.model.RawProduct;
 import com.stocker.pricing.ingest.config.IngestProperties;
 import com.stocker.pricing.ingest.config.IngestProperties.ChainConfig;
@@ -116,7 +117,7 @@ public class IngestScheduler {
 		int window = properties.getMaxCategoriesPerRun() > 0
 				? properties.getMaxCategoriesPerRun()
 				: pageBudget.remaining(chainId);
-		scrapeAndPersist(scraper, chainConfig, selectCategories(crawlList, window, dayNumber()));
+		scrapeAndPersist(scraper, chainConfig, selectCategories(crawlList, window, dayNumber()), CancellationToken.NONE);
 	}
 
 	/** The configured pages plus every page the catalog map lists for this chain, each once. */
@@ -144,6 +145,18 @@ public class IngestScheduler {
 	 * on-demand freshness refresh; the caller owns rate limiting. Returns the number of records stored.
 	 */
 	public int refreshCategories(ChainId chainId, List<String> categoryUrls) {
+		return refreshCategories(chainId, categoryUrls, CancellationToken.NONE);
+	}
+
+	/**
+	 * As {@link #refreshCategories(ChainId, List)}, for a refresh that belongs to a request: when {@code cancellation}
+	 * is cancelled no further page is loaded (the page being loaded finishes) and the daily budget reserved for the
+	 * pages never visited is given back. The scheduled crawl never passes a token.
+	 */
+	public int refreshCategories(ChainId chainId, List<String> categoryUrls, CancellationToken cancellation) {
+		if (cancellation.isCancelled()) {
+			return 0;
+		}
 		ChainConfig chainConfig = resolveChainConfig(chainId);
 		if (!chainConfig.isEnabled() || categoryUrls.isEmpty()) {
 			return 0;
@@ -153,10 +166,11 @@ public class IngestScheduler {
 			return 0;
 		}
 		return chainScrapers.stream().filter(scraper -> scraper.chainId() == chainId).findFirst()
-				.map(scraper -> scrapeAndPersist(scraper, chainConfig, pages)).orElse(0);
+				.map(scraper -> scrapeAndPersist(scraper, chainConfig, pages, cancellation)).orElse(0);
 	}
 
-	private int scrapeAndPersist(ChainScraper scraper, ChainConfig chainConfig, List<String> categoryUrls) {
+	private int scrapeAndPersist(ChainScraper scraper, ChainConfig chainConfig, List<String> categoryUrls,
+			CancellationToken cancellation) {
 		ChainId chainId = scraper.chainId();
 		int granted = pageBudget.reserve(chainId, categoryUrls.size());
 		if (granted == 0) {
@@ -176,10 +190,15 @@ public class IngestScheduler {
 				.navigationTimeoutSeconds(properties.getNavigationTimeoutSeconds())
 				.pageDelayMinMillis(properties.getPageDelayMinMillis())
 				.pageDelayMaxMillis(properties.getPageDelayMaxMillis())
+				.cancellation(cancellation)
 				.build();
 
 		ScrapeResult result;
-		browserLock.lock();
+		if (!cancellation.lockUnlessCancelled(browserLock)) {
+			pageBudget.giveBack(chainId, granted);       // cancelled while waiting for the browser: nothing was loaded
+			log.info("{}: refresh cancelled before it started, {} page(s) returned to the budget", chainId, granted);
+			return 0;
+		}
 		try {
 			result = scraper.scrape(browser, config);
 		} catch (ScrapeException e) {
