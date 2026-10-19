@@ -73,4 +73,18 @@ pending on-demand supermarket page loads (see `docs/features/price-engine-reliab
 ## Status
 
 Matching, size and grade parsing: branch `feature/search-relevance-match`. Cancellation: `feature/search-relevance-cancel`.
-This endpoint and the merged product model: built after those two land.
+Merged product model, `GET /api/pricing/products` and `PUT /api/pricing/items/{itemId}/product`: implemented on
+`feature/search-relevance-v2` (pricing `ProductSearch` gRPC service in `price_search.proto`, `service/search/ProductSearchService`;
+gateway `ProductSearchController`). Not pushed or merged yet. The frontend still uses `/match` (unchanged, deprecated).
+
+Details the contract above leaves open:
+- `query.size` is the size label (`"2L"`, `"500g"`), `query.packCount` an integer (`12`), `query.grade` a string (`"7"`); `query.category` is the common
+  product's key (`"eggs"`, `"tim-tams"`) when the term is a common product, else the `category` hint, else null. `matchMethod` is `canonical` or `lexical`.
+- `productKey` = `<brand+name words>|size-<grade>|<quantity><unit>` (e.g. `anchor-blue-top-milk|2000ml`, `pams-free-range-eggs|size-7|12each`).
+  Listings merge into one product on the SET of normalised words (order, plurals, "fresh" and the way a size is written do not matter) plus grade
+  and pack size, so a key stays valid in another word order. An extra descriptive word one chain adds (e.g. "Biscuits") makes a different product.
+- Common products: the matches are the indexed rows of that product; alternatives also come from sibling products on the same shelf
+  (same sitemap keyword, e.g. other biscuits for Tim Tam). Other terms use word overlap over everything stored.
+- `PUT .../product` stores the chosen product's newest row per chain under the item id; it does not remove what was stored before (see below).
+- Known limitation: compare reads `price_stats` (cheapest row per chain and item, newest observation wins per store), so after a PUT a chain whose
+  earlier stored product was observed more recently than the chosen one keeps the earlier price until a newer observation arrives.
