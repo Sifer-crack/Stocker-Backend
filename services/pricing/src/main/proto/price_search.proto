@@ -13,6 +13,8 @@ import "google/protobuf/timestamp.proto";
 service ProductSearch {
   rpc SearchProducts (SearchProductsRequest) returns (SearchProductsResponse);
   rpc SelectProduct (SelectProductRequest) returns (SelectProductResponse);
+  // Search-bar suggestions from the stored supermarket products (memory only, never a live request).
+  rpc SuggestProducts (SuggestProductsRequest) returns (SuggestProductsResponse);
 }
 
 message SearchProductsRequest {
@@ -74,4 +76,22 @@ message SelectProductResponse {
   string item_id = 1;
   string product_key = 2;
   repeated string chains = 3;
+}
+
+message SuggestProductsRequest {
+  string q = 1;       // what the shopper has typed so far; empty or 1 character = the most widely stocked common products
+  int32 limit = 2;    // 0 = default (8); capped at 20
+}
+
+message SuggestProductsResponse {
+  repeated Suggestion suggestions = 1;
+}
+
+message Suggestion {
+  string text = 1;                    // display name without size, e.g. "Cooking wine"
+  optional string canonical_key = 2;  // common-product key, absent for a specific product with none
+  int32 chain_count = 3;              // 1-3: chains that carry a matching product
+  repeated string chains = 4;         // lower-case chain ids, sorted
+  optional string sample_size = 5;    // e.g. "640ml"
+  int32 product_count = 6;            // distinct products (name + size) behind the suggestion
 }

@@ -102,6 +102,38 @@ public final class PackSizeParser {
 		return DOZEN.matcher(lower).replaceAll(" ");
 	}
 
+	/**
+	 * {@link #strip} that keeps the original letter case (for display text). Falls back to the lower-case result when
+	 * lower-casing changed the text length.
+	 */
+	public static String stripKeepCase(String text) {
+		if (text == null) {
+			return "";
+		}
+		String lower = text.toLowerCase(Locale.ROOT);
+		if (lower.length() != text.length()) {
+			return strip(text);
+		}
+		char[] out = text.toCharArray();
+		for (Pattern pattern : new Pattern[] { MULTI, SINGLE, COUNT, TIMES, TRAY, DOZEN }) {
+			lower = blank(lower, out, pattern);
+		}
+		return new String(out);
+	}
+
+	/** Blanks every match of the pattern in both {@code out} (original case) and the returned lower-case copy. */
+	static String blank(String lower, char[] out, Pattern pattern) {
+		char[] lowerChars = lower.toCharArray();
+		Matcher matcher = pattern.matcher(lower);
+		while (matcher.find()) {
+			for (int i = matcher.start(); i < matcher.end(); i++) {
+				out[i] = ' ';
+				lowerChars[i] = ' ';
+			}
+		}
+		return new String(lowerChars);
+	}
+
 	private static PackSize each(BigDecimal value) {
 		return new PackSize(PackUnit.EACH, value);
 	}

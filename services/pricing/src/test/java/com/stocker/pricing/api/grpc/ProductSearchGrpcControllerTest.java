@@ -15,6 +15,10 @@ import com.stocker.pricing.api.grpc.v1.SearchProductsResponse;
 import com.stocker.pricing.api.grpc.v1.SelectProductRequest;
 import com.stocker.pricing.api.grpc.v1.SelectProductResponse;
 import com.stocker.pricing.service.search.ProductSearchService;
+import com.stocker.pricing.service.search.ProductSuggestService;
+import com.stocker.pricing.service.search.ProductSuggestService.Suggestion;
+import com.stocker.pricing.api.grpc.v1.SuggestProductsRequest;
+import com.stocker.pricing.api.grpc.v1.SuggestProductsResponse;
 import com.stocker.pricing.service.search.ProductSearchService.ChainPrice;
 import com.stocker.pricing.service.search.ProductSearchService.Product;
 import com.stocker.pricing.service.search.ProductSearchService.Query;
@@ -36,12 +40,14 @@ import org.junit.jupiter.api.Test;
 class ProductSearchGrpcControllerTest {
 
 	private ProductSearchService service;
+	private ProductSuggestService suggestService;
 	private ProductSearchGrpcController controller;
 
 	@BeforeEach
 	void setUp() {
 		service = mock(ProductSearchService.class);
-		controller = new ProductSearchGrpcController(service);
+		suggestService = mock(ProductSuggestService.class);
+		controller = new ProductSearchGrpcController(service, suggestService);
 	}
 
 	private static final class Capture<T> implements StreamObserver<T> {
@@ -171,5 +177,55 @@ class ProductSearchGrpcControllerTest {
 
 		verify(service).search(eq("milk"), eq("i"), any(), anyInt());
 		verifyNoInteractions(out);
+	}
+
+	@Test
+	void suggestTranslatesSuggestionsAndLeavesAbsentOptionalFieldsUnset() {
+		when(suggestService.suggest("eg", 8)).thenReturn(List.of(
+				new Suggestion("Eggs", "eggs", 3, List.of("newworld", "paknsave", "woolworths"), "12 pack", 4),
+				new Suggestion("Egg Fried Rice", null, 1, List.of("newworld"), null, 1)));
+		Capture<SuggestProductsResponse> out = new Capture<>();
+
+		controller.suggestProducts(SuggestProductsRequest.newBuilder().setQ("eg").setLimit(8).build(), out);
+
+		assertThat(out.completed).isTrue();
+		SuggestProductsResponse response = out.values.get(0);
+		assertThat(response.getSuggestionsCount()).isEqualTo(2);
+		var eggs = response.getSuggestions(0);
+		assertThat(eggs.getText()).isEqualTo("Eggs");
+		assertThat(eggs.hasCanonicalKey()).isTrue();
+		assertThat(eggs.getCanonicalKey()).isEqualTo("eggs");
+		assertThat(eggs.getChainCount()).isEqualTo(3);
+		assertThat(eggs.getChainsList()).containsExactly("newworld", "paknsave", "woolworths");
+		assertThat(eggs.getSampleSize()).isEqualTo("12 pack");
+		assertThat(eggs.getProductCount()).isEqualTo(4);
+		var dish = response.getSuggestions(1);
+		assertThat(dish.hasCanonicalKey()).isFalse();
+		assertThat(dish.hasSampleSize()).isFalse();
+	}
+
+	@Test
+	void suggestAcceptsABlankQueryAndPassesItOn() {
+		when(suggestService.suggest("", 0)).thenReturn(List.of());
+		Capture<SuggestProductsResponse> out = new Capture<>();
+
+		controller.suggestProducts(SuggestProductsRequest.newBuilder().build(), out);
+
+		assertThat(out.error).isNull();
+		assertThat(out.completed).isTrue();
+		assertThat(out.values.get(0).getSuggestionsCount()).isZero();
+		verify(suggestService).suggest("", 0);
+	}
+
+	@Test
+	void suggestStopsWhenTheCallerHasAlreadyGone() throws Exception {
+		Capture<SuggestProductsResponse> out = new Capture<>();
+
+		Context.CancellableContext ctx = Context.current().withCancellation();
+		ctx.cancel(new RuntimeException("client gone"));
+		ctx.run(() -> controller.suggestProducts(SuggestProductsRequest.newBuilder().setQ("eg").build(), out));
+
+		assertThat(out.values).isEmpty();
+		verifyNoInteractions(suggestService);
 	}
 }

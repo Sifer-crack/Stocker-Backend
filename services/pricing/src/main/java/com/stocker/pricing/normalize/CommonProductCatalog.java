@@ -28,8 +28,21 @@ public class CommonProductCatalog {
 
 	private final Map<String, CommonProduct> byKey = new LinkedHashMap<>();
 
+	private final Map<String, List<String>> aliasTexts = new LinkedHashMap<>();
+
 	public CommonProductCatalog(List<CommonProduct> products) {
 		products.forEach(product -> byKey.put(product.key(), product));
+	}
+
+	/** {@code aliasTexts}: product key -> the alias strings as written in the list (display text for suggestions). */
+	public CommonProductCatalog(List<CommonProduct> products, Map<String, List<String>> aliasTexts) {
+		this(products);
+		this.aliasTexts.putAll(aliasTexts);
+	}
+
+	/** The aliases of one product as written in the list; empty when the catalog was built without them. */
+	public List<String> aliasTexts(String key) {
+		return aliasTexts.getOrDefault(key, List.of());
 	}
 
 	public static CommonProductCatalog loadDefault() {
@@ -46,6 +59,7 @@ public class CommonProductCatalog {
 	/** Lines: key|category|name|alias;alias|keyword|typical size|exclude;exclude. '#' starts a comment. */
 	public static CommonProductCatalog parse(BufferedReader reader) throws IOException {
 		List<CommonProduct> products = new ArrayList<>();
+		Map<String, List<String>> texts = new LinkedHashMap<>();
 		String line;
 		while ((line = reader.readLine()) != null) {
 			if (line.isBlank() || line.startsWith("#")) {
@@ -56,7 +70,11 @@ public class CommonProductCatalog {
 				throw new IllegalStateException("Bad common-products line: " + line);
 			}
 			List<Set<String>> aliases = new ArrayList<>();
+			List<String> aliasStrings = new ArrayList<>();
 			for (String alias : cols[3].split(";")) {
+				if (!alias.isBlank()) {
+					aliasStrings.add(alias.trim());
+				}
 				Set<String> words = ProductNormalizer.words(alias);
 				if (!words.isEmpty()) {
 					aliases.add(words);
@@ -66,10 +84,11 @@ public class CommonProductCatalog {
 			if (cols.length > 6) {
 				Arrays.stream(cols[6].split(";")).forEach(word -> excludes.addAll(ProductNormalizer.words(word)));
 			}
+			texts.put(cols[0].trim(), List.copyOf(aliasStrings));
 			products.add(new CommonProduct(cols[0].trim(), cols[1].trim(), cols[2].trim(), aliases, cols[4].trim(),
 					ProductNormalizer.sizeOf(cols[5]), excludes));
 		}
-		return new CommonProductCatalog(products);
+		return new CommonProductCatalog(products, texts);
 	}
 
 	public List<CommonProduct> all() {

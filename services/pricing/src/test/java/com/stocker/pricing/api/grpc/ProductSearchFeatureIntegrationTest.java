@@ -92,7 +92,7 @@ class ProductSearchFeatureIntegrationTest {
 		ProductSearchService service = new ProductSearchService(new NormalizedProductSnapshot(repository, properties),
 				CATALOG, refresh, new ItemPriceStore(priceRecords, mock(PriceStatsService.class), mock(EventPublisher.class)),
 				mock(NormalizedProductService.class), properties);
-		server = ServerBuilder.forPort(0).addService(new ProductSearchGrpcController(service)).build().start();
+		server = ServerBuilder.forPort(0).addService(new ProductSearchGrpcController(service, mock(com.stocker.pricing.service.search.ProductSuggestService.class))).build().start();
 		channel = ManagedChannelBuilder.forAddress("localhost", server.getPort()).usePlaintext().build();
 		client = ProductSearchGrpc.newBlockingStub(channel);
 	}
