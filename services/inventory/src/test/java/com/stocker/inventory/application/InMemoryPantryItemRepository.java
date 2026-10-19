@@ -17,8 +17,9 @@ public class InMemoryPantryItemRepository implements PantryItemRepository {
     @Override
     public PantryItem save(PantryItem item) {
         UUID id = item.getPantry_item_id() != null ? item.getPantry_item_id() : UUID.randomUUID();
-        PantryItem stored = new PantryItem(id, item.getUser_id(), item.getProduct_id(), item.getQuantity(),
-                item.getExpirationDate(), item.getNotifyDaysBefore());
+        PantryItem stored = new PantryItem(id, item.getUser_id(), item.getProduct_id(), item.getName(),
+                item.getCategory(), item.getUnit(), item.getQuantity(), item.getExpirationDate(),
+                item.getNotifyDaysBefore());
         items.put(id, stored);
         return stored;
     }
@@ -31,7 +32,7 @@ public class InMemoryPantryItemRepository implements PantryItemRepository {
     @Override
     public Optional<PantryItem> findByUserIdAndProductId(UUID userId, UUID productId) {
         return items.values().stream()
-                .filter(item -> item.getUser_id().equals(userId) && item.getProduct_id().equals(productId))
+                .filter(item -> item.getUser_id().equals(userId) && productId.equals(item.getProduct_id()))
                 .findFirst();
     }
 

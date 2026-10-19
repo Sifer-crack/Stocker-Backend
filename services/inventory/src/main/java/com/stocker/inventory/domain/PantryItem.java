@@ -10,6 +10,9 @@ public class PantryItem {
     private final UUID pantry_item_id;
     private final UUID user_id;
     private final UUID product_id;
+    private final String name;
+    private final String category;
+    private final String unit;
     private final int quantity;
     private final LocalDate expirationDate;
     private final Integer notifyDaysBefore;
@@ -20,9 +23,18 @@ public class PantryItem {
 
     public PantryItem(UUID pantry_item_id, UUID user_id, UUID product_id, int quantity,
                       LocalDate expirationDate, Integer notifyDaysBefore) {
+        this(pantry_item_id, user_id, product_id, null, null, null, quantity, expirationDate, notifyDaysBefore);
+    }
+
+    /** product_id is optional: free-text (custom) items carry only a name. */
+    public PantryItem(UUID pantry_item_id, UUID user_id, UUID product_id, String name, String category, String unit,
+                      int quantity, LocalDate expirationDate, Integer notifyDaysBefore) {
         this.pantry_item_id = pantry_item_id;
         this.user_id = user_id;
         this.product_id = product_id;
+        this.name = name;
+        this.category = category;
+        this.unit = unit;
         this.quantity = quantity;
         this.expirationDate = expirationDate;
         this.notifyDaysBefore = notifyDaysBefore;
@@ -38,6 +50,18 @@ public class PantryItem {
 
     public UUID getProduct_id() {
         return product_id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public String getUnit() {
+        return unit;
     }
 
     public int getQuantity() {
@@ -63,11 +87,11 @@ public class PantryItem {
 
     /** Same item with the expiry settings replaced (quantity and identity unchanged). */
     public PantryItem withExpiry(LocalDate expirationDate, Integer notifyDaysBefore) {
-        return new PantryItem(pantry_item_id, user_id, product_id, quantity, expirationDate, notifyDaysBefore);
+        return new PantryItem(pantry_item_id, user_id, product_id, name, category, unit, quantity, expirationDate, notifyDaysBefore);
     }
 
     /** Same item with a different quantity (expiry settings unchanged). */
     public PantryItem withQuantity(int quantity) {
-        return new PantryItem(pantry_item_id, user_id, product_id, quantity, expirationDate, notifyDaysBefore);
+        return new PantryItem(pantry_item_id, user_id, product_id, name, category, unit, quantity, expirationDate, notifyDaysBefore);
     }
 }
