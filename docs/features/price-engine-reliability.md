@@ -25,6 +25,36 @@ no-op Kafka listener in the price-events consumer group; compose scraped live si
 
 The next daily crawl picks the page up. Use `unmatched_search_terms` to find what shoppers search for that is missing.
 
+## Crawl pace and circuit breaker (2026-10-20)
+
+Why: on 2026-10-20 a crawl at 4-9 s between page loads drew about 30 HTTP 429 in a row from New World, and the crawler
+carried on through its whole list. Two changes, for all three chains (New World, PAK'nSAVE, Woolworths):
+
+- **Pace.** Random pause between two page loads of a chain: **20000-40000 ms** (was 4000-9000). Average 30 s, so 140 pages
+  take 139 pauses x 30 s = about 70 min per chain, about 80 min with ~5 s of page loading each. Chains run one after another
+  (one browser), so a full 3-chain run is roughly 3.5-4 h of wall time, started at 03:00 Auckland. Env: shared
+  `STOCKER_INGEST_PAGE_DELAY_MIN_MILLIS` / `_MAX_MILLIS`; one chain only:
+  `STOCKER_INGEST_{NEWWORLD,PAKNSAVE,WOOLWORTHS}_PAGE_DELAY_{MIN,MAX}_MILLIS` (empty = the shared value; a chain max is never
+  below its min). The pause is between page loads of the same chain, including the extra `?pg=N` pages of a category. An
+  on-demand refresh loads one page and does not pause, but it waits for the browser while a crawl holds it.
+- **Circuit breaker per chain** (`ingest/CrawlBreaker`, in memory: a pricing restart resets it). A blocked response is HTTP
+  429 / 403 / 503, or a page with no products that reads like a captcha / bot check ("just a moment", "verify you are human",
+  "access denied", ...). After `STOCKER_INGEST_BREAKER_BLOCKED_THRESHOLD` (default **3**) in a row:
+  the chain's current run stops at once (no further page load, none retried in the run) and the breaker opens for
+  `STOCKER_INGEST_BREAKER_COOLDOWN` (default **PT6H**). Each consecutive trip doubles it (6 h, 12 h, 24 h) up to
+  `STOCKER_INGEST_BREAKER_MAX_COOLDOWN` (default **PT24H**). A good page resets the consecutive count and the trip history.
+  After a cool-down the chain is half-open: one blocked response opens it again straight away (next, longer cool-down), one
+  good page clears it. A `Retry-After` header on the blocked response (seconds or HTTP date) is honoured when it is longer
+  than the cool-down, bounded by the maximum. One WARN is logged when the breaker opens and one when it closes.
+- **One gate.** The cron run, the startup run (`STOCKER_INGEST_RUN_ON_STARTUP`) and on-demand refreshes all reserve pages
+  from `DailyPageBudget`, which now grants nothing for a chain whose breaker is open; the scrapers also ask the breaker
+  before every page. Other chains are not affected.
+- **Search `refresh` map.** An on-demand refresh of a chain with an open breaker loads nothing, spends no cooldown or hourly
+  slot, and that chain shows as `skipped` (the same state as cooldown / hourly cap / refresh off). If the breaker opens
+  while a refresh is due, that chain also ends as `skipped`. Stored prices are served as before (`stale: true`).
+- **Blocked is not empty.** A blocked page is neither visited nor a zero-result page, so `CategoryHealth` never
+  quarantines a category because of a block.
+
 ## Limits to know
 
 - The catalog map plus the configured pages come to about 153 pages per Foodstuffs chain and 137 for Woolworths (first pages

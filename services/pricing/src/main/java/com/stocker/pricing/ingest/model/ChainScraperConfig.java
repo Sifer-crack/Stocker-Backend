@@ -35,6 +35,16 @@ public class ChainScraperConfig {
 	 */
 	private BooleanSupplier extraPageGate;
 
+	/**
+	 * The chain's circuit breaker: asked before every page (open = stop loading) and told how each response went.
+	 * Null = never opens.
+	 */
+	private CrawlBrake crawlBrake;
+
+	public CrawlBrake getCrawlBrake() {
+		return crawlBrake == null ? CrawlBrake.NONE : crawlBrake;
+	}
+
 	public BooleanSupplier getExtraPageGate() {
 		return extraPageGate == null ? () -> true : extraPageGate;
 	}

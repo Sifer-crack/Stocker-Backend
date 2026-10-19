@@ -66,9 +66,20 @@ the parsing logic unit-testable without a browser — the same role
 
 ## Rate limiting
 
-Random pause between page loads (`page-delay-min/max-millis`), a per-run cap on category pages per chain
-(`max-categories-per-run`, rotating daily) and no scrape on a search miss (`app.pricing.match.on-demand-ingest=false`).
-See `NORMALIZE_MODULE.md`.
+Random pause between page loads of one chain: `page-delay-min/max-millis`, **20000-40000 ms** (was 4000-9000 until
+2026-10-20, when that pace drew HTTP 429 from New World). Each chain can override it with
+`app.ingest.<chain>.page-delay-min/max-millis` (`IngestProperties.pageDelayMinMillis(chain)`); empty = the shared value.
+Also a per-run cap on category pages per chain (`max-categories-per-run`, rotating daily), the daily page cap, and no scrape
+on a search miss (`app.pricing.match.on-demand-ingest=false`). See `NORMALIZE_MODULE.md`.
+
+**Circuit breaker.** `CrawlBreaker` keeps a per-chain state (in memory). The scrapers report every response through
+`ChainScraperConfig.crawlBrake` (`CrawlBrake`): `BlockGuard` turns HTTP 429/403/503 and captcha pages (no tiles +
+`BlockDetector.looksLikeChallenge`) into `onBlocked` plus a `PlaywrightException` (page failed: not visited, not zero-result,
+not retried), any other page into `onSuccess`. `Retry-After` is read from `Response.headers()` (`BlockDetector.parseRetryAfter`).
+After `breaker-blocked-threshold` (3) blocked pages in a row the scraper loop stops and the chain stays closed to every
+caller for `breaker-cooldown` (PT6H), doubling per consecutive trip to `breaker-max-cooldown` (PT24H); a longer Retry-After
+wins. `DailyPageBudget.reserve` returns 0 while open, so the cron, the startup run and `OnDemandRefreshService` (which reports
+the chain as `skipped`; `IngestScheduler.isChainBlocked`) share one gate. Details: `docs/features/price-engine-reliability.md`.
 
 ## Pagination, crawl order and the daily cap
 
@@ -260,6 +271,13 @@ STOCKER_INGEST_MAX_PAGES_PER_CATEGORY=8
 STOCKER_INGEST_EXTRA_PAGES_RESERVE_PER_RUN=20
 STOCKER_INGEST_STAPLE_DISCOVERY_ENABLED=true
 STOCKER_INGEST_MAX_DISCOVERED_PAGES_PER_CHAIN=40
+
+STOCKER_INGEST_PAGE_DELAY_MIN_MILLIS=20000   # random pause between two page loads of a chain
+STOCKER_INGEST_PAGE_DELAY_MAX_MILLIS=40000
+STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MIN_MILLIS=    # per-chain override (also PAKNSAVE_, WOOLWORTHS_ and _MAX_MILLIS); empty = shared
+STOCKER_INGEST_BREAKER_BLOCKED_THRESHOLD=3   # consecutive 429/403/503/captcha responses that open a chain's breaker
+STOCKER_INGEST_BREAKER_COOLDOWN=PT6H         # first cool-down; doubles per consecutive trip
+STOCKER_INGEST_BREAKER_MAX_COOLDOWN=PT24H
 ```
 
 `category-urls` per chain is list-valued config, not an env var — set it in

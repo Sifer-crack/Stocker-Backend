@@ -72,6 +72,11 @@ public class WoolworthsNzChainScraper implements ChainScraper {
 				if (config.getCancellation().isCancelled()) {
 					break;      // the request that wanted these pages is gone: no further page load
 				}
+				if (config.getCrawlBrake().isOpen()) {
+					warnings.add("Circuit breaker open: stopped before " + categoryUrl);
+					log.warn("WOOLWORTHS: circuit breaker open, no further page loaded in this run");
+					break;
+				}
 				if (!firstPage) {
 					ScrapePacer.pauseBetweenPages(config);
 					if (config.getCancellation().isCancelled()) {
@@ -80,9 +85,13 @@ public class WoolworthsNzChainScraper implements ChainScraper {
 				}
 				firstPage = false;
 				try {
-					page.navigate(categoryUrl);
+					BlockGuard.failIfBlocked(page.navigate(categoryUrl), categoryUrl, config.getCrawlBrake());
 					waitForProductCards(page);
 					List<Locator> cards = page.locator(PRODUCT_CARD_SELECTOR).all();
+					if (cards.isEmpty()) {
+						BlockGuard.failIfChallenge(page, categoryUrl, config.getCrawlBrake());
+					}
+					config.getCrawlBrake().onSuccess();
 					visited.add(categoryUrl);
 					if (cards.isEmpty()) {
 						zeroResultCategoryUrls.add(categoryUrl);
