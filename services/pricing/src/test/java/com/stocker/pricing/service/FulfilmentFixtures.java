@@ -26,14 +26,11 @@ public final class FulfilmentFixtures {
 	}
 
 	/**
-	 * Flat-fee shorthand: any argument may be null (= not offered / no free threshold). Travel null = 0. A delivery
+	 * Flat-fee shorthand: any argument may be null (= not offered / no free threshold). A delivery
 	 * fee becomes the single tier [0 -> fee]; a free-over threshold adds [threshold -> 0].
 	 */
-	public static ChainFees fees(String travel, String delivery, String clickAndCollect, String deliveryFreeOver) {
+	public static ChainFees fees(String delivery, String clickAndCollect, String deliveryFreeOver) {
 		ChainFees fees = new ChainFees();
-		if (travel != null) {
-			fees.setTravelCost(new BigDecimal(travel));
-		}
 		if (delivery != null) {
 			fees.setDelivery(deliveryFreeOver == null ? tiers("0", delivery) : tiers("0", delivery, deliveryFreeOver, "0"));
 		}
@@ -44,9 +41,8 @@ public final class FulfilmentFixtures {
 	}
 
 	/** Tiered fees; a null ladder = method not offered. */
-	public static ChainFees tiered(String travel, List<Tier> delivery, List<Tier> clickAndCollect) {
+	public static ChainFees tiered(List<Tier> delivery, List<Tier> clickAndCollect) {
 		ChainFees fees = new ChainFees();
-		fees.setTravelCost(new BigDecimal(travel));
 		fees.setDelivery(delivery);
 		fees.setClickAndCollect(clickAndCollect);
 		return fees;
@@ -66,11 +62,14 @@ public final class FulfilmentFixtures {
 		return properties;
 	}
 
-	/** The mixed reference fixture of docs/features/fulfilment-costs.md. */
+	/**
+	 * The reference fixture of docs/features/fulfilment-costs.md: the shipped (north island) ladders. PAK'nSAVE offers
+	 * only click and collect.
+	 */
 	public static FulfilmentProperties mixedReference() {
 		return properties(Map.of(
-				"paknsave", fees("4.00", "9.00", "3.00", null),
-				"woolworths", fees("0.50", "6.00", "4.50", "20.00"),
-				"newworld", fees("0.00", "5.00", "0.00", null)));
+				"paknsave", tiered(null, tiers("0", "5.00")),
+				"woolworths", tiered(tiers("0", "14.00", "200", "9.00"), tiers("0", "3.50")),
+				"newworld", tiered(tiers("0", "14.00", "200", "9.00"), tiers("0", "5.00", "50", "0.00"))));
 	}
 }

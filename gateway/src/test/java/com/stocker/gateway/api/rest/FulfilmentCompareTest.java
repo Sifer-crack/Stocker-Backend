@@ -20,7 +20,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Acceptance: given data containing known travel / delivery / click-and-collect costs, the app receives each
+ * Acceptance: given data containing known delivery / click-and-collect costs (travel is out of scope), the app receives each
  * option's total and the true cheapest option including those costs. Fixture: docs/features/fulfilment-costs.md
  * (items totals paknsave 17.00, woolworths 17.70, newworld 19.00).
  */
@@ -65,24 +65,28 @@ class FulfilmentCompareTest {
 	}
 
 	@Test
-	void travelCostsDecideTheCheapestOption() {
+	void shippedFeesDecideTheCheapestOptionAcrossMethods() {
 		stub("woolworths",
-				chain("woolworths", 17.70, 0.0, "in_store", 0.50, 18.20, opt("in_store", 0.50, 18.20)),
-				chain("newworld", 19.00, 0.0, "in_store", 0.0, 19.00, opt("in_store", 0.0, 19.00)),
-				chain("paknsave", 17.00, 0.0, "in_store", 4.00, 21.00, opt("in_store", 4.00, 21.00)));
+				chain("woolworths", 17.70, 0.0, "click_and_collect", 3.50, 21.20,
+						opt("click_and_collect", 3.50, 21.20), opt("delivery", 14.00, 31.70)),
+				chain("paknsave", 17.00, 0.0, "click_and_collect", 5.00, 22.00, opt("click_and_collect", 5.00, 22.00)),
+				chain("newworld", 19.00, 0.0, "click_and_collect", 5.00, 24.00,
+						opt("click_and_collect", 5.00, 24.00), opt("delivery", 14.00, 33.00)));
 
 		post(BODY_ALL)
 				.jsonPath("$.cheapestChainId").isEqualTo("woolworths")
 				.jsonPath("$.storeTotals[0].chainId").isEqualTo("woolworths")
 				.jsonPath("$.storeTotals[0].totalAmount").isEqualTo(17.7)
-				.jsonPath("$.storeTotals[0].totalWithFulfilment").isEqualTo(18.2)
-				.jsonPath("$.storeTotals[0].bestMethod").isEqualTo("in_store")
-				.jsonPath("$.storeTotals[0].fulfilmentCost").isEqualTo(0.5)
-				.jsonPath("$.storeTotals[0].fulfilmentOptions[0].method").isEqualTo("in_store")
-				.jsonPath("$.storeTotals[0].fulfilmentOptions[0].cost").isEqualTo(0.5)
-				.jsonPath("$.storeTotals[0].fulfilmentOptions[0].totalAmount").isEqualTo(18.2)
-				.jsonPath("$.storeTotals[2].totalWithFulfilment").isEqualTo(21.0)
-				.jsonPath("$.storeTotals[2].fulfilmentCost").isEqualTo(4.0);
+				.jsonPath("$.storeTotals[0].totalWithFulfilment").isEqualTo(21.2)
+				.jsonPath("$.storeTotals[0].bestMethod").isEqualTo("click_and_collect")
+				.jsonPath("$.storeTotals[0].fulfilmentCost").isEqualTo(3.5)
+				.jsonPath("$.storeTotals[0].fulfilmentOptions[0].method").isEqualTo("click_and_collect")
+				.jsonPath("$.storeTotals[0].fulfilmentOptions[0].cost").isEqualTo(3.5)
+				.jsonPath("$.storeTotals[0].fulfilmentOptions[0].totalAmount").isEqualTo(21.2)
+				.jsonPath("$.storeTotals[0].fulfilmentOptions[1].method").isEqualTo("delivery")
+				.jsonPath("$.storeTotals[1].totalWithFulfilment").isEqualTo(22.0)
+				.jsonPath("$.storeTotals[1].fulfilmentOptions.length()").isEqualTo(1)
+				.jsonPath("$.storeTotals[2].fulfilmentCost").isEqualTo(5.0);
 	}
 
 	@Test
@@ -122,15 +126,15 @@ class FulfilmentCompareTest {
 	@Test
 	void mixedMethodsExposeEveryOptionAndTheBestOne() {
 		stub("woolworths",
-				chain("woolworths", 17.70, 0.0, "in_store", 0.50, 18.20,
-						opt("in_store", 0.50, 18.20), opt("click_and_collect", 4.50, 22.20), opt("delivery", 6.00, 23.70)));
+				chain("woolworths", 17.70, 0.0, "click_and_collect", 3.50, 21.20,
+						opt("click_and_collect", 3.50, 21.20), opt("delivery", 14.00, 31.70)));
 
 		post(BODY_ALL)
-				.jsonPath("$.storeTotals[0].bestMethod").isEqualTo("in_store")
-				.jsonPath("$.storeTotals[0].fulfilmentOptions.length()").isEqualTo(3)
-				.jsonPath("$.storeTotals[0].fulfilmentOptions[1].method").isEqualTo("click_and_collect")
-				.jsonPath("$.storeTotals[0].fulfilmentOptions[2].method").isEqualTo("delivery")
-				.jsonPath("$.storeTotals[0].fulfilmentOptions[2].totalAmount").isEqualTo(23.7);
+				.jsonPath("$.storeTotals[0].bestMethod").isEqualTo("click_and_collect")
+				.jsonPath("$.storeTotals[0].fulfilmentOptions.length()").isEqualTo(2)
+				.jsonPath("$.storeTotals[0].fulfilmentOptions[0].method").isEqualTo("click_and_collect")
+				.jsonPath("$.storeTotals[0].fulfilmentOptions[1].method").isEqualTo("delivery")
+				.jsonPath("$.storeTotals[0].fulfilmentOptions[1].totalAmount").isEqualTo(31.7);
 	}
 
 	@Test
@@ -146,7 +150,7 @@ class FulfilmentCompareTest {
 
 	@Test
 	void absentAllowedMethodsForwardAnEmptyList() {
-		stub("woolworths", chain("woolworths", 17.70, 0.0, "in_store", 0.0, 17.70, opt("in_store", 0.0, 17.70)));
+		stub("woolworths", chain("woolworths", 17.70, 0.0, "click_and_collect", 0.0, 17.70, opt("click_and_collect", 0.0, 17.70)));
 
 		post(BODY_ALL);
 
@@ -158,7 +162,7 @@ class FulfilmentCompareTest {
 	@Test
 	void bestMethodIsNullWhenNoAllowedMethodIsAvailable() {
 		stub("woolworths",
-				chain("woolworths", 17.70, 0.0, "in_store", 0.0, 17.70, opt("in_store", 0.0, 17.70)),
+				chain("woolworths", 17.70, 0.0, "delivery", 0.0, 17.70, opt("delivery", 0.0, 17.70)),
 				StoreTotal.newBuilder().setChainId("paknsave").setTotalAmount(17.0).setCurrency("NZD").setItemsPriced(3)
 						.setTotalWithFulfilment(17.0).build());
 
@@ -173,7 +177,7 @@ class FulfilmentCompareTest {
 
 	@Test
 	void existingFieldsAreUnchanged() {
-		stub("paknsave", chain("paknsave", 17.00, 2.0, "in_store", 0.0, 17.00, opt("in_store", 0.0, 17.00)));
+		stub("paknsave", chain("paknsave", 17.00, 2.0, "click_and_collect", 0.0, 17.00, opt("click_and_collect", 0.0, 17.00)));
 
 		post(BODY_ALL)
 				.jsonPath("$.cheapestChainId").isEqualTo("paknsave")
@@ -188,12 +192,12 @@ class FulfilmentCompareTest {
 
 	@Test
 	void unknownMethodOrServiceAreaErrorIsA422WithTheMessage() {
-		String message = "Unknown fulfilment method: teleport";
+		String message = "Unknown fulfilment method 'in_store'. Valid methods: click_and_collect, delivery";
 		when(pricing.compareShoppingList(any(CompareShoppingListRequest.class)))
 				.thenThrow(Status.INVALID_ARGUMENT.withDescription(message).asRuntimeException());
 
 		webTestClient.post().uri("/api/pricing/compare").contentType(MediaType.APPLICATION_JSON)
-				.bodyValue("{\"region\":\"auckland\",\"allowedMethods\":[\"teleport\"],\"items\":[]}")
+				.bodyValue("{\"region\":\"auckland\",\"allowedMethods\":[\"in_store\"],\"items\":[]}")
 				.exchange().expectStatus().isEqualTo(422).expectBody().jsonPath("$.error").isEqualTo(message);
 	}
 }

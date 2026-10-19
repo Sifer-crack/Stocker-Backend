@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import static com.stocker.pricing.acceptance.PriceFixtures.weeklyShop;
 import static com.stocker.pricing.service.FulfilmentFixtures.fees;
+import static com.stocker.pricing.service.FulfilmentFixtures.mixedReference;
 import static com.stocker.pricing.service.FulfilmentFixtures.properties;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -26,7 +27,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Trello criteria: given known travel / delivery / click-and-collect costs, the true cheapest option includes them.
+ * Trello criteria: given known delivery / click-and-collect costs, the true cheapest option includes them
+ * (travel cost is out of scope).
  * Items total for "2 milk, 1 eggs, 1 butter": paknsave 17.00, woolworths 17.70, newworld 19.00 (see PriceFixtures).
  */
 @Tag("service")
@@ -56,20 +58,9 @@ class FulfilmentScenarioTest {
 	}
 
 	@Test
-	void travelCostMakesTheCheapestShelfPriceNotTheCheapestTrip() {
-		var fees = properties(Map.of("paknsave", fees("4.00", null, null, null), "woolworths", fees("0.50", null, null, null),
-				"newworld", fees("0.00", null, null, null)));
-
-		ComparisonResult result = compare(fees, Set.of(FulfilmentMethod.IN_STORE));
-
-		assertThat(totals(result)).isEqualTo("woolworths=18.20 newworld=19.00 paknsave=21.00");
-		assertThat(result.cheapestChainId()).isEqualTo("woolworths");
-	}
-
-	@Test
 	void deliveryFeesIncludingAFreeDeliveryThresholdPickTheCheapestDelivery() {
-		var fees = properties(Map.of("paknsave", fees("0", "9.00", null, null), "woolworths", fees("0", "6.00", null, "20.00"),
-				"newworld", fees("0", "5.00", null, null)));
+		var fees = properties(Map.of("paknsave", fees("9.00", null, null), "woolworths", fees("6.00", null, "20.00"),
+				"newworld", fees("5.00", null, null)));
 
 		ComparisonResult result = compare(fees, Set.of(FulfilmentMethod.DELIVERY));
 
@@ -79,8 +70,8 @@ class FulfilmentScenarioTest {
 
 	@Test
 	void clickAndCollectFeesCanFlipTheWinnerToTheDearerShelf() {
-		var fees = properties(Map.of("paknsave", fees("0", null, "3.00", null), "woolworths", fees("0", null, "4.50", null),
-				"newworld", fees("0", null, "0.00", null)));
+		var fees = properties(Map.of("paknsave", fees(null, "3.00", null), "woolworths", fees(null, "4.50", null),
+				"newworld", fees(null, "0.00", null)));
 
 		ComparisonResult result = compare(fees, Set.of(FulfilmentMethod.CLICK_AND_COLLECT));
 
@@ -89,20 +80,33 @@ class FulfilmentScenarioTest {
 	}
 
 	@Test
-	void mixedMethodsPickEachChainsBestWayAndTheOverallCheapest() {
-		ComparisonResult result = compare(com.stocker.pricing.service.FulfilmentFixtures.mixedReference(), Set.of());
+	void shippedNorthIslandFeesMakeTheCheapestShelfNotTheCheapestBasket() {
+		ComparisonResult result = compare(mixedReference(), Set.of());
 
-		assertThat(totals(result)).isEqualTo("woolworths=18.20 newworld=19.00 paknsave=20.00");
+		// paknsave has the cheapest shelf (17.00) but its 5.00 fee is dearer than woolworths' 3.50
+		assertThat(totals(result)).isEqualTo("woolworths=21.20 paknsave=22.00 newworld=24.00");
 		assertThat(result.cheapestChainId()).isEqualTo("woolworths");
 		assertThat(best(result, "paknsave")).isEqualTo(FulfilmentMethod.CLICK_AND_COLLECT);
-		assertThat(best(result, "woolworths")).isEqualTo(FulfilmentMethod.IN_STORE);
-		assertThat(best(result, "newworld")).as("19.00 tie in_store vs click_and_collect").isEqualTo(FulfilmentMethod.IN_STORE);
+		assertThat(best(result, "woolworths")).isEqualTo(FulfilmentMethod.CLICK_AND_COLLECT);
+		assertThat(best(result, "newworld")).isEqualTo(FulfilmentMethod.CLICK_AND_COLLECT);
 
 		List<ChainSavings> savings = new SavingsCalculatorService().calculate(result.chainTotals(), "paknsave");
-		// savings relative to paknsave's 20.00 (woolworths has a 0.80 special on butter)
-		assertThat(savings).extracting(ChainSavings::chainId).containsExactly("woolworths", "newworld", "paknsave");
-		assertThat(savings.get(0).savingsAmount()).isEqualByComparingTo("2.60");   // 20.00-18.20 + 0.80
-		assertThat(savings.get(1).savingsAmount()).isEqualByComparingTo("1.00");
+		// savings relative to paknsave's 22.00 (woolworths has a 0.80 special on butter)
+		assertThat(savings).extracting(ChainSavings::chainId).containsExactly("woolworths", "paknsave", "newworld");
+		assertThat(savings.get(0).savingsAmount()).isEqualByComparingTo("1.60");   // 22.00-21.20 + 0.80
+		assertThat(savings.get(1).savingsAmount()).isEqualByComparingTo("0.00");
+		assertThat(savings.get(2).savingsAmount()).isEqualByComparingTo("-2.00");
+	}
+
+	@Test
+	void deliveryOnlyExcludesPaknsaveWhichOffersNoDelivery() {
+		ComparisonResult result = compare(mixedReference(), Set.of(FulfilmentMethod.DELIVERY));
+
+		assertThat(totals(result)).isEqualTo("woolworths=31.70 newworld=33.00 paknsave=17.00");
+		assertThat(result.cheapestChainId()).isEqualTo("woolworths");
+		ChainTotal paknsave = result.chainTotals().get(2);
+		assertThat(paknsave.bestOption()).isNull();
+		assertThat(paknsave.fulfilmentOptions()).isEmpty();
 	}
 
 	private static FulfilmentMethod best(ComparisonResult result, String chain) {

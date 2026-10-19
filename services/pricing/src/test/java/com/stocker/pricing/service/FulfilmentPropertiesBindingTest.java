@@ -45,7 +45,6 @@ class FulfilmentPropertiesBindingTest {
 	@Test
 	void newWorldMatchesTheOwnersLadders() throws Exception {
 		ChainFees nw = shipped().forChain("newworld");
-		assertThat(nw.getTravelCost()).isEqualByComparingTo("0");
 		assertLadder(nw.getDelivery(), "0", "14.00", "200", "9.00");
 		assertLadder(nw.getClickAndCollect(), "0", "5.00", "50", "0.00");
 		assertThat(nw.getIslands()).containsOnlyKeys("south");
@@ -56,7 +55,6 @@ class FulfilmentPropertiesBindingTest {
 	@Test
 	void paknsaveOffersOnlyClickAndCollect() throws Exception {
 		ChainFees ps = shipped().forChain("paknsave");
-		assertThat(ps.getTravelCost()).isEqualByComparingTo("0");
 		assertThat(ps.getDelivery()).isNullOrEmpty();
 		assertLadder(ps.getClickAndCollect(), "0", "5.00");
 		assertThat(ps.getIslands()).isEmpty();
@@ -65,10 +63,16 @@ class FulfilmentPropertiesBindingTest {
 	@Test
 	void woolworthsMatchesTheOwnersLadders() throws Exception {
 		ChainFees w = shipped().forChain("woolworths");
-		assertThat(w.getTravelCost()).isEqualByComparingTo("0");
 		assertLadder(w.getDelivery(), "0", "14.00", "200", "9.00");
 		assertLadder(w.getClickAndCollect(), "0", "3.50");
 		assertThat(w.getIslands()).isEmpty();
+	}
+
+	@Test
+	void noTravelCostKeyRemainsInTheShippedYaml() throws Exception {
+		String yaml = new String(new ClassPathResource("application.yml").getInputStream().readAllBytes(),
+				java.nio.charset.StandardCharsets.UTF_8);
+		assertThat(yaml).doesNotContainIgnoringCase("travel");
 	}
 
 	@Test

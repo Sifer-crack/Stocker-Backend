@@ -11,7 +11,7 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Per-chain travel cost and tiered delivery / click-and-collect fees, with optional per-island overrides.
+ * Per-chain tiered delivery / click-and-collect fees, with optional per-island overrides.
  * Values are data (application.yml), never code.
  */
 @Getter
@@ -79,14 +79,25 @@ public class FulfilmentProperties {
 	@Getter
 	@Setter
 	public static class ChainFees {
-		/** Cost of going to the store; 0 unless configured. */
-		private BigDecimal travelCost = BigDecimal.ZERO;
 		/** Null or empty = delivery not offered. */
 		private List<Tier> delivery;
 		/** Null or empty = click and collect not offered. */
 		private List<Tier> clickAndCollect;
 		/** Keyed by island (north / south). */
 		private Map<String, IslandFees> islands = new LinkedHashMap<>();
+
+		/** True when the chain offers at least one method on {@code island} (a non-empty ladder). */
+		public boolean offersAnyMethod(String island) {
+			for (FulfilmentMethod method : FulfilmentMethod.values()) {
+				List<Tier> ladder = method == FulfilmentMethod.DELIVERY
+						? pick(island, IslandFees::getDelivery, delivery)
+						: pick(island, IslandFees::getClickAndCollect, clickAndCollect);
+				if (ladder != null && !ladder.isEmpty()) {
+					return true;
+				}
+			}
+			return false;
+		}
 
 		/**
 		 * Fee for {@code method} at {@code itemsTotal} on {@code island} (null island = chain default), or null
@@ -96,7 +107,6 @@ public class FulfilmentProperties {
 			List<Tier> ladder = switch (method) {
 				case DELIVERY -> pick(island, IslandFees::getDelivery, delivery);
 				case CLICK_AND_COLLECT -> pick(island, IslandFees::getClickAndCollect, clickAndCollect);
-				case IN_STORE -> null;
 			};
 			return tierFee(ladder, itemsTotal);
 		}

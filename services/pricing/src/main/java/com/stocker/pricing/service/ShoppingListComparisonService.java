@@ -34,7 +34,7 @@ public class ShoppingListComparisonService {
 	private final ServiceAreaProperties serviceAreaProperties;
 	private final FulfilmentProperties fulfilmentProperties;
 
-	/** No fees configured: every chain is in_store at cost 0. */
+	/** No fees configured: no chain has a fee. */
 	public ShoppingListComparisonService(
 			PriceStatsRepository priceStatsRepository, ServiceAreaProperties serviceAreaProperties) {
 		this(priceStatsRepository, serviceAreaProperties, new FulfilmentProperties());
@@ -65,7 +65,7 @@ public class ShoppingListComparisonService {
 			FulfilmentOption bestOption,
 			BigDecimal totalWithFulfilment) {
 
-		/** Zero-fee defaults: in_store at cost 0, so totalWithFulfilment == totalAmount. */
+		/** No-fee defaults: no options and no best option, so totalWithFulfilment == totalAmount. */
 		public ChainTotal(
 				String chainId,
 				BigDecimal totalAmount,
@@ -75,11 +75,7 @@ public class ShoppingListComparisonService {
 				List<String> unavailableItemIds,
 				BigDecimal discountAmount) {
 			this(chainId, totalAmount, currency, itemsPriced, itemsRequested, unavailableItemIds, discountAmount,
-					List.of(zeroFeeInStore(totalAmount)), zeroFeeInStore(totalAmount), totalAmount);
-		}
-
-		private static FulfilmentOption zeroFeeInStore(BigDecimal totalAmount) {
-			return new FulfilmentOption(FulfilmentMethod.IN_STORE, BigDecimal.ZERO.setScale(2), totalAmount);
+					List.of(), null, totalAmount);
 		}
 
 		public boolean hasFullCoverage() {
@@ -117,17 +113,24 @@ public class ShoppingListComparisonService {
 				: EnumSet.copyOf((Collection<FulfilmentMethod>) allowedMethods);
 
 		List<ChainTotal> chainTotals = new ArrayList<>();
+		// A chain that offers methods but none allowed is excluded (listed last, never recommended). A chain that
+		// offers no method at all has no fee and stays eligible.
+		Set<String> excluded = new java.util.HashSet<>();
 		for (Map.Entry<String, Map<String, PriceStats>> chainEntry : cheapestRowByChainThenItem.entrySet()) {
-			chainTotals.add(toChainTotal(chainEntry.getKey(), chainEntry.getValue(), quantitiesByItemId,
-					fulfilmentProperties.forChain(chainEntry.getKey()), allowed, island));
+			ChainFees fees = fulfilmentProperties.forChain(chainEntry.getKey());
+			ChainTotal total = toChainTotal(chainEntry.getKey(), chainEntry.getValue(), quantitiesByItemId, fees,
+					allowed, island);
+			chainTotals.add(total);
+			if (total.fulfilmentOptions().isEmpty() && fees != null && fees.offersAnyMethod(island)) {
+				excluded.add(total.chainId());
+			}
 		}
-		// Chains with no allowed method are listed last and never recommended.
-		chainTotals.sort(Comparator.comparing((ChainTotal c) -> c.bestOption() == null)
+		chainTotals.sort(Comparator.comparing((ChainTotal c) -> excluded.contains(c.chainId()))
 				.thenComparing(ChainTotal::totalWithFulfilment)
 				.thenComparing(ChainTotal::totalAmount)
 				.thenComparing(ChainTotal::chainId));
 
-		List<ChainTotal> eligible = chainTotals.stream().filter(c -> c.bestOption() != null).toList();
+		List<ChainTotal> eligible = chainTotals.stream().filter(c -> !excluded.contains(c.chainId())).toList();
 		String cheapestChainId = eligible.stream()
 				.filter(ChainTotal::hasFullCoverage)
 				.findFirst()
@@ -202,7 +205,7 @@ public class ShoppingListComparisonService {
 				best == null ? itemsTotal : best.totalAmount());
 	}
 
-	/** Allowed methods the chain offers, in tie-break order (in_store, click_and_collect, delivery). */
+	/** Allowed methods the chain offers, in tie-break order (click_and_collect, delivery). */
 	private static List<FulfilmentOption> fulfilmentOptions(
 			BigDecimal itemsTotal, ChainFees fees, Set<FulfilmentMethod> allowed, String island) {
 		List<FulfilmentOption> options = new ArrayList<>();
@@ -221,9 +224,6 @@ public class ShoppingListComparisonService {
 
 	/** Null = the chain does not offer the method. */
 	private static BigDecimal costOf(FulfilmentMethod method, BigDecimal itemsTotal, ChainFees fees, String island) {
-		if (method == FulfilmentMethod.IN_STORE) {
-			return fees == null || fees.getTravelCost() == null ? BigDecimal.ZERO : fees.getTravelCost();
-		}
 		return fees == null ? null : fees.feeFor(method, itemsTotal, island);
 	}
 }

@@ -1,17 +1,32 @@
-# Click-and-collect, delivery and travel costs (contract)
+# Click-and-collect and delivery costs (contract)
 
-Story: "As a user, I want Stocker to include travel/delivery/click and collect costs when comparing shopping options so
+Story: "As a user, I want Stocker to include delivery/click and collect costs when comparing shopping options so
 that I know the true cheapest option."
 
-Acceptance tests (Trello): given data with known **travel** / **delivery** / **click-and-collect** costs, when the system
+Acceptance tests (Trello): given data with known **delivery** / **click-and-collect** costs, when the system
 calculates the total cost of each option, Stocker correctly identifies the true cheapest option, including those costs.
+(The original third criterion, known **travel** costs, no longer applies: see "Out of scope: travel cost".)
+
+## Out of scope: travel cost
+
+Travel cost (the cost of driving to a store) is deliberately not modelled, and there is no `in_store` method. Only
+`delivery` and `click_and_collect` exist; `in_store` in `allowed_methods` is an unknown method name (INVALID_ARGUMENT).
 
 ## Model
 
-Each chain can be reached three ways: `in_store` (cost = travel), `delivery` (tiered delivery fee), `click_and_collect` (tiered fee). Per chain: **option total = items total + method cost**. The chain's
-**best option** is its cheapest allowed method; `totalWithFulfilment` is that total. The recommendation ("true cheapest")
-and the savings use `totalWithFulfilment`. With no fees configured every chain has `in_store` at cost 0, so results are
-identical to today (all existing tests must keep passing unchanged).
+Each chain can be reached two ways: `delivery` (tiered delivery fee) and `click_and_collect` (tiered fee). Per chain,
+the **options** are the methods the chain offers (a non-empty fee ladder for the region's island) intersected with the
+allowed methods (empty/absent = all). **Option total = items total + method fee.** The chain's **best option** is its
+cheapest option (ties: `click_and_collect`, then `delivery`); `totalWithFulfilment` = items total + best option's fee.
+The recommendation ("true cheapest") and the savings use `totalWithFulfilment`.
+
+Two special cases:
+
+- **Chain with no fee configuration at all** (offers no method: unknown chain or empty config): no fee applies. It stays
+  eligible with `bestOption = null`, `fulfilmentOptions = []`, `totalWithFulfilment = totalAmount`.
+- **Chain that offers methods but none is allowed** (e.g. PAK'nSAVE offers only click-and-collect and the user allowed
+  only delivery): excluded from the recommendation and sorted after eligible chains, with `bestOption = null`,
+  `fulfilmentOptions = []`, `totalWithFulfilment = totalAmount`. If no chain is eligible, `cheapestChainId` is `""`.
 
 ## Config (pricing, `application.yml`) - values are data, not code
 
@@ -24,7 +39,6 @@ app:
     region-islands: { auckland: north, wellington: north, christchurch: south }   # unknown region = chain defaults
     chains:
       <chain>:
-        travel-cost: 0.00
         delivery:           # tier with the greatest `from` <= items total applies (inclusive); omitted/empty = not offered
           - { from: 0, fee: 14.00 }
           - { from: 200, fee: 9.00 }
@@ -37,8 +51,7 @@ app:
             click-and-collect: [ { from: 0, fee: 3.50 } ]
 ```
 Island = `region-islands[region lower-cased, trimmed]`; a chain's island override of a method wins, otherwise the chain
-default applies. A tier boundary is inclusive (items total exactly equal to `from` gets that tier). `travel-cost`
-defaults to 0 (no per-trip figure yet; needs one from the owner). Shipped: New World (north: delivery 14/9 at 200,
+default applies. A tier boundary is inclusive (items total exactly equal to `from` gets that tier). Shipped: New World (north: delivery 14/9 at 200,
 click-and-collect 5/0 at 50; south: delivery 15/10, click-and-collect flat 3.50), PAK'nSAVE (click-and-collect 5.00,
 no delivery), Woolworths (delivery 14/9 at 200, click-and-collect 3.50).
 
@@ -50,19 +63,20 @@ same-day collection $9, "free over $150 at select stores"); Club+ requirement.
 
 ## Java (pricing)
 
-- `FulfilmentMethod` enum: `IN_STORE("in_store")`, `DELIVERY("delivery")`, `CLICK_AND_COLLECT("click_and_collect")`, with `wireName()`.
+- `FulfilmentMethod` enum (declaration order = tie-break order): `CLICK_AND_COLLECT("click_and_collect")`, `DELIVERY("delivery")`, with `wireName()`; an unknown name throws `IllegalArgumentException` listing "click_and_collect, delivery".
 - `FulfilmentProperties` (`@ConfigurationProperties("app.fulfilment")`): `Map<String, ChainFees> chains` (lower-case chain id);
-  `Map<String,String> regionIslands`; `ChainFees { BigDecimal travelCost = 0; List<Tier> delivery; List<Tier> clickAndCollect; Map<String,IslandFees> islands; }`,
+  `Map<String,String> regionIslands`; `ChainFees { List<Tier> delivery; List<Tier> clickAndCollect; Map<String,IslandFees> islands; }`,
   `Tier { BigDecimal from; BigDecimal fee; }`, `IslandFees { List<Tier> delivery; List<Tier> clickAndCollect; }`.
 - `ShoppingListComparisonService.FulfilmentOption(FulfilmentMethod method, BigDecimal cost, BigDecimal totalAmount)`.
 - `ChainTotal` gains `List<FulfilmentOption> fulfilmentOptions`, `FulfilmentOption bestOption`, `BigDecimal totalWithFulfilment`.
-  Keep the existing 7-argument constructor (zero-fee defaults: options = [in_store, 0], best = that, totalWithFulfilment = totalAmount)
+  Keep the existing 7-argument constructor (no-fee defaults: options = [], best = null, totalWithFulfilment = totalAmount)
   so existing tests compile unchanged.
 - `compare(items, region)` keeps working; add `compare(items, region, Set<FulfilmentMethod> allowedMethods)` (empty/null = all).
   `ShoppingListComparisonService` keeps its 2-argument constructor (empty fees) and gains one taking `FulfilmentProperties`.
 - Sorting and `cheapestChainId`: full-coverage chains first by `totalWithFulfilment` (ties: `totalAmount`, then chain id);
-  if no chain has full coverage, the lowest `totalWithFulfilment` overall. A chain with **no allowed method** is excluded from
-  the recommendation and is returned with `bestOption = null`, `totalWithFulfilment = totalAmount`.
+  if no chain has full coverage, the lowest `totalWithFulfilment` overall. A chain that offers methods but has **no allowed method** is excluded from
+  the recommendation and sorted after the eligible chains (`bestOption = null`, `totalWithFulfilment = totalAmount`);
+  a chain that offers no method at all stays eligible (see Model).
 - `SavingsCalculatorService`: savings = `(selected.totalWithFulfilment - chain.totalWithFulfilment) + discountAmount`.
 
 ## Wire contract
@@ -78,7 +92,7 @@ message FulfilmentOption { string method = 1; double cost = 2; double total_amou
 ```
 `total_amount` stays the items total; `savings_amount` is relative to the selected chain's `total_with_fulfilment`.
 
-Gateway `POST /api/pricing/compare`: request body adds optional `allowedMethods: ["in_store","delivery","click_and_collect"]`;
+Gateway `POST /api/pricing/compare`: request body adds optional `allowedMethods: ["delivery","click_and_collect"]`;
 each `storeTotals[]` adds `totalWithFulfilment`, `bestMethod` (null when none), `fulfilmentCost`,
 `fulfilmentOptions: [{method, cost, totalAmount}]`. Unknown method names in `allowedMethods` are a 422 `{"error": ...}`.
 
@@ -88,33 +102,45 @@ Flat example fees below are test data (`FulfilmentFixtures.fees`: a flat fee is 
 threshold adds the tier `[threshold -> 0]`); they are not the shipped real values.
 
 Items total: paknsave 17.00, woolworths 17.70, newworld 19.00 (see `PriceFixtures` in the acceptance tests).
-- Travel: paknsave 4.00, woolworths 0.50, newworld 0.00 -> in_store totals 21.00 / 18.20 / 19.00 -> cheapest **woolworths**.
-- Delivery: paknsave 9.00, woolworths 6.00 (free over 20), newworld 5.00, `allowedMethods=[delivery]` -> 26.00 / 23.70 / 24.00 -> **woolworths**.
-- Click and collect: paknsave 3.00, woolworths 4.50, newworld 0.00, `allowedMethods=[click_and_collect]` -> 20.00 / 22.20 / 19.00 -> **newworld**.
-- Mixed (all methods allowed): paknsave {travel 4, C&C 3, delivery 9}, woolworths {travel 0.5, C&C 4.5, delivery 6}, newworld {travel 0, C&C 0, delivery 5}:
-  best per chain = paknsave C&C 20.00, woolworths in_store 18.20, newworld 19.00 -> cheapest **woolworths**, `bestMethod` in_store.
-  newworld ties at 19.00 between in_store and click_and_collect: **ties between methods go in the order in_store, click_and_collect, delivery**, so its best is in_store.
+
+Shipped north-island fees (`FulfilmentFixtures.mixedReference()`, region `auckland`): at these basket sizes (under 50 and under 200)
+New World delivery 14.00 / click-and-collect 5.00; PAK'nSAVE click-and-collect 5.00 (no delivery); Woolworths delivery 14.00 /
+click-and-collect 3.50.
+
+- All methods allowed: paknsave C&C 17.00+5.00 = 22.00; woolworths C&C 17.70+3.50 = 21.20 (delivery 31.70); newworld C&C 19.00+5.00 = 24.00
+  (delivery 33.00). Order: woolworths 21.20, paknsave 22.00, newworld 24.00 -> cheapest **woolworths**, every `bestMethod` `click_and_collect`.
+  PAK'nSAVE has the cheapest shelf but not the cheapest basket.
+- `allowedMethods=[delivery]`: woolworths 31.70, newworld 33.00 -> **woolworths**. PAK'nSAVE offers methods but not delivery, so it is excluded:
+  listed last with `bestMethod` null, no options, `totalWithFulfilment` 17.00.
+- `allowedMethods=[click_and_collect]`: woolworths 21.20, paknsave 22.00, newworld 24.00 -> **woolworths**.
+- Savings relative to a selected paknsave (22.00): woolworths (22.00 - 21.20) + 0.80 discount = 1.60; newworld 22.00 - 24.00 = -2.00.
+- `allowedMethods=["in_store"]` -> INVALID_ARGUMENT "... Valid methods: click_and_collect, delivery".
+- Ties: with equal totals `click_and_collect` beats `delivery`.
+- Chain with no fee configuration (e.g. unknown chain): no fee, eligible, `totalWithFulfilment` = items total.
+
+Flat example fees used in `ShoppingListFulfilmentTest` / `FulfilmentScenarioTest` (`FulfilmentFixtures.fees`: flat fee = single tier
+`[0 -> fee]`, free-over threshold adds `[threshold -> 0]`) are test data, not the shipped real values.
 
 ## Frontend types
 
 Hand-mirrored from the gateway JSON in `../Stocker-Frontend/src/pricing/types.ts`. Add (existing fields stay as they are):
 
 ```ts
-export type FulfilmentMethod = 'in_store' | 'delivery' | 'click_and_collect';
+export type FulfilmentMethod = 'delivery' | 'click_and_collect';
 
 export interface FulfilmentOption {
   method: FulfilmentMethod;
-  cost: number;        // travel cost, delivery fee or click-and-collect fee
+  cost: number;        // delivery fee or click-and-collect fee
   totalAmount: number; // items total + cost
 }
 
 // Added to the existing StoreTotal (storeTotals[] entry of POST /api/pricing/compare):
 export interface StoreTotal {
   // ...existing: chainId, totalAmount, currency, itemsPriced, unavailableItemIds, savingsAmount
-  totalWithFulfilment: number;           // equals totalAmount when no fees apply
-  bestMethod: FulfilmentMethod | null;   // null = no allowed method available for this chain
-  fulfilmentCost: number;                // cost of bestMethod
-  fulfilmentOptions: FulfilmentOption[]; // every allowed option; empty when bestMethod is null
+  totalWithFulfilment: number;           // equals totalAmount when no fee applies
+  bestMethod: FulfilmentMethod | null;   // null = no fee applies (no fee data for the chain, or no allowed method)
+  fulfilmentCost: number;                // cost of bestMethod (0 when null)
+  fulfilmentOptions: FulfilmentOption[]; // every allowed option the chain offers; empty when bestMethod is null
 }
 
 // Added to the compare request body:
@@ -131,8 +157,10 @@ Errors: an unknown method name or an out-of-area region is HTTP 422 `{ "error": 
 - Per supermarket: the best method (`bestMethod`, e.g. "Click and collect") and its cost (`fulfilmentCost`), with
   `totalWithFulfilment` as the headline total and `totalAmount` as the "items" line. Optionally list `fulfilmentOptions`
   so the user sees the alternatives.
-- A chain with `bestMethod === null` cannot be used with the chosen methods: show it greyed out, never as cheapest.
+- A chain with `bestMethod === null` has no fee applied: either it has no fee data, or it offers none of the chosen
+  methods (then it is sorted last and is never `cheapestChainId`). The wire format does not distinguish the two; do not
+  present a null-method chain as cheapest unless it equals `cheapestChainId`.
 - The recommendation (`cheapestChainId`) already accounts for fulfilment costs: label it "cheapest including
-  travel/delivery/collection" and show its best method. `savingsAmount` is relative to the selected chain's
+  delivery/collection" and show its best method. `savingsAmount` is relative to the selected chain's
   `totalWithFulfilment`.
 - Let the user pick the methods they would use (checkboxes -> `allowedMethods`); with none ticked send nothing.

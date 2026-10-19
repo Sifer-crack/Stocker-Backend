@@ -5,10 +5,9 @@ import java.util.stream.Collectors;
 
 /**
  * Ways to get a chain's groceries. Declaration order is the tie-break order when two methods cost the same:
- * in_store, then click_and_collect, then delivery.
+ * click_and_collect, then delivery.
  */
 public enum FulfilmentMethod {
-	IN_STORE("in_store"),
 	CLICK_AND_COLLECT("click_and_collect"),
 	DELIVERY("delivery");
 

@@ -21,7 +21,6 @@ import static com.stocker.pricing.service.FulfilmentFixtures.fees;
 import static com.stocker.pricing.service.FulfilmentFixtures.properties;
 import static com.stocker.pricing.service.fulfilment.FulfilmentMethod.CLICK_AND_COLLECT;
 import static com.stocker.pricing.service.fulfilment.FulfilmentMethod.DELIVERY;
-import static com.stocker.pricing.service.fulfilment.FulfilmentMethod.IN_STORE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -65,39 +64,64 @@ class ShoppingListFulfilmentTest {
 	}
 
 	@Test
-	void inStoreCostIsTheChainsTravelCostAdded() {
-		var service = serviceWith(Map.of("a", fees("4.00", null, null, null)), price("a", "10.00"));
+	void optionTotalIsItemsTotalPlusFee() {
+		var service = serviceWith(Map.of("a", fees("6.00", "3.00", null)), price("a", "10.00"));
 
 		ChainTotal a = chain(service.compare(ONE_X, "auckland"), "a");
 
-		assertThat(option(a, IN_STORE).cost()).isEqualByComparingTo("4.00");
-		assertThat(option(a, IN_STORE).totalAmount()).isEqualByComparingTo("14.00");
+		assertThat(option(a, DELIVERY).cost()).isEqualByComparingTo("6.00");
+		assertThat(option(a, DELIVERY).totalAmount()).isEqualByComparingTo("16.00");
+		assertThat(option(a, CLICK_AND_COLLECT).totalAmount()).isEqualByComparingTo("13.00");
 		assertThat(a.totalAmount()).isEqualByComparingTo("10.00");
-		assertThat(a.totalWithFulfilment()).isEqualByComparingTo("14.00");
+		assertThat(a.totalWithFulfilment()).isEqualByComparingTo("13.00");
 	}
 
 	@Test
-	void aChainWithNoConfiguredFeesIsInStoreAtZeroCost() {
+	void aChainWithNoFeeConfigurationAtAllStaysEligibleWithNoFee() {
 		var service = serviceWith(Map.of(), price("a", "10.00"));
 
-		ChainTotal a = chain(service.compare(ONE_X, "auckland"), "a");
+		ComparisonResult result = service.compare(ONE_X, "auckland");
+		ChainTotal a = chain(result, "a");
 
-		assertThat(a.fulfilmentOptions()).hasSize(1);
-		assertThat(a.bestOption().method()).isEqualTo(IN_STORE);
-		assertThat(a.bestOption().cost()).isEqualByComparingTo("0");
+		assertThat(a.fulfilmentOptions()).isEmpty();
+		assertThat(a.bestOption()).isNull();
 		assertThat(a.totalWithFulfilment()).isEqualByComparingTo("10.00");
+		assertThat(result.cheapestChainId()).isEqualTo("a");
+	}
+
+	@Test
+	void aChainWithAnEmptyFeeConfigurationStaysEligibleEvenWhenAMethodIsRequested() {
+		var service = serviceWith(Map.of("a", fees(null, null, null), "b", fees("5.00", null, null)),
+				price("a", "10.00"), price("b", "11.00"));
+
+		ComparisonResult result = service.compare(ONE_X, "auckland", Set.of(DELIVERY));
+
+		assertThat(chain(result, "a").bestOption()).isNull();
+		assertThat(chain(result, "a").totalWithFulfilment()).isEqualByComparingTo("10.00");
+		assertThat(result.cheapestChainId()).isEqualTo("a");
+		assertThat(result.chainTotals()).extracting(ChainTotal::chainId).containsExactly("a", "b");
+	}
+
+	@Test
+	void unconfiguredChainCompetesOnItemsTotalAgainstChainsWithFees() {
+		var service = serviceWith(Map.of("fee", fees("5.00", null, null)), price("fee", "10.00"), price("free", "12.00"));
+
+		ComparisonResult result = service.compare(ONE_X, "auckland");
+
+		assertThat(result.cheapestChainId()).isEqualTo("free");
+		assertThat(chain(result, "fee").totalWithFulfilment()).isEqualByComparingTo("15.00");
 	}
 
 	@Test
 	void chainLookupIsCaseInsensitive() {
-		var service = serviceWith(Map.of("newworld", fees("2.00", null, null, null)), price("NewWorld", "10.00"));
+		var service = serviceWith(Map.of("newworld", fees("2.00", null, null)), price("NewWorld", "10.00"));
 
 		assertThat(chain(service.compare(ONE_X, "auckland"), "NewWorld").totalWithFulfilment()).isEqualByComparingTo("12.00");
 	}
 
 	@Test
 	void deliveryAndClickAndCollectAreOfferedOnlyWhenTheirFeeIsConfigured() {
-		var service = serviceWith(Map.of("a", fees("1.00", "6.00", null, null), "b", fees("1.00", null, "3.00", null)),
+		var service = serviceWith(Map.of("a", fees("6.00", null, null), "b", fees(null, "3.00", null)),
 				price("a", "10.00"), price("b", "10.00"));
 		ComparisonResult result = service.compare(ONE_X, "auckland");
 
@@ -109,7 +133,7 @@ class ShoppingListFulfilmentTest {
 
 	@Test
 	void deliveryIsFreeWhenItemsTotalReachesTheThresholdButNotJustBelow() {
-		var fees = Map.of("a", fees("50.00", "6.00", null, "20.00"));
+		var fees = Map.of("a", fees("6.00", null, "20.00"));
 
 		var atThreshold = serviceWith(fees, price("a", "20.00")).compare(ONE_X, "auckland");
 		assertThat(option(chain(atThreshold, "a"), DELIVERY).cost()).isEqualByComparingTo("0");
@@ -122,17 +146,17 @@ class ShoppingListFulfilmentTest {
 
 	@Test
 	void freeDeliveryThresholdDoesNotAffectOtherMethods() {
-		var service = serviceWith(Map.of("a", fees("1.00", "6.00", "2.00", "5.00")), price("a", "10.00"));
+		var service = serviceWith(Map.of("a", fees("6.00", "2.00", "5.00")), price("a", "10.00"));
 
 		ChainTotal a = chain(service.compare(ONE_X, "auckland"), "a");
 
-		assertThat(option(a, IN_STORE).cost()).isEqualByComparingTo("1.00");
+		assertThat(option(a, DELIVERY).cost()).isEqualByComparingTo("0");
 		assertThat(option(a, CLICK_AND_COLLECT).cost()).isEqualByComparingTo("2.00");
 	}
 
 	@Test
 	void bestOptionIsTheCheapestAllowedMethod() {
-		var service = serviceWith(Map.of("a", fees("4.00", "9.00", "3.00", null)), price("a", "10.00"));
+		var service = serviceWith(Map.of("a", fees("9.00", "3.00", null)), price("a", "10.00"));
 
 		ChainTotal a = chain(service.compare(ONE_X, "auckland"), "a");
 
@@ -142,7 +166,7 @@ class ShoppingListFulfilmentTest {
 
 	@Test
 	void allowedMethodsRestrictTheOptionsConsidered() {
-		var service = serviceWith(Map.of("a", fees("4.00", "9.00", "3.00", null)), price("a", "10.00"));
+		var service = serviceWith(Map.of("a", fees("9.00", "3.00", null)), price("a", "10.00"));
 
 		ChainTotal a = chain(service.compare(ONE_X, "auckland", Set.of(DELIVERY)), "a");
 
@@ -153,32 +177,40 @@ class ShoppingListFulfilmentTest {
 
 	@Test
 	void nullOrEmptyAllowedMethodsMeansAll() {
-		var service = serviceWith(Map.of("a", fees("4.00", "9.00", "3.00", null)), price("a", "10.00"));
+		var service = serviceWith(Map.of("a", fees("9.00", "3.00", null)), price("a", "10.00"));
 
-		assertThat(chain(service.compare(ONE_X, "auckland", null), "a").fulfilmentOptions()).hasSize(3);
-		assertThat(chain(service.compare(ONE_X, "auckland", Set.of()), "a").fulfilmentOptions()).hasSize(3);
+		assertThat(chain(service.compare(ONE_X, "auckland", null), "a").fulfilmentOptions()).hasSize(2);
+		assertThat(chain(service.compare(ONE_X, "auckland", Set.of()), "a").fulfilmentOptions()).hasSize(2);
 	}
 
 	@Test
 	void twoArgumentCompareEqualsAllMethods() {
-		var service = serviceWith(Map.of("a", fees("4.00", "9.00", "3.00", null)), price("a", "10.00"));
+		var service = serviceWith(Map.of("a", fees("9.00", "3.00", null)), price("a", "10.00"));
 
 		assertThat(service.compare(ONE_X, "auckland")).isEqualTo(service.compare(ONE_X, "auckland", Set.of()));
 	}
 
 	@Test
-	void tiesBetweenMethodsGoInStoreThenClickAndCollectThenDelivery() {
-		var allTie = serviceWith(Map.of("a", fees("2.00", "2.00", "2.00", null)), price("a", "10.00"));
-		assertThat(chain(allTie.compare(ONE_X, "auckland"), "a").bestOption().method()).isEqualTo(IN_STORE);
+	void optionsAreListedInTieBreakOrderClickAndCollectThenDelivery() {
+		var service = serviceWith(Map.of("a", fees("9.00", "3.00", null)), price("a", "10.00"));
 
-		var ccVsDelivery = serviceWith(Map.of("a", fees("9.00", "2.00", "2.00", null)), price("a", "10.00"));
-		assertThat(chain(ccVsDelivery.compare(ONE_X, "auckland"), "a").bestOption().method()).isEqualTo(CLICK_AND_COLLECT);
+		assertThat(chain(service.compare(ONE_X, "auckland"), "a").fulfilmentOptions())
+				.extracting(FulfilmentOption::method).containsExactly(CLICK_AND_COLLECT, DELIVERY);
 	}
 
 	@Test
-	void aChainWithNoAllowedMethodIsReturnedUnrecommendedWithItemsTotal() {
-		// "a" is cheaper but offers no delivery; "b" delivers.
-		var service = serviceWith(Map.of("a", fees("0", null, null, null), "b", fees("0", "5.00", null, null)),
+	void tiesBetweenMethodsGoToClickAndCollectBeforeDelivery() {
+		var tie = serviceWith(Map.of("a", fees("2.00", "2.00", null)), price("a", "10.00"));
+		assertThat(chain(tie.compare(ONE_X, "auckland"), "a").bestOption().method()).isEqualTo(CLICK_AND_COLLECT);
+
+		var deliveryCheaper = serviceWith(Map.of("a", fees("1.00", "2.00", null)), price("a", "10.00"));
+		assertThat(chain(deliveryCheaper.compare(ONE_X, "auckland"), "a").bestOption().method()).isEqualTo(DELIVERY);
+	}
+
+	@Test
+	void aChainThatOffersMethodsButNoneAllowedIsReturnedUnrecommendedAndSortedLast() {
+		// "a" is cheaper but only offers click and collect; "b" delivers.
+		var service = serviceWith(Map.of("a", fees(null, "1.00", null), "b", fees("5.00", null, null)),
 				price("a", "8.00"), price("b", "10.00"));
 
 		ComparisonResult result = service.compare(ONE_X, "auckland", Set.of(DELIVERY));
@@ -192,15 +224,28 @@ class ShoppingListFulfilmentTest {
 	}
 
 	@Test
-	void whenNoChainCanFulfilTheRequestThereIsNoRecommendation() {
-		var service = serviceWith(Map.of("a", fees("0", null, null, null)), price("a", "8.00"));
+	void excludedChainSortsAfterAnUnconfiguredEligibleChainEvenWhenCheaper() {
+		var service = serviceWith(Map.of("a", fees(null, "1.00", null)), price("a", "5.00"), price("z", "20.00"));
 
-		assertThat(service.compare(ONE_X, "auckland", Set.of(DELIVERY)).cheapestChainId()).isEmpty();
+		ComparisonResult result = service.compare(ONE_X, "auckland", Set.of(DELIVERY));
+
+		assertThat(result.chainTotals()).extracting(ChainTotal::chainId).containsExactly("z", "a");
+		assertThat(result.cheapestChainId()).isEqualTo("z");
+	}
+
+	@Test
+	void whenNoChainIsEligibleThereIsNoRecommendation() {
+		var service = serviceWith(Map.of("a", fees(null, "1.00", null)), price("a", "8.00"));
+
+		ComparisonResult result = service.compare(ONE_X, "auckland", Set.of(DELIVERY));
+
+		assertThat(result.cheapestChainId()).isEmpty();
+		assertThat(result.chainTotals()).hasSize(1);
 	}
 
 	@Test
 	void feesCanChangeWhichChainIsCheapest() {
-		var service = serviceWith(Map.of("far", fees("5.00", null, null, null), "near", fees("0.00", null, null, null)),
+		var service = serviceWith(Map.of("far", fees("5.00", null, null), "near", fees("0.00", null, null)),
 				price("far", "10.00"), price("near", "12.00"));
 
 		ComparisonResult result = service.compare(ONE_X, "auckland");
@@ -211,10 +256,9 @@ class ShoppingListFulfilmentTest {
 
 	@Test
 	void chainsAreSortedByTotalWithFulfilmentThenItemsTotalThenChainId() {
-		// all 15.00 with fees: b and c tie on items total too -> chain id; a has higher items total but lower fee
 		var service = serviceWith(Map.of(
-						"a", fees("1.00", null, null, null), "b", fees("5.00", null, null, null), "c", fees("5.00", null, null, null),
-						"d", fees("6.00", null, null, null)),
+						"a", fees("1.00", null, null), "b", fees("5.00", null, null), "c", fees("5.00", null, null),
+						"d", fees("6.00", null, null)),
 				price("a", "14.00"), price("b", "10.00"), price("c", "10.00"), price("d", "9.00"));
 
 		ComparisonResult result = service.compare(ONE_X, "auckland");
@@ -233,7 +277,7 @@ class ShoppingListFulfilmentTest {
 		bY.setItemId("y");
 		when(repository.findByItemIdIn(any())).thenReturn(List.of(aX, bX, bY));
 		var service = new ShoppingListComparisonService(repository, area,
-				properties(Map.of("a", fees("0", null, null, null), "b", fees("3.00", null, null, null))));
+				properties(Map.of("a", fees("0.00", null, null), "b", fees("3.00", null, null))));
 
 		ComparisonResult result = service.compare(List.of(new RequestedItem("x", 1), y), "auckland");
 
@@ -242,13 +286,11 @@ class ShoppingListFulfilmentTest {
 	}
 
 	@Test
-	void sevenArgumentChainTotalHasZeroFeeDefaults() {
+	void sevenArgumentChainTotalHasNoFeeDefaults() {
 		ChainTotal total = new ChainTotal("a", new BigDecimal("7.00"), "NZD", 1, 1, List.of(), BigDecimal.ZERO);
 
-		assertThat(total.fulfilmentOptions()).hasSize(1);
-		assertThat(total.bestOption().method()).isEqualTo(IN_STORE);
-		assertThat(total.bestOption().cost()).isEqualByComparingTo("0");
-		assertThat(total.bestOption().totalAmount()).isEqualByComparingTo("7.00");
+		assertThat(total.fulfilmentOptions()).isEmpty();
+		assertThat(total.bestOption()).isNull();
 		assertThat(total.totalWithFulfilment()).isEqualByComparingTo("7.00");
 	}
 }

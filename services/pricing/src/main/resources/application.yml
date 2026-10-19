@@ -321,8 +321,6 @@ app:
       christchurch: south
     chains:
       newworld:
-        # No data yet: a per-trip travel figure is needed from the owner.
-        travel-cost: 0.00
         delivery:
           - { from: 0, fee: 14.00 }
           - { from: 200, fee: 9.00 }
@@ -337,15 +335,11 @@ app:
             click-and-collect:
               - { from: 0, fee: 3.50 }
       paknsave:
-        # No data yet: a per-trip travel figure is needed from the owner.
-        travel-cost: 0.00
         # Delivery is not offered (no delivery key). Same-day collection ($9) and "free over $150 at select
         # stores" are not modelled (store-specific / premium).
         click-and-collect:
           - { from: 0, fee: 5.00 }
       woolworths:
-        # No data yet: a per-trip travel figure is needed from the owner.
-        travel-cost: 0.00
         # Not modelled: app promotions, the Sunday/public-holiday surcharge (+$2), the mid-week 6-hour window,
         # 90-minute "Delivery Now" ($19) and the $1.50 paper-bag fee.
         delivery:

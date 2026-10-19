@@ -30,7 +30,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * What the gateway receives when the user's known travel / delivery / click-and-collect costs are in play:
+ * What the gateway receives when the user's known delivery / click-and-collect costs are in play (travel is out of scope):
  * real gRPC controller, comparison and savings services; only the price table is faked.
  */
 @Tag("feature-integration")
@@ -89,22 +89,24 @@ class FulfilmentContractAcceptanceTest {
 
 		assertThat(response.getCheapestChainId()).isEqualTo("woolworths");
 		assertThat(response.getStoreTotalsList()).extracting(StoreTotal::getChainId)
-				.containsExactly("woolworths", "newworld", "paknsave");
+				.containsExactly("woolworths", "paknsave", "newworld");
 
 		StoreTotal woolworths = chain(response, "woolworths");
 		assertThat(woolworths.getTotalAmount()).isEqualTo(17.7);              // items only
-		assertThat(woolworths.getTotalWithFulfilment()).isEqualTo(18.2);
-		assertThat(woolworths.getBestMethod()).isEqualTo("in_store");
-		assertThat(woolworths.getFulfilmentCost()).isEqualTo(0.5);
+		assertThat(woolworths.getTotalWithFulfilment()).isEqualTo(21.2);
+		assertThat(woolworths.getBestMethod()).isEqualTo("click_and_collect");
+		assertThat(woolworths.getFulfilmentCost()).isEqualTo(3.5);
 		assertThat(woolworths.getFulfilmentOptionsList()).extracting(FulfilmentOption::getMethod)
-				.containsExactly("in_store", "click_and_collect", "delivery");
+				.containsExactly("click_and_collect", "delivery");
 		assertThat(woolworths.getFulfilmentOptionsList()).extracting(FulfilmentOption::getTotalAmount)
-				.containsExactly(18.2, 22.2, 23.7);
+				.containsExactly(21.2, 31.7);
 
 		StoreTotal paknsave = chain(response, "paknsave");
 		assertThat(paknsave.getBestMethod()).isEqualTo("click_and_collect");
-		assertThat(paknsave.getTotalWithFulfilment()).isEqualTo(20.0);
-		assertThat(chain(response, "newworld").getBestMethod()).isEqualTo("in_store");
+		assertThat(paknsave.getTotalWithFulfilment()).isEqualTo(22.0);
+		assertThat(paknsave.getFulfilmentOptionsList()).extracting(FulfilmentOption::getMethod)
+				.containsExactly("click_and_collect");
+		assertThat(chain(response, "newworld").getBestMethod()).isEqualTo("click_and_collect");
 	}
 
 	@Test
@@ -113,28 +115,42 @@ class FulfilmentContractAcceptanceTest {
 
 		assertThat(response.getEffectiveSelectedChainId()).isEqualTo("woolworths");
 		assertThat(chain(response, "woolworths").getSavingsAmount()).isEqualTo(0.8);   // own discount only
-		assertThat(chain(response, "newworld").getSavingsAmount()).isEqualTo(-0.8);    // 18.20 - 19.00
-		assertThat(chain(response, "paknsave").getSavingsAmount()).isEqualTo(-1.8);    // 18.20 - 20.00
+		assertThat(chain(response, "paknsave").getSavingsAmount()).isEqualTo(-0.8);    // 21.20 - 22.00
+		assertThat(chain(response, "newworld").getSavingsAmount()).isEqualTo(-2.8);    // 21.20 - 24.00
 	}
 
 	@Test
-	void restrictingToDeliveryChangesTheOptionsShownAndTheWinner() {
+	void restrictingToDeliveryChangesTheOptionsShownAndExcludesPaknsave() {
 		CompareShoppingListResponse response = call("delivery").response;
 
 		assertThat(response.getCheapestChainId()).isEqualTo("woolworths");
-		assertThat(chain(response, "woolworths").getTotalWithFulfilment()).isEqualTo(23.7);
-		assertThat(chain(response, "newworld").getTotalWithFulfilment()).isEqualTo(24.0);
-		assertThat(chain(response, "paknsave").getTotalWithFulfilment()).isEqualTo(26.0);
-		assertThat(chain(response, "paknsave").getFulfilmentOptionsList()).extracting(FulfilmentOption::getMethod)
-				.containsExactly("delivery");
+		assertThat(response.getStoreTotalsList()).extracting(StoreTotal::getChainId)
+				.containsExactly("woolworths", "newworld", "paknsave");
+		assertThat(chain(response, "woolworths").getTotalWithFulfilment()).isEqualTo(31.7);
+		assertThat(chain(response, "newworld").getTotalWithFulfilment()).isEqualTo(33.0);
+		StoreTotal paknsave = chain(response, "paknsave");
+		assertThat(paknsave.getTotalWithFulfilment()).isEqualTo(17.0);
+		assertThat(paknsave.getBestMethod()).isEmpty();
+		assertThat(paknsave.getFulfilmentOptionsList()).isEmpty();
 	}
 
 	@Test
-	void clickAndCollectOnlyPicksNewWorld() {
+	void clickAndCollectOnlyKeepsEveryChain() {
 		CompareShoppingListResponse response = call("click_and_collect").response;
 
-		assertThat(response.getCheapestChainId()).isEqualTo("newworld");
-		assertThat(chain(response, "newworld").getTotalWithFulfilment()).isEqualTo(19.0);
+		assertThat(response.getCheapestChainId()).isEqualTo("woolworths");
+		assertThat(chain(response, "newworld").getTotalWithFulfilment()).isEqualTo(24.0);
+		assertThat(response.getStoreTotalsList()).allSatisfy(t -> assertThat(t.getBestMethod()).isEqualTo("click_and_collect"));
+	}
+
+	@Test
+	void inStoreIsNoLongerAValidMethod() {
+		Capture capture = call("in_store");
+
+		assertThat(capture.response).isNull();
+		StatusRuntimeException status = (StatusRuntimeException) capture.error;
+		assertThat(status.getStatus().getCode()).isEqualTo(Status.Code.INVALID_ARGUMENT);
+		assertThat(status.getStatus().getDescription()).contains("in_store", "click_and_collect, delivery");
 	}
 
 	@Test
@@ -144,6 +160,6 @@ class FulfilmentContractAcceptanceTest {
 		assertThat(capture.response).isNull();
 		StatusRuntimeException status = (StatusRuntimeException) capture.error;
 		assertThat(status.getStatus().getCode()).isEqualTo(Status.Code.INVALID_ARGUMENT);
-		assertThat(status.getStatus().getDescription()).contains("drone", "in_store", "delivery", "click_and_collect");
+		assertThat(status.getStatus().getDescription()).contains("drone", "click_and_collect, delivery");
 	}
 }
