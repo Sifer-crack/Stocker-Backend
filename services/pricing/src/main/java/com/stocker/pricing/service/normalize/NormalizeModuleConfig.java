@@ -13,6 +13,9 @@ public class NormalizeModuleConfig {
 
 	private static final Logger log = LoggerFactory.getLogger(NormalizeModuleConfig.class);
 
+	/** The backfill's thread, so the re-key can wait for it (ApplicationRunners run in order on the main thread). */
+	private volatile Thread backfillThread;
+
 	@Bean
 	com.stocker.pricing.refresh.CategoryMap categoryMap() {
 		return com.stocker.pricing.refresh.CategoryMap.loadDefault();
@@ -35,6 +38,7 @@ public class NormalizeModuleConfig {
 	 * daemon thread: a large backlog is thousands of Neon round trips and must not delay startup or block shutdown.
 	 */
 	@Bean
+	@org.springframework.core.annotation.Order(1)
 	ApplicationRunner normalizedProductBackfill(NormalizedProductService service,
 			@Value("${app.normalize.backfill-on-startup:true}") boolean enabled) {
 		return args -> {
@@ -52,6 +56,44 @@ public class NormalizeModuleConfig {
 					log.warn("normalized_products backfill skipped: {}", e.getMessage());
 				}
 			}, "normalize-backfill");
+			thread.setDaemon(true);
+			backfillThread = thread;
+			thread.start();
+		};
+	}
+
+	/**
+	 * Re-derives canonical_key, pack size and unit price of stored rows with the current catalog (database work only;
+	 * only changed rows are written). Runs after the backfill on its own daemon thread so it never blocks startup or
+	 * shutdown; failures are logged, not thrown.
+	 */
+	@Bean
+	@org.springframework.core.annotation.Order(2)
+	ApplicationRunner normalizedProductRekey(NormalizedProductService service,
+			@Value("${app.normalize.rekey-on-startup:true}") boolean enabled,
+			@Value("${app.normalize.backfill-on-startup:true}") boolean backfillEnabled) {
+		return args -> {
+			if (!enabled) {
+				return;
+			}
+			Thread thread = new Thread(() -> {
+				try {
+					if (backfillEnabled) {
+						// let the backfill's thread finish first so freshly added rows are re-keyed too
+						Thread backfill = backfillThread;
+						if (backfill != null) {
+							backfill.join(600_000);
+						}
+					}
+					service.rekeyAll(200);
+				}
+				catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+				catch (RuntimeException e) {
+					log.warn("normalized_products re-key skipped: {}", e.getMessage());
+				}
+			}, "normalize-rekey");
 			thread.setDaemon(true);
 			thread.start();
 		};
