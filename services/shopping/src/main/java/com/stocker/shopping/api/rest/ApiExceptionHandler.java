@@ -1,5 +1,6 @@
 package com.stocker.shopping.api.rest;
 
+import com.stocker.shopping.application.FavoriteStoreNotFoundException;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -32,6 +33,16 @@ public class ApiExceptionHandler {
 	@ExceptionHandler(MissingRequestHeaderException.class)
 	public ResponseEntity<Map<String, String>> missingHeader(MissingRequestHeaderException ex) {
 		return error(HttpStatus.UNAUTHORIZED, "missing " + ex.getHeaderName());
+	}
+
+	@ExceptionHandler(IllegalArgumentException.class)
+	public ResponseEntity<Map<String, String>> illegalArgument(IllegalArgumentException ex) {
+		return error(HttpStatus.BAD_REQUEST, ex.getMessage() == null ? "invalid request" : ex.getMessage());
+	}
+
+	@ExceptionHandler(FavoriteStoreNotFoundException.class)
+	public ResponseEntity<Map<String, String>> favoriteNotFound(FavoriteStoreNotFoundException ex) {
+		return error(HttpStatus.NOT_FOUND, ex.getMessage());
 	}
 
 	@ExceptionHandler(ResponseStatusException.class)

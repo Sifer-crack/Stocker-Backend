@@ -127,9 +127,10 @@ services:
       dockerfile: services/shopping/Dockerfile
     environment:
       SERVER_PORT: 8083
-      STOCKER_DB_URL: jdbc:postgresql://postgres:5432/shopping
-      STOCKER_DB_USER: stocker
-      STOCKER_DB_PASSWORD: stocker
+      # Own `shopping` database on Neon (same host and role as the other services, see .env.example).
+      STOCKER_DB_URL: ${STOCKER_SHOPPING_DB_URL}
+      STOCKER_DB_USER: ${STOCKER_DB_USER}
+      STOCKER_DB_PASSWORD: ${STOCKER_DB_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       # Price comparison: one gRPC call to pricing per added item, then Kafka backfill; results are
       # pushed to the gateway, which relays them to the frontend.
@@ -139,8 +140,6 @@ services:
     ports:
       - "8083:8083"
     depends_on:
-      postgres:
-        condition: service_healthy
       kafka:
         condition: service_healthy
 
