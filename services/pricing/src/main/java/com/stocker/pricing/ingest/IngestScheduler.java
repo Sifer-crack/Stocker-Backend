@@ -54,6 +54,7 @@ public class IngestScheduler {
 	private final PriceRecordRepository priceRecordRepository;
 	private final PriceStatsService priceStatsService;
 	private final DailyPageBudget pageBudget;
+	private final CrawlBreaker breaker;
 	private final CategoryMap categoryMap;
 	private final Clock clock;
 	private final CategoryHealth categoryHealth;
@@ -95,7 +96,14 @@ public class IngestScheduler {
 		this.priceStatsService = priceStatsService;
 		this.categoryMap = categoryMap;
 		this.clock = clock;
-		this.pageBudget = new DailyPageBudget(properties::getMaxPagesPerChainPerDay, clock);
+		this.breaker = new CrawlBreaker(properties::getBreakerBlockedThreshold, properties::getBreakerCooldown,
+				properties::getBreakerMaxCooldown, clock);
+		this.pageBudget = new DailyPageBudget(properties::getMaxPagesPerChainPerDay, clock, breaker);
+	}
+
+	/** True while the chain's circuit breaker is open: neither the schedule nor an on-demand refresh may load its pages. */
+	public boolean isChainBlocked(ChainId chain) {
+		return pageBudget.isBlocked(chain);
 	}
 
 	@Scheduled(cron = "${app.ingest.cron}", zone = "${app.ingest.cron-zone:Pacific/Auckland}")
@@ -116,6 +124,10 @@ public class IngestScheduler {
 
 		if (!chainConfig.isEnabled()) {
 			log.info("{}: ingest disabled, skipping", chainId);
+			return;
+		}
+		if (pageBudget.isBlocked(chainId)) {
+			log.warn("{}: crawl circuit breaker is open until {}, skipping this run", chainId, breaker.openUntil(chainId));
 			return;
 		}
 		CrawlLists lists = crawlLists(chainId, chainConfig);
@@ -234,6 +246,11 @@ public class IngestScheduler {
 	private int scrapeAndPersist(ChainScraper scraper, ChainConfig chainConfig, List<String> categoryUrls,
 			CancellationToken cancellation) {
 		ChainId chainId = scraper.chainId();
+		if (pageBudget.isBlocked(chainId)) {
+			log.warn("{}: crawl circuit breaker is open until {}, not loading {} page(s)", chainId,
+					breaker.openUntil(chainId), categoryUrls.size());
+			return 0;
+		}
 		int granted = pageBudget.reserve(chainId, categoryUrls.size());
 		if (granted == 0) {
 			log.warn("{}: daily page budget ({} per day) used up, not loading {} page(s)", chainId,
@@ -251,8 +268,9 @@ public class IngestScheduler {
 				.categoryUrls(categoryUrls)
 				.maxPagesPerCategory(properties.getMaxPagesPerCategory())
 				.navigationTimeoutSeconds(properties.getNavigationTimeoutSeconds())
-				.pageDelayMinMillis(properties.getPageDelayMinMillis())
-				.pageDelayMaxMillis(properties.getPageDelayMaxMillis())
+				.pageDelayMinMillis(properties.pageDelayMinMillis(chainId))
+				.pageDelayMaxMillis(properties.pageDelayMaxMillis(chainId))
+				.crawlBrake(breaker.forChain(chainId))
 				.cancellation(cancellation)
 				.extraPageGate(() -> {
 					boolean allowed = pageBudget.reserve(chainId, 1) == 1;

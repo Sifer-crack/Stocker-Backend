@@ -34,7 +34,7 @@ import org.springframework.stereotype.Service;
  * Makes sure the prices shown for a common product are recent: for each chain that sells it, if the
  * newest stored observation is older than {@code staleAfter}, load just that product's category page
  * (see {@link CategoryMap}). The supermarkets are protected by: a per-page cooldown, an hourly cap per
- * chain, one page load at a time per chain, and the ingest's own politeness delay. If the refresh does
+ * chain, one page load at a time per chain, the ingest's own politeness delay, and the per-chain circuit breaker (open = skipped). If the refresh does
  * not finish within the deadline the caller gets what is stored, flagged stale, and the refresh
  * completes in the background.
  */
@@ -176,6 +176,12 @@ public class OnDemandRefreshService {
 
 		Map<ChainId, Permit> allowed = new EnumMap<>(ChainId.class);
 		pages.forEach((chain, url) -> {
+			if (scheduler.isChainBlocked(chain)) {
+				// circuit breaker open (the supermarket is refusing us): no page load, and no cooldown / hourly slot spent
+				log.info("On-demand refresh {} {} skipped: crawl circuit breaker is open", chain, url);
+				mark(progressLabel, chain, RefreshState.SKIPPED, true);
+				return;
+			}
 			Permit permit = permit(chain, url, config);
 			if (permit != null) {
 				allowed.put(chain, permit);
@@ -244,6 +250,8 @@ public class OnDemandRefreshService {
 			if (cancellation.isCancelled() && saved == 0) {
 				refund(permit);       // cancelled and nothing came of it: do not charge the cooldown / hourly cap
 				mark(progressLabel, chain, RefreshState.SKIPPED, false);
+			} else if (saved == 0 && scheduler.isChainBlocked(chain)) {
+				mark(progressLabel, chain, RefreshState.SKIPPED, false);      // the breaker opened while this page was due
 			} else {
 				publishToSnapshot(saved);
 				mark(progressLabel, chain, RefreshState.DONE, false);

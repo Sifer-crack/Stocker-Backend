@@ -12,6 +12,7 @@ import com.stocker.pricing.ingest.ChainId;
 import com.stocker.pricing.ingest.ChainScraper;
 import com.stocker.pricing.ingest.ScrapePacer;
 import com.stocker.pricing.ingest.model.ChainScraperConfig;
+import com.stocker.pricing.ingest.model.CrawlBrake;
 import com.stocker.pricing.ingest.model.ScrapeException;
 import com.stocker.pricing.ingest.model.ScrapeResult;
 import com.stocker.pricing.ingest.parse.FoodstuffsProductCardExtractor;
@@ -94,6 +95,11 @@ public class FoodstuffsChainScraper implements ChainScraper {
 				if (config.getCancellation().isCancelled()) {
 					break;      // the request that wanted these pages is gone: no further page load
 				}
+				if (config.getCrawlBrake().isOpen()) {
+					warnings.add("Circuit breaker open: stopped before " + categoryUrl);
+					log.warn("{}: circuit breaker open, no further page loaded in this run", chainId);
+					break;
+				}
 				if (!firstPage) {
 					ScrapePacer.pauseBetweenPages(config);
 					if (config.getCancellation().isCancelled()) {
@@ -105,7 +111,7 @@ public class FoodstuffsChainScraper implements ChainScraper {
 					PaginatedCategoryWalker<ProductCardFields> walker = new PaginatedCategoryWalker<>(
 							config.getMaxPagesPerCategory(), config.getExtraPageGate(),
 							() -> ScrapePacer.pauseBetweenPages(config), () -> config.getCancellation().isCancelled());
-					PaginatedCategoryWalker.Walk<ProductCardFields> walk = walker.walk(categoryUrl, url -> loadPage(page, url));
+					PaginatedCategoryWalker.Walk<ProductCardFields> walk = walker.walk(categoryUrl, url -> loadPage(page, url, config.getCrawlBrake()));
 					visited.add(categoryUrl);
 					if (walk.items().isEmpty()) {
 						zeroResultCategoryUrls.add(categoryUrl);
@@ -144,17 +150,18 @@ public class FoodstuffsChainScraper implements ChainScraper {
 	}
 
 	/** Loads one category page and reads its tiles plus the visible text (for the "Showing A - B of M" line). */
-	private LoadedPage<ProductCardFields> loadPage(Page page, String url) {
+	private LoadedPage<ProductCardFields> loadPage(Page page, String url, CrawlBrake brake) {
 		Response response = page.navigate(url);
-		int status = response == null ? 200 : response.status();
-		if (status == 403 || status == 429 || status == 503) {
-			throw new PlaywrightException("HTTP " + status + " (blocked or rate limited) at " + url);
-		}
+		BlockGuard.failIfBlocked(response, url, brake);
 		waitForProductCards(page);
 		List<ProductCardFields> cards = new ArrayList<>();
 		for (Locator card : page.locator(PRODUCT_CARD_SELECTOR).all()) {
 			cards.add(extractFields(card));
 		}
+		if (cards.isEmpty()) {
+			BlockGuard.failIfChallenge(page, url, brake);
+		}
+		brake.onSuccess();
 		String text = cards.isEmpty() ? "" : page.locator("body").innerText();
 		return new LoadedPage<>(cards, text);
 	}

@@ -104,8 +104,15 @@ app:
     sitemap-cache-ttl-days: ${STOCKER_INGEST_SITEMAP_CACHE_TTL_DAYS:7}
     # Rate limiting: a random pause between two page loads on the same chain, and a cap on category
     # pages per chain per run (the rest are visited on following days).
-    page-delay-min-millis: ${STOCKER_INGEST_PAGE_DELAY_MIN_MILLIS:4000}
-    page-delay-max-millis: ${STOCKER_INGEST_PAGE_DELAY_MAX_MILLIS:9000}
+    page-delay-min-millis: ${STOCKER_INGEST_PAGE_DELAY_MIN_MILLIS:20000}
+    page-delay-max-millis: ${STOCKER_INGEST_PAGE_DELAY_MAX_MILLIS:40000}
+    # (20-40 s since 2026-10-20: 4-9 s drew a run of HTTP 429 from New World.) A chain below can override its own pace:
+    # app.ingest.<chain>.page-delay-min/max-millis (empty = use the shared values above).
+    # Circuit breaker per chain: this many consecutive blocked responses (429 / 403 / 503 / captcha) stop the chain's run and
+    # open it for breaker-cooldown (doubling on each consecutive trip up to breaker-max-cooldown); in memory.
+    breaker-blocked-threshold: ${STOCKER_INGEST_BREAKER_BLOCKED_THRESHOLD:3}
+    breaker-cooldown: ${STOCKER_INGEST_BREAKER_COOLDOWN:PT6H}
+    breaker-max-cooldown: ${STOCKER_INGEST_BREAKER_MAX_COOLDOWN:PT24H}
     max-categories-per-run: ${STOCKER_INGEST_MAX_CATEGORIES_PER_RUN:0}
     # Hard cap on category pages per chain per Auckland day (scheduled run + on-demand refresh together).
     max-pages-per-chain-per-day: ${STOCKER_INGEST_MAX_PAGES_PER_CHAIN_PER_DAY:140}
@@ -122,6 +129,8 @@ app:
     quarantine-site-wide-zero-share: ${STOCKER_INGEST_QUARANTINE_SITE_WIDE_ZERO_SHARE:0.5}
     newworld:
       enabled: ${STOCKER_INGEST_NEWWORLD_ENABLED:true}
+      page-delay-min-millis: ${STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MIN_MILLIS:}
+      page-delay-max-millis: ${STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MAX_MILLIS:}
       store-id: ${STOCKER_INGEST_NEWWORLD_STORE_ID:}
       store-name: ${STOCKER_INGEST_NEWWORLD_STORE_NAME:}
       category-urls:
@@ -190,6 +199,8 @@ app:
         - https://www.newworld.co.nz/shop/category/pantry/oil--vinegar/olive--avocado-oil?pg=1
     paknsave:
       enabled: ${STOCKER_INGEST_PAKNSAVE_ENABLED:true}
+      page-delay-min-millis: ${STOCKER_INGEST_PAKNSAVE_PAGE_DELAY_MIN_MILLIS:}
+      page-delay-max-millis: ${STOCKER_INGEST_PAKNSAVE_PAGE_DELAY_MAX_MILLIS:}
       store-id: ${STOCKER_INGEST_PAKNSAVE_STORE_ID:}
       store-name: ${STOCKER_INGEST_PAKNSAVE_STORE_NAME:}
       category-urls:
@@ -258,6 +269,8 @@ app:
         - https://www.paknsave.co.nz/shop/category/pantry/oil--vinegar/olive--avocado-oil?pg=1
     woolworths:
       enabled: ${STOCKER_INGEST_WOOLWORTHS_ENABLED:true}
+      page-delay-min-millis: ${STOCKER_INGEST_WOOLWORTHS_PAGE_DELAY_MIN_MILLIS:}
+      page-delay-max-millis: ${STOCKER_INGEST_WOOLWORTHS_PAGE_DELAY_MAX_MILLIS:}
       store-id: ${STOCKER_INGEST_WOOLWORTHS_STORE_ID:}
       store-name: ${STOCKER_INGEST_WOOLWORTHS_STORE_NAME:}
       category-urls:

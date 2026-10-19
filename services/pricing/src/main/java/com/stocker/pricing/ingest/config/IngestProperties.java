@@ -1,6 +1,8 @@
 package com.stocker.pricing.ingest.config;
 
 import com.stocker.pricing.ingest.DailyPageBudget;
+import com.stocker.pricing.ingest.ChainId;
+import java.time.Duration;
 import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
@@ -21,8 +23,14 @@ public class IngestProperties {
 	private int maxPagesPerCategory = 8;
 	private int sitemapCacheTtlDays = 7;
 	/** Random pause between two page loads on the same chain (politeness / rate limit). */
-	private long pageDelayMinMillis = 4000;
-	private long pageDelayMaxMillis = 9000;
+	private long pageDelayMinMillis = 20_000;
+	private long pageDelayMaxMillis = 40_000;
+	/** Consecutive blocked responses (429 / 403 / 503 / captcha) that open a chain's circuit breaker. */
+	private int breakerBlockedThreshold = 3;
+	/** First cool-down of an open breaker; doubles on each consecutive trip. */
+	private Duration breakerCooldown = Duration.ofHours(6);
+	/** Longest cool-down (also bounds a Retry-After header). */
+	private Duration breakerMaxCooldown = Duration.ofHours(24);
 	/**
 	 * Most category pages loaded per chain in one run. When more are configured the run takes the next
 	 * window of them each day, so every category is still visited regularly but never all at once.
@@ -52,9 +60,31 @@ public class IngestProperties {
 	private ChainConfig paknsave = new ChainConfig();
 	private ChainConfig woolworths = new ChainConfig();
 
+	/** The pause range of one chain: its own setting, else the shared one (a max is never below the min). */
+	public long pageDelayMinMillis(ChainId chain) {
+		Long own = chainConfig(chain).getPageDelayMinMillis();
+		return Math.max(0, own != null ? own : pageDelayMinMillis);
+	}
+
+	public long pageDelayMaxMillis(ChainId chain) {
+		Long own = chainConfig(chain).getPageDelayMaxMillis();
+		return Math.max(pageDelayMinMillis(chain), own != null ? own : pageDelayMaxMillis);
+	}
+
+	private ChainConfig chainConfig(ChainId chain) {
+		return switch (chain) {
+			case NEWWORLD -> newworld;
+			case PAKNSAVE -> paknsave;
+			case WOOLWORTHS -> woolworths;
+		};
+	}
+
 	@Getter
 	@Setter
 	public static class ChainConfig {
+		/** Per-chain page pause; null = use the shared app.ingest.page-delay-min/max-millis. */
+		private Long pageDelayMinMillis;
+		private Long pageDelayMaxMillis;
 		private boolean enabled = false;
 		private String storeId = "";
 		private String storeName = "";
