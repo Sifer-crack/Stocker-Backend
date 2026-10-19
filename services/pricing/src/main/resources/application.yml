@@ -7,14 +7,26 @@ spring:
     url: ${STOCKER_DB_URL:jdbc:postgresql://localhost:5432/pricing}
     username: ${STOCKER_DB_USER:stocker}
     password: ${STOCKER_DB_PASSWORD:stocker}
+    # Sized for Neon (serverless Postgres): compute auto-suspends when idle and drops its connections,
+    # so keep no idle connections, retire them before Neon does, and allow for a cold start.
     hikari:
-      maximum-pool-size: 10
+      maximum-pool-size: ${STOCKER_DB_POOL_SIZE:10}
+      minimum-idle: 0
+      idle-timeout: 120000
+      max-lifetime: 240000
+      connection-timeout: 30000
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+  # Neon recommends the DIRECT endpoint (same host without "-pooler") for migrations, because the pooled
+  # endpoint does not support session-level features. V1-V4 did apply through the pooler here, so this is a
+  # precaution: set STOCKER_DB_MIGRATE_URL to use it; when unset Flyway uses the application datasource.
   flyway:
     enabled: true
+    url: ${STOCKER_DB_MIGRATE_URL:${STOCKER_DB_URL:jdbc:postgresql://localhost:5432/pricing}}
+    user: ${STOCKER_DB_MIGRATE_USER:${STOCKER_DB_USER:stocker}}
+    password: ${STOCKER_DB_MIGRATE_PASSWORD:${STOCKER_DB_PASSWORD:stocker}}
   grpc:
     server:
       port: ${STOCKER_GRPC_SERVER_PORT:9094}
@@ -82,22 +94,157 @@ app:
     # against it shows realistic counts with no zeroResultCategoryUrls/warnings.
     enabled: ${STOCKER_INGEST_ENABLED:true}
     dry-run: ${STOCKER_INGEST_DRY_RUN:true}
+    # Once a day at 03:00 Auckland time, covering every configured category, regardless of the container's timezone.
     cron: ${STOCKER_INGEST_CRON:0 0 3 * * *}
+    cron-zone: ${STOCKER_INGEST_CRON_ZONE:Pacific/Auckland}
+    # One extra run right after startup (database + scraping); off by default, used to seed fresh data.
+    run-on-startup: ${STOCKER_INGEST_RUN_ON_STARTUP:false}
     navigation-timeout-seconds: 30
     max-pages-per-category: 5
     sitemap-cache-ttl-days: ${STOCKER_INGEST_SITEMAP_CACHE_TTL_DAYS:7}
+    # Rate limiting: a random pause between two page loads on the same chain, and a cap on category
+    # pages per chain per run (the rest are visited on following days).
+    page-delay-min-millis: ${STOCKER_INGEST_PAGE_DELAY_MIN_MILLIS:4000}
+    page-delay-max-millis: ${STOCKER_INGEST_PAGE_DELAY_MAX_MILLIS:9000}
+    max-categories-per-run: ${STOCKER_INGEST_MAX_CATEGORIES_PER_RUN:0}
+    # Hard cap on category pages per chain per Auckland day (scheduled run + on-demand refresh together).
+    max-pages-per-chain-per-day: ${STOCKER_INGEST_MAX_PAGES_PER_CHAIN_PER_DAY:80}
     newworld:
       enabled: ${STOCKER_INGEST_NEWWORLD_ENABLED:true}
       store-id: ${STOCKER_INGEST_NEWWORLD_STORE_ID:}
       store-name: ${STOCKER_INGEST_NEWWORLD_STORE_NAME:}
       category-urls:
         - https://www.newworld.co.nz/shop/category/fridge-deli-and-eggs/milk/fresh-milk?pg=1
+        - https://www.newworld.co.nz/shop/category/fridge-deli-and-eggs/eggs?pg=1
+        - https://www.newworld.co.nz/shop/category/fridge-deli-and-eggs/butter--margarine/butter?pg=1
+        - https://www.newworld.co.nz/shop/category/fridge-deli-and-eggs/yoghurt?pg=1
+        - https://www.newworld.co.nz/shop/category/fruit-and-vegetables/fruit/bananas?pg=1
+        - https://www.newworld.co.nz/shop/category/fruit-and-vegetables/fruit/apples--pears?pg=1
+        - https://www.newworld.co.nz/shop/category/fruit-and-vegetables/fruit/oranges--citrus-fruit?pg=1
+        - https://www.newworld.co.nz/shop/category/fruit-and-vegetables/vegetables/potato--kumara?pg=1
+        - https://www.newworld.co.nz/shop/category/fruit-and-vegetables/vegetables/onions-leeks--shallots?pg=1
+        - https://www.newworld.co.nz/shop/category/fruit-and-vegetables/vegetables/carrots--root-vegetables?pg=1
+        - https://www.newworld.co.nz/shop/category/fruit-and-vegetables/vegetables/tomatoes-cucumber--capsicum?pg=1
+        - https://www.newworld.co.nz/shop/category/fruit-and-vegetables/vegetables/mushrooms?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/spices-seasoning--coatings/garlic--ginger?pg=1
+        - https://www.newworld.co.nz/shop/category/fruit-and-vegetables/vegetables/broccoli-cabbage--cauliflower?pg=1
+        - https://www.newworld.co.nz/shop/category/fruit-and-vegetables/fresh-salad--herbs/lettuce-spinach--salad-greens?pg=1
+        - https://www.newworld.co.nz/shop/category/fruit-and-vegetables/fruit/avocado?pg=1
+        - https://www.newworld.co.nz/shop/category/fridge-deli-and-eggs/deli-meats--smoked-fish/bacon?pg=1
+        - https://www.newworld.co.nz/shop/category/meat-poultry-and-seafood/beef/beef-mince--stir-fry?pg=1
+        - https://www.newworld.co.nz/shop/category/meat-poultry-and-seafood/chicken--poultry/chicken-mince--stir-fry?pg=1
+        - https://www.newworld.co.nz/shop/category/meat-poultry-and-seafood/lamb?pg=1
+        - https://www.newworld.co.nz/shop/category/meat-poultry-and-seafood/pork--ham?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/baking-supplies--sugar/flour?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/baking-supplies--sugar/sugar?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/pasta-rice--noodles/noodles?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/pasta-rice--noodles/instant-noodles?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/spices-seasoning--coatings/dried-spices?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/spices-seasoning--coatings/salt--pepper?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/oil--vinegar/vinegar?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/cooking-sauces-stocks--marinades/soy--asian-sauces?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/table-sauces-dressings--condiments/tomato-sauce?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/canned-foods--packets/canned-tomatoes?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/canned-foods--packets/baked-beans--spaghetti?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/biscuits--crackers?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/chips-nuts--snacks/chips?pg=1
+        - https://www.newworld.co.nz/shop/category/hot-and-cold-drinks/tea?pg=1
+        - https://www.newworld.co.nz/shop/category/hot-and-cold-drinks/coffee?pg=1
+        - https://www.newworld.co.nz/shop/category/hot-and-cold-drinks/soft-drinks--mixers?pg=1
+        - https://www.newworld.co.nz/shop/category/hot-and-cold-drinks/juice--smoothies/fruit-juice?pg=1
+        - https://www.newworld.co.nz/shop/category/hot-and-cold-drinks/water?pg=1
+        - https://www.newworld.co.nz/shop/category/frozen/ice-cream--sorbet/ice-cream-tubs?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/baking-supplies--sugar/dried-fruit?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/chips-nuts--snacks?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/jams-honey--spreads/peanut--nut-butter?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/jams-honey--spreads?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/breakfast-cereals/oats--porridge?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/breakfast-cereals?pg=1
+        - https://www.newworld.co.nz/shop/category/household-and-cleaning/toilet-paper-tissues--paper-towels/toilet-paper?pg=1
+        - https://www.newworld.co.nz/shop/category/household-and-cleaning/dishwashing/dishwashing-liquid?pg=1
+        - https://www.newworld.co.nz/shop/category/household-and-cleaning/laundry/laundry-liquid--capsules?pg=1
+        - https://www.newworld.co.nz/shop/category/fridge-deli-and-eggs/dairy-free--meat-free/tofu?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/table-sauces-dressings--condiments/mayonnaise?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/baking-supplies--sugar/baking-powder--raising-agents?pg=1
+        - https://www.newworld.co.nz/shop/category/frozen/frozen-vegetables?pg=1
+        - https://www.newworld.co.nz/shop/category/bakery/wraps-pita--flat-bread/wraps--tortillas?pg=1
+        - https://www.newworld.co.nz/shop/category/fridge-deli-and-eggs/cheese?pg=1
+        - https://www.newworld.co.nz/shop/category/fridge-deli-and-eggs/cheese/cream-cheese--cottage-cheese?pg=1
+        - https://www.newworld.co.nz/shop/category/fridge-deli-and-eggs/butter--margarine/margarine--spreads?pg=1
+        - https://www.newworld.co.nz/shop/category/meat-poultry-and-seafood/mince-sausages--meatballs?pg=1
+        - https://www.newworld.co.nz/shop/category/meat-poultry-and-seafood/beef/beef-sausages?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/canned-foods--packets/canned-tuna?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/chips-nuts--snacks/popcorn?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/oil--vinegar/cooking-oil?pg=1
+        - https://www.newworld.co.nz/shop/category/pantry/oil--vinegar/olive--avocado-oil?pg=1
     paknsave:
       enabled: ${STOCKER_INGEST_PAKNSAVE_ENABLED:true}
       store-id: ${STOCKER_INGEST_PAKNSAVE_STORE_ID:}
       store-name: ${STOCKER_INGEST_PAKNSAVE_STORE_NAME:}
       category-urls:
         - https://www.paknsave.co.nz/shop/category/fridge-deli-and-eggs/milk/fresh-milk?pg=1
+        - https://www.paknsave.co.nz/shop/category/fridge-deli-and-eggs/eggs?pg=1
+        - https://www.paknsave.co.nz/shop/category/fridge-deli-and-eggs/butter--margarine/butter?pg=1
+        - https://www.paknsave.co.nz/shop/category/fridge-deli-and-eggs/yoghurt?pg=1
+        - https://www.paknsave.co.nz/shop/category/fruit-and-vegetables/fruit/bananas?pg=1
+        - https://www.paknsave.co.nz/shop/category/fruit-and-vegetables/fruit/apples--pears?pg=1
+        - https://www.paknsave.co.nz/shop/category/fruit-and-vegetables/fruit/oranges--citrus-fruit?pg=1
+        - https://www.paknsave.co.nz/shop/category/fruit-and-vegetables/vegetables/potato--kumara?pg=1
+        - https://www.paknsave.co.nz/shop/category/fruit-and-vegetables/vegetables/onions-leeks--shallots?pg=1
+        - https://www.paknsave.co.nz/shop/category/fruit-and-vegetables/vegetables/carrots--root-vegetables?pg=1
+        - https://www.paknsave.co.nz/shop/category/fruit-and-vegetables/vegetables/tomatoes-cucumber--capsicum?pg=1
+        - https://www.paknsave.co.nz/shop/category/fruit-and-vegetables/vegetables/mushrooms?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/spices-seasoning--coatings/garlic--ginger?pg=1
+        - https://www.paknsave.co.nz/shop/category/fruit-and-vegetables/vegetables/broccoli-cabbage--cauliflower?pg=1
+        - https://www.paknsave.co.nz/shop/category/fruit-and-vegetables/fresh-salad--herbs/lettuce-spinach--salad-greens?pg=1
+        - https://www.paknsave.co.nz/shop/category/fruit-and-vegetables/fruit/avocado?pg=1
+        - https://www.paknsave.co.nz/shop/category/fridge-deli-and-eggs/deli-meats--smoked-fish/bacon?pg=1
+        - https://www.paknsave.co.nz/shop/category/meat-poultry-and-seafood/beef/beef-mince--stir-fry?pg=1
+        - https://www.paknsave.co.nz/shop/category/meat-poultry-and-seafood/chicken--poultry/chicken-mince--stir-fry?pg=1
+        - https://www.paknsave.co.nz/shop/category/meat-poultry-and-seafood/lamb?pg=1
+        - https://www.paknsave.co.nz/shop/category/meat-poultry-and-seafood/pork--ham?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/baking-supplies--sugar/flour?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/baking-supplies--sugar/sugar?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/pasta-rice--noodles/noodles?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/pasta-rice--noodles/instant-noodles?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/spices-seasoning--coatings/dried-spices?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/spices-seasoning--coatings/salt--pepper?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/oil--vinegar/vinegar?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/cooking-sauces-stocks--marinades/soy--asian-sauces?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/table-sauces-dressings--condiments/tomato-sauce?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/canned-foods--packets/canned-tomatoes?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/canned-foods--packets/baked-beans--spaghetti?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/biscuits--crackers?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/chips-nuts--snacks/chips?pg=1
+        - https://www.paknsave.co.nz/shop/category/hot-and-cold-drinks/tea?pg=1
+        - https://www.paknsave.co.nz/shop/category/hot-and-cold-drinks/coffee?pg=1
+        - https://www.paknsave.co.nz/shop/category/hot-and-cold-drinks/soft-drinks--mixers?pg=1
+        - https://www.paknsave.co.nz/shop/category/hot-and-cold-drinks/juice--smoothies/fruit-juice?pg=1
+        - https://www.paknsave.co.nz/shop/category/hot-and-cold-drinks/water?pg=1
+        - https://www.paknsave.co.nz/shop/category/frozen/ice-cream--sorbet/ice-cream-tubs?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/baking-supplies--sugar/dried-fruit?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/chips-nuts--snacks?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/jams-honey--spreads/peanut--nut-butter?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/jams-honey--spreads?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/breakfast-cereals/oats--porridge?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/breakfast-cereals?pg=1
+        - https://www.paknsave.co.nz/shop/category/household-and-cleaning/toilet-paper-tissues--paper-towels/toilet-paper?pg=1
+        - https://www.paknsave.co.nz/shop/category/household-and-cleaning/dishwashing/dishwashing-liquid?pg=1
+        - https://www.paknsave.co.nz/shop/category/household-and-cleaning/laundry/laundry-liquid--capsules?pg=1
+        - https://www.paknsave.co.nz/shop/category/fridge-deli-and-eggs/dairy-free--meat-free/tofu?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/table-sauces-dressings--condiments/mayonnaise?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/baking-supplies--sugar/baking-powder--raising-agents?pg=1
+        - https://www.paknsave.co.nz/shop/category/frozen/frozen-vegetables?pg=1
+        - https://www.paknsave.co.nz/shop/category/bakery/wraps-pita--flat-bread/wraps--tortillas?pg=1
+        - https://www.paknsave.co.nz/shop/category/fridge-deli-and-eggs/cheese?pg=1
+        - https://www.paknsave.co.nz/shop/category/fridge-deli-and-eggs/cheese/cream-cheese--cottage-cheese?pg=1
+        - https://www.paknsave.co.nz/shop/category/fridge-deli-and-eggs/butter--margarine/margarine--spreads?pg=1
+        - https://www.paknsave.co.nz/shop/category/meat-poultry-and-seafood/mince-sausages--meatballs?pg=1
+        - https://www.paknsave.co.nz/shop/category/meat-poultry-and-seafood/beef/beef-sausages?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/canned-foods--packets/canned-tuna?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/chips-nuts--snacks/popcorn?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/oil--vinegar/cooking-oil?pg=1
+        - https://www.paknsave.co.nz/shop/category/pantry/oil--vinegar/olive--avocado-oil?pg=1
     woolworths:
       enabled: ${STOCKER_INGEST_WOOLWORTHS_ENABLED:true}
       store-id: ${STOCKER_INGEST_WOOLWORTHS_STORE_ID:}
@@ -116,7 +263,28 @@ app:
         pricing: stocker.pricing.events.v1
     consumer:
       topics: stocker.catalog.events.v1
+  normalize:
+    # Normalises price_records rows that predate normalized_products (database work only, no requests).
+    backfill-on-startup: ${STOCKER_NORMALIZE_BACKFILL:true}
   pricing:
+    # Freshness check before prices are shown: for a common product whose stored prices are older than
+    # stale-after, load only that product's category page on the stale chains (see OnDemandRefreshService).
+    on-demand:
+      enabled: ${STOCKER_PRICING_ON_DEMAND_ENABLED:true}
+      stale-after: ${STOCKER_PRICING_ON_DEMAND_STALE_AFTER:PT26H}
+      deadline: ${STOCKER_PRICING_ON_DEMAND_DEADLINE:PT0S}
+      category-cooldown: ${STOCKER_PRICING_ON_DEMAND_COOLDOWN:PT30M}
+      max-page-loads-per-chain-per-hour: ${STOCKER_PRICING_ON_DEMAND_MAX_PER_HOUR:20}
+    # Price lookups are answered from an in-memory copy of normalized_products (one query per ttl, refreshed in the
+    # background) instead of several database round trips per lookup. ttl=PT0S turns it off.
+    snapshot:
+      ttl: ${STOCKER_PRICING_SNAPSHOT_TTL:PT30S}
+      refresh-interval: ${STOCKER_PRICING_SNAPSHOT_REFRESH_INTERVAL:PT15S}
+    match:
+      # false = comparing a list reads stored prices only (no third-party provider call on the request path).
+      provider-fallback: ${STOCKER_PRICING_MATCH_PROVIDER_FALLBACK:false}
+      # false = a search that finds nothing is only recorded (unmatched_search_terms); it never starts a scrape.
+      on-demand-ingest: ${STOCKER_PRICING_MATCH_ON_DEMAND_INGEST:false}
     cache:
       # How long a price_records row is considered fresh enough to skip a live re-fetch.
       # Long by design: IngestScheduler's nightly crawl is what should keep this warm.

@@ -4,7 +4,7 @@
 
 - Boots a Spring Boot 4.0.7 app (Java 25, Gradle Groovy DSL) on port 8084 (`SERVER_PORT`).
 - `GET /healthz` via `api/rest/HealthzController`.
-- PostgreSQL via `spring.datasource.*` / env `STOCKER_DB_URL`, `STOCKER_DB_USER`, `STOCKER_DB_PASSWORD`
+- PostgreSQL (Neon `neondb` in the current setup; Flyway uses `STOCKER_DB_MIGRATE_URL` when set) via `spring.datasource.*` / env `STOCKER_DB_URL`, `STOCKER_DB_USER`, `STOCKER_DB_PASSWORD`
   (default: `jdbc:postgresql://localhost:5432/pricing`, `stocker`/`stocker`). Schema managed by Flyway
   under `db/migration` (`V1__create_price_records.sql`); JPA `ddl-auto: validate`.
 - gRPC server: `PriceRecordService` (`stocker.pricing.v1`) with `Fetch`, `Save`, `Search`, and
@@ -25,6 +25,14 @@
   No third-party provider is involved. New World / PAK'nSave scrape the pack size ("2l") into the brand slot; the matcher treats a
   size-shaped brand as part of the name. `RawProductPriceRecordMapper` now keeps name/brand/code/url/image in `raw_attributes` (ingest
   used to store none, so a stored price could not say which product it was).
+- `normalize/` + `service/normalize/` + V5 (`normalized_products`, `unmatched_search_terms`, view `common_product_price_map`): pack-size
+  and name normalisation, the ~180-entry NZ common-products list (`common-products.txt`) and a normalised, indexed copy of every
+  scraped product, refreshed by `PriceStatsService.recordObservation`. `MatchItem` answers common products from it
+  (`matchMethod: "canonical"`, with `unit_price` / `pack_size`; optional `weight_kg` / `volume_l` request hints), falls back to word
+  overlap, and on a miss only records the term - the on-demand ingest is OFF by default. Ingest is rate limited (page delay, per-run
+  category cap). Before answering, `refresh/OnDemandRefreshService` checks data age per chain and loads only the stale chains' one
+  category page (`category-map.txt`), with cooldown/hourly cap/deadline; `MatchItemResponse.stale` flags old data; `CompareItemPrices`
+  prices common products through the same path before falling back to the provider. See `NORMALIZE_MODULE.md`.
 - `CompareItemPrices` RPC (per-item, used by shopping's add-item flow) -> `service/ItemPriceComparisonService`: for each
   item it calls `PriceSearchService.search` under the caller's item id (so the async refresh later publishes
   `PriceRecordCaptured` events keyed by that id), keeps the latest usable price per (chain, store) and returns

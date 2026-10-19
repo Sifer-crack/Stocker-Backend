@@ -14,6 +14,36 @@ public class PricingCacheProperties {
 	private Fallback fallback = new Fallback();
 	private Refresh refresh = new Refresh();
 	private Match match = new Match();
+	private Snapshot snapshot = new Snapshot();
+	private OnDemand onDemand = new OnDemand();
+
+	/**
+	 * Before answering a search for a common product, check how old each chain's data is and, for stale
+	 * chains only, load just the one category page that product lives on. Heavily rate limited.
+	 */
+	@Getter
+	@Setter
+	public static class OnDemand {
+		private boolean enabled = true;
+		/** Data older than this is refreshed before it is shown. */
+		private Duration staleAfter = Duration.ofHours(26);
+		/** How long a lookup waits for the refresh. Zero (default) = never wait: answer with stored data (flagged stale) and finish in the background. */
+		private Duration deadline = Duration.ZERO;
+		/** A category page is never re-requested within this period, whatever the outcome. */
+		private Duration categoryCooldown = Duration.ofMinutes(30);
+		/** Hard cap on on-demand page loads per chain per hour (all products together). */
+		private int maxPageLoadsPerChainPerHour = 20;
+	}
+
+	/** In-memory copy of the normalised products that price lookups are answered from. */
+	@Getter
+	@Setter
+	public static class Snapshot {
+		/** How long a loaded copy is used before it is reloaded. Zero turns the snapshot off (every lookup queries the database). */
+		private Duration ttl = Duration.ofSeconds(30);
+		/** How often the background refresh reloads it, so lookups never wait for the load. */
+		private Duration refreshInterval = Duration.ofSeconds(15);
+	}
 
 	/** GET /api/pricing/match: how ingested products are matched to a requested item. */
 	@Getter
@@ -25,9 +55,22 @@ public class PricingCacheProperties {
 		private double alternativeMinScore = 0.3;
 		private int maxAlternativesPerChain = 2;
 		/** Ingested rows older than this are ignored. */
-		private Duration maxAge = Duration.ofDays(3);
+		private Duration maxAge = Duration.ofDays(7);
+		/**
+		 * The common-product (canonical) path shows the newest stored price per chain even when it is old,
+		 * flagged stale and refreshed on demand, rather than hiding the chain; only data older than this is dropped.
+		 */
+		private Duration canonicalMaxAge = Duration.ofDays(90);
 		/** At most one on-demand ingest run per this interval, however many lookups miss. */
 		private Duration refreshCooldown = Duration.ofMinutes(30);
+		/** Whether comparing a list may fall back to a third-party price provider for items with nothing stored. Off: stored data only. */
+		private boolean providerFallback = false;
+		/**
+		 * Whether a lookup that finds nothing may start a scrape of every configured category. Off by
+		 * default: supermarket requests come only from the scheduled, rate-limited ingest; a miss is
+		 * just recorded in unmatched_search_terms.
+		 */
+		private boolean onDemandIngest = false;
 	}
 
 	@Getter

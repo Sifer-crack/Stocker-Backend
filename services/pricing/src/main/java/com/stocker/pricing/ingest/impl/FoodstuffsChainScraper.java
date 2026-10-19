@@ -9,6 +9,7 @@ import com.microsoft.playwright.options.Cookie;
 import com.stocker.pricing.fetch.model.RawProduct;
 import com.stocker.pricing.ingest.ChainId;
 import com.stocker.pricing.ingest.ChainScraper;
+import com.stocker.pricing.ingest.ScrapePacer;
 import com.stocker.pricing.ingest.model.ChainScraperConfig;
 import com.stocker.pricing.ingest.model.ScrapeException;
 import com.stocker.pricing.ingest.model.ScrapeResult;
@@ -86,7 +87,12 @@ public class FoodstuffsChainScraper implements ChainScraper {
 			Page page = context.newPage();
 			page.setDefaultTimeout(config.getNavigationTimeoutSeconds() * 1000L);
 
+			boolean firstPage = true;
 			for (String categoryUrl : config.getCategoryUrls()) {
+				if (!firstPage) {
+					ScrapePacer.pauseBetweenPages(config);
+				}
+				firstPage = false;
 				try {
 					page.navigate(categoryUrl);
 					waitForProductCards(page);
