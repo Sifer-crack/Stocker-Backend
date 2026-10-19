@@ -432,33 +432,8 @@ public class ItemMatchService {
 	}
 
 	private void persistNow(String itemId, List<Candidate> chosen) {
-		Set<String> alreadyStored = new HashSet<>();
-		repository.findByItemId(itemId).forEach(row -> alreadyStored.add(storedKey(row)));
-		for (Candidate candidate : chosen) {
-			NormalizedProduct source = candidate.row();
-			if (!alreadyStored.add(storedKey(source.getChainId(), source.getStoreId(), source.getCapturedAt()))) {
-				continue;
-			}
-			Map<String, Object> attributes = new LinkedHashMap<>();
-			attributes.put("name", source.getDisplayName());
-			if (StringUtils.hasText(source.getBrand())) {
-				attributes.put("brand", source.getBrand());
-			}
-			PriceRecord saved = repository.save(PriceRecord.builder()
-					.itemId(itemId)
-					.storeId(source.getStoreId())
-					.chainId(source.getChainId())
-					.channel("pickup")
-					.priceAmount(source.getPriceAmount())
-					.currency(source.getCurrency())
-					.promoFlag(source.isPromoFlag())
-					.capturedAt(source.getCapturedAt())
-					.rawAttributes(attributes)
-					.createdAt(OffsetDateTime.now(ZoneOffset.UTC))
-					.build());
-			eventPublisher.publishPriceRecordCaptured(saved);
-			priceStatsService.recordObservation(saved);
-		}
+		new ItemPriceStore(repository, priceStatsService, eventPublisher).store(itemId,
+				chosen.stream().map(Candidate::row).toList());
 	}
 
 	/** Test seam: the default stores on a daemon background thread. */
@@ -497,13 +472,5 @@ public class ItemMatchService {
 		} catch (IllegalArgumentException e) {
 			return false;
 		}
-	}
-
-	private static String storedKey(PriceRecord row) {
-		return storedKey(row.getChainId(), row.getStoreId(), row.getCapturedAt());
-	}
-
-	private static String storedKey(String chainId, String storeId, OffsetDateTime capturedAt) {
-		return chainId + "|" + storeId + "|" + (capturedAt == null ? "" : capturedAt.toInstant());
 	}
 }
