@@ -41,3 +41,32 @@ The next daily crawl picks the page up. Use `unmatched_search_terms` to find wha
   within about a second of its `/match` can see no stored price yet.
 - Neon is in us-east-1; from New Zealand each query costs about 190 ms (Sydney, ap-southeast-2: about 31 ms). The snapshot hides this
   for reads; writes and `CompareShoppingList` still pay it. Moving the project to Sydney is the biggest remaining lever.
+
+## Cancelled requests stop server-side work
+
+A request the client abandons must not keep spending database time or, above all, supermarket page loads.
+
+```
+client aborts / disconnects
+  -> gateway: WebFlux disposes the Mono -> Reactor interrupts the boundedElastic thread blocked in the gRPC stub
+  -> grpc-java blocking call turns the interrupt into a CANCELLED RPC
+  -> pricing: the call's io.grpc.Context is cancelled (with a cause)
+  -> PriceRecordGrpcController checks Context / ServerCallStreamObserver before each step and never writes to a cancelled call
+  -> CancellationToken.current() (cancel/cause) is captured by the services before they hop threads
+       - ItemPriceComparisonService: checked before every item
+       - PriceSearchService (legacy third-party provider path): checked before the provider call; the in-flight call is
+         cancelled (future.cancel + WebClient subscription disposed via CancellableBlocking); no refresh is queued
+       - OnDemandRefreshService: a job not started yet does not start; the token is passed to
+         IngestScheduler.refreshCategories(chain, urls, token)
+  -> IngestScheduler: a cancelled token returns the reserved DailyPageBudget; ChainScraperConfig.cancellation is read by
+     the Foodstuffs and Woolworths loops before every page and during the ScrapePacer pause
+```
+
+Rules:
+- Only a cancellation WITH a cause counts. gRPC also ends a call's Context (without a cause) when the call completes
+  normally; the background refresh a completed lookup started must keep going.
+- The scheduled (cron) crawl always uses `CancellationToken.NONE`; a client disconnect never stops it.
+- Cancelling never leaves charges behind: pages not visited go back to the daily budget, and a job cancelled before
+  it loaded anything gives back its on-demand cooldown stamp and hourly-cap slot.
+- Not cancellable: the page that is loading when the cancel arrives (it finishes, at most one navigation timeout),
+  and a database query already running. Kafka-driven refreshes (`PriceRefreshRequestConsumer`) are not request-bound.

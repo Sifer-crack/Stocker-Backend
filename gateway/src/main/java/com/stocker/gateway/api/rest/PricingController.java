@@ -35,6 +35,11 @@ import reactor.core.scheduler.Schedulers;
  * reconciliation is needed there — just sort ascending so the cheapest option is first. Compare's
  * "outside service area" gRPC error (Status.INVALID_ARGUMENT, raised by pricing's
  * ShoppingListComparisonService) is translated to an HTTP 422 with the description as the body.
+ *
+ * <p>Cancellation: when the HTTP client disconnects, WebFlux disposes the returned Mono. Reactor then interrupts the
+ * boundedElastic thread blocked in the gRPC stub, and grpc-java's blocking call turns that interrupt into a CANCELLED
+ * RPC, so pricing sees its call Context cancelled. No extra code is needed; PricingControllerCancellationTest holds
+ * this for search, compare and match against a real gRPC server.
  */
 @RestController
 @RequestMapping("/api/pricing")

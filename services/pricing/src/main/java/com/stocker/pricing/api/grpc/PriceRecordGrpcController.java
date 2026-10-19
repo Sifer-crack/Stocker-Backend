@@ -37,13 +37,17 @@ import com.stocker.pricing.service.match.ItemMatchService;
 import com.stocker.pricing.service.match.ItemMatchService.MatchResult;
 import com.stocker.pricing.service.match.ItemMatchService.MatchedProduct;
 import com.stocker.pricing.service.servicearea.ServiceAreaException;
+import io.grpc.Context;
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -69,6 +73,9 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 
 	@Override
 	public void matchItem(MatchItemRequest request, StreamObserver<MatchItemResponse> responseObserver) {
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		log.info("gRPC matchItem: term={}, itemId={}", request.getSearchTerm(), request.getItemId());
 		if (!StringUtils.hasText(request.getSearchTerm()) || !StringUtils.hasText(request.getItemId())) {
 			responseObserver.onError(
@@ -77,11 +84,42 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 		}
 		MatchResult result = itemMatchService.match(request.getSearchTerm(), request.getItemId(),
 				positiveOrNull(request.getWeightKg()), positiveOrNull(request.getVolumeL()), request.getCategory());
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		MatchItemResponse.Builder response = MatchItemResponse.newBuilder().setMatchMethod(result.matchMethod()).setStale(result.stale());
 		result.matches().forEach(match -> response.addChainMatches(toProto(match)));
 		result.alternatives().forEach(alternative -> response.addAlternatives(toProto(alternative)));
-		responseObserver.onNext(response.build());
-		responseObserver.onCompleted();
+		reply(responseObserver, response.build());
+	}
+
+	/**
+	 * True once the client has gone (abort, disconnect or deadline). Checked before each expensive step so a
+	 * cancelled call stops working and never writes to the closed call; completing normally does not count.
+	 */
+	private static boolean isCancelled(StreamObserver<?> responseObserver) {
+		boolean cancelled = Context.current().isCancelled()
+				|| (responseObserver instanceof ServerCallStreamObserver<?> call && call.isCancelled());
+		if (cancelled) {
+			log.info("gRPC call cancelled by the caller; skipping the remaining work");
+		}
+		return cancelled;
+	}
+
+	/** Sends the answer unless the call was cancelled meanwhile (a write to a cancelled call would only throw). */
+	private static <T> void reply(StreamObserver<T> responseObserver, T value) {
+		if (isCancelled(responseObserver)) {
+			return;
+		}
+		try {
+			responseObserver.onNext(value);
+			responseObserver.onCompleted();
+		} catch (StatusRuntimeException e) {
+			if (e.getStatus().getCode() != Status.Code.CANCELLED) {
+				throw e;
+			}
+			log.info("gRPC call cancelled while answering; dropping the response");
+		}
 	}
 
 	private static java.math.BigDecimal positiveOrNull(double value) {
@@ -107,6 +145,9 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 	@Override
 	public void compareItemPrices(
 			CompareItemPricesRequest request, StreamObserver<CompareItemPricesResponse> responseObserver) {
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		log.info("gRPC compareItemPrices: itemCount={}, region={}", request.getItemsCount(), request.getRegion());
 		List<ItemQuery> queries = request.getItemsList().stream()
 				.map(item -> new ItemQuery(item.getItemId(), item.getSearchTerm(), item.getCategory()))
@@ -115,6 +156,9 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 		List<ItemComparison> comparisons;
 		try {
 			comparisons = itemPriceComparisonService.compare(queries, request.getRegion());
+		} catch (CancellationException ex) {
+			log.info("gRPC compareItemPrices cancelled by the caller");
+			return;
 		} catch (ServiceAreaException ex) {
 			log.warn("gRPC compareItemPrices rejected: {}", ex.getMessage());
 			responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(ex.getMessage()).asRuntimeException());
@@ -123,8 +167,7 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 
 		CompareItemPricesResponse.Builder response = CompareItemPricesResponse.newBuilder();
 		comparisons.forEach(comparison -> response.addComparisons(toProto(comparison)));
-		responseObserver.onNext(response.build());
-		responseObserver.onCompleted();
+		reply(responseObserver, response.build());
 	}
 
 	private static ItemPriceComparison toProto(ItemComparison comparison) {
@@ -151,13 +194,18 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 
 	@Override
 	public void fetch(FetchRequest request, StreamObserver<FetchResponse> responseObserver) {
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		log.info("gRPC fetch: itemId={}, storeId={}", request.getItemId(), request.getStoreId());
 		List<com.stocker.pricing.model.PriceRecord> records =
 				priceFetcherService.fetch(request.getItemId(), request.getStoreId());
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		FetchResponse.Builder response = FetchResponse.newBuilder();
 		records.stream().map(PriceRecordGrpcController::toProto).forEach(response::addPriceRecords);
-		responseObserver.onNext(response.build());
-		responseObserver.onCompleted();
+		reply(responseObserver, response.build());
 	}
 
 	@Override
@@ -193,6 +241,9 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 
 	@Override
 	public void search(SearchRequest request, StreamObserver<SearchResponse> responseObserver) {
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		log.info("gRPC search: searchTerm={}, itemId={}", request.getSearchTerm(), request.getItemId());
 		if (!StringUtils.hasText(request.getItemId())) {
 			log.warn("gRPC search rejected: itemId is required");
@@ -202,15 +253,20 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 		}
 		List<com.stocker.pricing.model.PriceRecord> records = priceSearchService.search(
 				request.getSearchTerm(), request.getItemId(), request.getStoreUrlsList(), request.getCategory());
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		SearchResponse.Builder response = SearchResponse.newBuilder();
 		records.stream().map(PriceRecordGrpcController::toProto).forEach(response::addPriceRecords);
-		responseObserver.onNext(response.build());
-		responseObserver.onCompleted();
+		reply(responseObserver, response.build());
 	}
 
 	@Override
 	public void compareShoppingList(
 			CompareShoppingListRequest request, StreamObserver<CompareShoppingListResponse> responseObserver) {
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		log.info("gRPC compareShoppingList: itemCount={}, region={}", request.getItemsCount(), request.getRegion());
 		List<RequestedItem> items = request.getItemsList().stream()
 				.map(item -> new RequestedItem(item.getItemId(), item.getQuantity()))
@@ -225,6 +281,9 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 			return;
 		}
 
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		String effectiveSelectedChainId = StringUtils.hasText(request.getSelectedChainId())
 				? request.getSelectedChainId()
 				: comparison.cheapestChainId();
@@ -238,8 +297,7 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 		for (ChainTotal chainTotal : comparison.chainTotals()) {
 			response.addStoreTotals(toStoreTotal(chainTotal, savingsByChainId.get(chainTotal.chainId())));
 		}
-		responseObserver.onNext(response.build());
-		responseObserver.onCompleted();
+		reply(responseObserver, response.build());
 	}
 
 	private static StoreTotal toStoreTotal(ChainTotal chainTotal, ChainSavings savings) {

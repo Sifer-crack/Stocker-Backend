@@ -1,5 +1,6 @@
 package com.stocker.pricing.service;
 
+import com.stocker.pricing.cancel.CancellationToken;
 import com.stocker.pricing.model.PriceRecord;
 import com.stocker.pricing.service.cache.PricingCacheProperties;
 import com.stocker.pricing.service.match.ItemMatchService;
@@ -11,6 +12,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,10 +57,18 @@ public class ItemPriceComparisonService {
 
 	/** A blank region skips the service-area check; a non-blank one must be supported. */
 	public List<ItemComparison> compare(List<ItemQuery> items, String region) {
+		// Checked before each item; throws CancellationException once the calling gRPC call is gone, so the
+		// remaining items cost no database or provider work.
+		CancellationToken cancellation = CancellationToken.current();
 		if (StringUtils.hasText(region) && !serviceAreaProperties.isSupported(region)) {
 			throw ServiceAreaException.outsideServiceArea();
 		}
-		return items.stream().map(this::compareOne).toList();
+		List<ItemComparison> comparisons = new java.util.ArrayList<>(items.size());
+		for (ItemQuery item : items) {
+			cancellation.throwIfCancelled();
+			comparisons.add(compareOne(item));
+		}
+		return comparisons;
 	}
 
 	private ItemComparison compareOne(ItemQuery query) {
@@ -82,6 +92,8 @@ public class ItemPriceComparisonService {
 			List<PriceRecord> records =
 					priceSearchService.search(query.searchTerm(), query.itemId(), List.of(), query.category());
 			return new ItemComparison(query.itemId(), latestUsablePricePerStore(records));
+		} catch (CancellationException e) {
+			throw e;
 		} catch (RuntimeException e) {
 			// One item failing must not fail the whole RPC; the caller treats this as "not found yet".
 			log.warn("Price comparison failed for itemId={}, term={}", query.itemId(), query.searchTerm(), e);

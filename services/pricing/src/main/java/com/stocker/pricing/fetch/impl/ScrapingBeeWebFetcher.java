@@ -2,6 +2,7 @@ package com.stocker.pricing.fetch.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.stocker.pricing.fetch.CancellableBlocking;
 import com.stocker.pricing.fetch.WebFetcher;
 import com.stocker.pricing.fetch.config.WebFetcherProperties;
 import com.stocker.pricing.fetch.model.RawProduct;
@@ -50,13 +51,13 @@ public class ScrapingBeeWebFetcher implements WebFetcher {
 
 		log.info("ScrapingBee fetch: q={}", request.getSearchTerm());
 
-		String body = webClient.get()
+		String body = CancellableBlocking.block(webClient.get()
 				.uri(uri)
 				.header("Authorization", "Bearer " + config.getApiKey())
 				.header("Accept", "application/json")
 				.retrieve()
-				.bodyToMono(String.class)
-				.block();
+				.bodyToMono(String.class),
+				request.getCancellation());
 
 		return parseResponse(body, request);
 	}

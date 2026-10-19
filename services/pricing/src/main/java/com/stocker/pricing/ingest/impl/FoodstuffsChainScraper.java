@@ -89,8 +89,14 @@ public class FoodstuffsChainScraper implements ChainScraper {
 
 			boolean firstPage = true;
 			for (String categoryUrl : config.getCategoryUrls()) {
+				if (config.getCancellation().isCancelled()) {
+					break;      // the request that wanted these pages is gone: no further page load
+				}
 				if (!firstPage) {
 					ScrapePacer.pauseBetweenPages(config);
+					if (config.getCancellation().isCancelled()) {
+						break;
+					}
 				}
 				firstPage = false;
 				try {

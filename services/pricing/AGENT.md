@@ -96,3 +96,7 @@
 - Lombok is used for model/repository beans; logging via SLF4J.
 - Idempotent consumers / at-least-once delivery expected on all Kafka topics (see `infra/kafka/topics.yml`).
 - Only `/healthz` (and actuator) may be exposed; keep the module structurally identical to the other services.
+
+## Request cancellation
+
+`cancel/CancellationToken` carries "the request is gone" down the chain (gRPC Context -> services -> `OnDemandRefreshService` -> `IngestScheduler.refreshCategories(chain, urls, token)` -> `ChainScraperConfig.cancellation` -> scrapers/`ScrapePacer`; legacy provider path via `WebFetchRequest.cancellation` + `fetch/CancellableBlocking`). Scheduled crawls use `CancellationToken.NONE`. See `docs/features/price-engine-reliability.md`.
