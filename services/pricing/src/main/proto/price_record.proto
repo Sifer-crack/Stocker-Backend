@@ -141,6 +141,10 @@ message MatchItemRequest {
   // for this item prices exactly them. Alternatives are never stored under it.
   string item_id = 2;
   string category = 3;
+  // Optional pack size of the product being looked up (e.g. a pantry product's selling weight or
+  // volume). 0 = unknown. Used to prefer same-size store products.
+  double weight_kg = 4;
+  double volume_l = 5;
 }
 
 message ChainMatch {
@@ -158,13 +162,21 @@ message ChainMatch {
   double score = 9;
   // Empty when unknown.
   string product_url = 10;
+  // Price per kg / per L / per item for the matched pack. 0 when the pack size is unknown.
+  double unit_price = 11;
+  // Parsed pack size, e.g. "2L" or "500g". Empty when unknown.
+  string pack_size = 12;
 }
 
 message MatchItemResponse {
-  // "lexical" (word-overlap scoring). Reserved for a future "semantic" matcher.
+  // "canonical" (matched through the common-products list) or "lexical" (word-overlap scoring).
+  // Reserved for a future "semantic" matcher.
   string match_method = 1;
   // At most one per chain. Empty = nothing found yet (an ingest run may have been started).
   repeated ChainMatch chain_matches = 2;
   // Other products from the same chains that share the request's words; at most a few per chain.
   repeated ChainMatch alternatives = 3;
+  // True when some chain's prices are older than the freshness threshold (an on-demand refresh may
+  // still be running; ask again shortly).
+  bool stale = 4;
 }

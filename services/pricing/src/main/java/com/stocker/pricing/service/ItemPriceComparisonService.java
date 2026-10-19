@@ -1,6 +1,7 @@
 package com.stocker.pricing.service;
 
 import com.stocker.pricing.model.PriceRecord;
+import com.stocker.pricing.service.match.ItemMatchService;
 import com.stocker.pricing.service.servicearea.ServiceAreaException;
 import com.stocker.pricing.service.servicearea.ServiceAreaProperties;
 import java.math.BigDecimal;
@@ -29,6 +30,7 @@ public class ItemPriceComparisonService {
 	private static final Logger log = LoggerFactory.getLogger(ItemPriceComparisonService.class);
 
 	private final PriceSearchService priceSearchService;
+	private final ItemMatchService itemMatchService;
 	private final ServiceAreaProperties serviceAreaProperties;
 
 	public record ItemQuery(String itemId, String searchTerm, String category) {
@@ -62,6 +64,16 @@ public class ItemPriceComparisonService {
 			return new ItemComparison(query.itemId(), List.of());
 		}
 		try {
+			// Common products are priced from the normalised index (refreshed if stale) first; the
+			// third-party provider search is only the fallback for everything else.
+			ItemMatchService.MatchResult matched = itemMatchService.match(query.searchTerm(), query.itemId());
+			if (!matched.matches().isEmpty()) {
+				return new ItemComparison(query.itemId(), matched.matches().stream()
+						.map(m -> new StoreQuote(m.chainId().toLowerCase(java.util.Locale.ROOT), m.storeId(),
+								m.priceAmount(), m.currency(), m.promoFlag(), m.capturedAt()))
+						.sorted(Comparator.comparing(StoreQuote::priceAmount).thenComparing(StoreQuote::chainId))
+						.toList());
+			}
 			List<PriceRecord> records =
 					priceSearchService.search(query.searchTerm(), query.itemId(), List.of(), query.category());
 			return new ItemComparison(query.itemId(), latestUsablePricePerStore(records));

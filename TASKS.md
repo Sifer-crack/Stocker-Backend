@@ -56,6 +56,34 @@ boot against a real database for the first time in this project's history:
 - [ ] Matching is word overlap; a semantic matcher would slot in behind `matchMethod`.
 - [ ] The compose pricing container: set `STOCKER_INGEST_DRY_RUN=false` in `.env` to persist scraped rows (default is dry-run).
 
+## Normalisation, common products and price map (`services/pricing`) - 2026-10-18
+
+- [x] Pack-size/name normaliser, ~180 NZ common products, `normalized_products` index + `common_product_price_map` view (V5), canonical `MatchItem` path with unit prices and pantry size hints, miss log, ingest rate limiting, Neon-ready config. See `services/pricing/NORMALIZE_MODULE.md`.
+- [x] Sitemap discovery done (6 requests, 2026-10-18): New World / PAK'nSave ok, Woolworths failed twice. Proposal: `services/pricing/scrape-plan-proposed.txt`.
+- [x] Approved 2026-10-18: the 62 categories are in `application.yml` for New World / PAK'nSave; ingest runs at 03:00 and 20:00 Auckland time (12 pages per chain per run, rotating, paced 4-9 s). Woolworths still milk only: its `sitemaps/categories.xml` URL is known (user pasted the index) but its contents are not.
+- [ ] V5 has not been applied to Neon yet (applies on the next pricing start; take a Neon branch first if you want a dry run).
+- [ ] No pantry-wide endpoint yet: the frontend calls `GET /api/pricing/match?term=<product name>&weightKg=|volumeL=` per pantry product. Catalog's event publisher is still a stub, so pricing cannot learn about new pantry products from Kafka.
+- [ ] Lexical fallback still loads all ingested rows (`findIngestedSince`); move it onto `normalized_products` before many categories are scraped.
+- [ ] `price_records` retention policy (Neon 1 GiB branch cap); `STOCKER_DB_MIGRATE_URL` is not passed through `docker-compose.yml` yet.
+
+## Catalog: publish an event for every item added (`services/catalog`)
+
+- [ ] Implement `infrastructure/messaging/KafkaEventPublisher#publish` (currently a TODO stub) and call it from `application/CatalogEventService` whenever a product/item is added (`ProductService.createProduct`, `ProductImportService`), on `stocker.catalog.events.v1`. Define the payload (product id, name, grocery type, selling weight/volume), key by product id, keep delivery at-least-once with idempotent consumers, and register any change in `infra/kafka/topics.yml` and `kafka-init.sh`.
+- [ ] Then implement pricing's `application/PricingEventService` + `KafkaEventConsumer` for `stocker.catalog.events.v1` so a new pantry product is normalised and matched to the price map without the frontend asking first (database-only; no supermarket requests).
+
+## Freshness check before display (2026-10-18)
+
+- [x] `OnDemandRefreshService` + `category-map.txt` (78 products -> exact category page per chain, New World/PAK'nSave paths validated against their sitemaps, Woolworths against the user-supplied categories.xml); `stale` flag end to end; `CompareItemPrices` uses the same path. Unit tested with fakes only - no live request was made by the tests.
+- [ ] Woolworths scheduled categories (only milk is scheduled today; the on-demand path already knows ~55 Woolworths pages) - needs approval.
+- [x] Category map completed offline from the sitemaps: 191 of 195 common products now have an exact New World / PAK'nSave page (every path checked to exist on both chains) and all but kimchi/syrup/miso have a Woolworths page. No page: celery, ghee, cooking wine (and mochi is only approximate).
+
+## Any-item search (2026-10-18)
+
+- [x] Items outside the common list: scored against all stored products; chains with no/old match refresh the one category page `CategoryRouter` picks. Verified live with "sriracha hot sauce" and "jelly crystals" (New World + PAK'nSave).
+- [ ] **Needs the user:** save Woolworths' categories.xml contents (as pasted in chat) to `services/pricing/src/main/resources/woolworths-categories.txt`; until then only ~137 known Woolworths pages are routable, so most non-common items miss Woolworths.
+- [ ] Only page 1 of a category is read (24-50 products); items further down need pagination (`max-pages-per-category` is not wired yet).
+- [ ] Learn from demand: record which routed page answered which term and add busy pages to the scheduled runs.
+
 ## Price engine (`services/pricing`)
 
 - [x] **gRPC server is now served** — Spring gRPC server starter added (approved; same pinned

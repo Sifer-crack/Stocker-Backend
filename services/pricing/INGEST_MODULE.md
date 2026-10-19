@@ -64,6 +64,12 @@ and hands raw strings to the pure `parse/*Extractor` classes for normalization
 the parsing logic unit-testable without a browser — the same role
 `SpreadWebFetcher.parseResponse` plays in `fetch/`.
 
+## Rate limiting
+
+Random pause between page loads (`page-delay-min/max-millis`), a per-run cap on category pages per chain
+(`max-categories-per-run`, rotating daily) and no scrape on a search miss (`app.pricing.match.on-demand-ingest=false`).
+See `NORMALIZE_MODULE.md`.
+
 ## Wiring / scheduling
 
 `IngestScheduler` (one shared `Browser` bean, `@Scheduled(cron = "${app.ingest.cron}")`)
@@ -304,12 +310,9 @@ whatever store the site defaults to, tracked as a known risk above).
 
 ### A note on the database this ran against
 
-The `.env` used for this module's live tests originally pointed at Neon's
-shared default database (`neondb`), which turned out to already contain
-unrelated tables (`items`, `shops`) from other in-progress work on this
-project. A new, dedicated `pricing` database was created as a sibling on the
-same Neon project specifically for this service (`STOCKER_DB_URL` in `.env`
-now points at it) — `neondb`'s existing tables were never touched.
+Correction (2026-10-18): an earlier version of this note said a dedicated `pricing` database had been
+created. Neon's project `stocker` only has `neondb`; all services, pricing included, share its `public`
+schema. See `NORMALIZE_MODULE.md` ("Database / Neon").
 
 ## Dependencies
 

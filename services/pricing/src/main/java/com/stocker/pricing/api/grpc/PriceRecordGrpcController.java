@@ -75,12 +75,17 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 					Status.INVALID_ARGUMENT.withDescription("term and itemId are required").asRuntimeException());
 			return;
 		}
-		MatchResult result = itemMatchService.match(request.getSearchTerm(), request.getItemId());
-		MatchItemResponse.Builder response = MatchItemResponse.newBuilder().setMatchMethod(result.matchMethod());
+		MatchResult result = itemMatchService.match(request.getSearchTerm(), request.getItemId(),
+				positiveOrNull(request.getWeightKg()), positiveOrNull(request.getVolumeL()), request.getCategory());
+		MatchItemResponse.Builder response = MatchItemResponse.newBuilder().setMatchMethod(result.matchMethod()).setStale(result.stale());
 		result.matches().forEach(match -> response.addChainMatches(toProto(match)));
 		result.alternatives().forEach(alternative -> response.addAlternatives(toProto(alternative)));
 		responseObserver.onNext(response.build());
 		responseObserver.onCompleted();
+	}
+
+	private static java.math.BigDecimal positiveOrNull(double value) {
+		return value > 0 ? java.math.BigDecimal.valueOf(value) : null;
 	}
 
 	private static ChainMatch toProto(MatchedProduct product) {
@@ -94,6 +99,8 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 				.setPromoFlag(product.promoFlag())
 				.setCapturedAt(toProtoTimestamp(product.capturedAt()))
 				.setScore(product.score())
+				.setUnitPrice(product.unitPrice() == null ? 0 : product.unitPrice().doubleValue())
+				.setPackSize(product.packSize() == null ? "" : product.packSize())
 				.build();
 	}
 

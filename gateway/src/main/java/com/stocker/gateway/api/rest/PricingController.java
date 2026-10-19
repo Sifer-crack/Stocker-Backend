@@ -85,17 +85,23 @@ public class PricingController {
 	/**
 	 * Per supermarket chain, the scraped product matching the requested item (at most one per chain,
 	 * cheapest first), plus labelled alternatives. Empty {@code matches} means "nothing found yet" and
-	 * is not an error: an ingest run may have been started, so the client asks again shortly.
+	 * is not an error: the scheduled ingest may simply not have reached that product yet, so the client
+	 * asks again later. {@code weightKg} / {@code volumeL} are optional pack-size hints (a pantry product's
+	 * selling weight or volume) used to prefer same-size store products.
 	 */
 	@GetMapping("/match")
 	public Mono<MatchResponseBody> match(
 			@RequestParam String term,
 			@RequestParam String itemId,
-			@RequestParam(required = false) String category) {
+			@RequestParam(required = false) String category,
+			@RequestParam(required = false) Double weightKg,
+			@RequestParam(required = false) Double volumeL) {
 		MatchItemRequest request = MatchItemRequest.newBuilder()
 				.setSearchTerm(term)
 				.setItemId(itemId)
 				.setCategory(category == null ? "" : category)
+				.setWeightKg(weightKg == null ? 0 : weightKg)
+				.setVolumeL(volumeL == null ? 0 : volumeL)
 				.build();
 		// Blocking stub call, offloaded off the WebFlux/Netty event loop - never block it directly.
 		return Mono.fromCallable(() -> priceRecordServiceBlockingStub.matchItem(request))
@@ -112,7 +118,7 @@ public class PricingController {
 		List<MatchView> alternatives = response.getAlternativesList().stream()
 				.map(match -> toMatchView(match, "alternative"))
 				.toList();
-		return new MatchResponseBody(response.getMatchMethod(), matches, alternatives);
+		return new MatchResponseBody(response.getMatchMethod(), matches, alternatives, response.getStale());
 	}
 
 	private static MatchView toMatchView(ChainMatch match, String matchType) {
@@ -127,15 +133,20 @@ public class PricingController {
 				toIsoStringOrNull(match.getCapturedAt()),
 				match.getScore(),
 				match.getProductUrl().isEmpty() ? null : match.getProductUrl(),
-				matchType);
+				matchType,
+				match.getUnitPrice() > 0 ? match.getUnitPrice() : null,
+				match.getPackSize().isEmpty() ? null : match.getPackSize());
 	}
 
-	public record MatchResponseBody(String matchMethod, List<MatchView> matches, List<MatchView> alternatives) {
+	/** {@code stale}: some prices are older than the freshness threshold; a refresh may be running, so ask again shortly. */
+	public record MatchResponseBody(String matchMethod, List<MatchView> matches, List<MatchView> alternatives,
+			boolean stale) {
 	}
 
 	/** {@code matchType} is "exact" for {@code matches} and "alternative" for {@code alternatives}. */
 	public record MatchView(String chainId, String storeId, String productName, String brand, double priceAmount,
-			String currency, boolean promoFlag, String capturedAt, double score, String productUrl, String matchType) {
+			String currency, boolean promoFlag, String capturedAt, double score, String productUrl, String matchType,
+			Double unitPrice, String packSize) {
 	}
 
 	private static <T> Mono<T> mapServiceAreaError(StatusRuntimeException ex) {

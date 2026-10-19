@@ -6,6 +6,7 @@ import com.stocker.pricing.ingest.IngestScheduler;
 import com.stocker.pricing.repository.PriceRecordRepository;
 import com.stocker.pricing.service.PriceStatsService;
 import java.util.List;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,5 +20,18 @@ public class IngestSchedulerConfig {
 			IngestProperties properties, PriceRecordRepository priceRecordRepository,
 			PriceStatsService priceStatsService) {
 		return new IngestScheduler(chainScrapers, browser, properties, priceRecordRepository, priceStatsService);
+	}
+
+	/** Seeds fresh data: one background ingest run after startup when app.ingest.run-on-startup=true. */
+	@Bean
+	public ApplicationRunner ingestOnStartup(IngestScheduler scheduler, IngestProperties properties) {
+		return args -> {
+			if (!properties.isRunOnStartup()) {
+				return;
+			}
+			Thread thread = new Thread(scheduler::runAll, "ingest-on-startup");
+			thread.setDaemon(false);
+			thread.start();
+		};
 	}
 }

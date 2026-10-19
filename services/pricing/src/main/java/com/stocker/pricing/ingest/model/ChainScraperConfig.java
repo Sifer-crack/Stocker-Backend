@@ -19,4 +19,7 @@ public class ChainScraperConfig {
 	private List<String> categoryUrls;
 	private int maxPagesPerCategory;
 	private int navigationTimeoutSeconds;
+	/** Random pause between two page loads on the same chain; 0 = none. */
+	private long pageDelayMinMillis;
+	private long pageDelayMaxMillis;
 }

@@ -22,6 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-liberation libgcc-s1 libc6 libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+# Playwright.create() would otherwise download Chromium and WebKit (~900 MB) on every container start;
+# only the Firefox installed in the build stage is used.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY --from=build /opt/ms-playwright /opt/ms-playwright
 WORKDIR /app
 COPY --from=build /workspace/services/pricing/build/libs/*.jar app.jar

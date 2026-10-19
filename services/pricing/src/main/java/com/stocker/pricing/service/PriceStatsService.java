@@ -3,6 +3,7 @@ package com.stocker.pricing.service;
 import com.stocker.pricing.model.PriceRecord;
 import com.stocker.pricing.model.PriceStats;
 import com.stocker.pricing.repository.PriceStatsRepository;
+import com.stocker.pricing.service.normalize.NormalizedProductService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
@@ -12,6 +13,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,7 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Maintains price_stats (current/lowest/highest/median + a JSONB history) as a derived summary
  * of price_records - called alongside every price_records write (ingest batch persist, on-demand
  * search persist, and the gRPC Save RPC), never in place of it. price_records stays the raw,
- * append-only source of truth.
+ * append-only source of truth. The same call also refreshes normalized_products (the normalised
+ * product index behind the price map); a failure there is logged and never fails the write.
  */
 @Service
 @RequiredArgsConstructor
@@ -28,7 +32,10 @@ public class PriceStatsService {
 	/** Bounds price_history's JSONB size - old observations roll off, oldest first. */
 	private static final int MAX_HISTORY_SIZE = 500;
 
+	private static final Logger log = LoggerFactory.getLogger(PriceStatsService.class);
+
 	private final PriceStatsRepository priceStatsRepository;
+	private final NormalizedProductService normalizedProductService;
 
 	@Transactional
 	public void recordObservation(PriceRecord record) {
@@ -60,6 +67,11 @@ public class PriceStatsService {
 		stats.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
 
 		priceStatsRepository.save(stats);
+		try {
+			normalizedProductService.observe(record);
+		} catch (RuntimeException e) {
+			log.warn("normalized_products not updated for item {}: {}", record.getItemId(), e.getMessage());
+		}
 	}
 
 	private static PriceStats newStats(PriceRecord record) {

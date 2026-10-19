@@ -28,14 +28,18 @@ class ItemPriceComparisonServiceTest {
 	private static final OffsetDateTime NOW = OffsetDateTime.of(2026, 9, 21, 12, 0, 0, 0, ZoneOffset.UTC);
 
 	private PriceSearchService priceSearchService;
+	private com.stocker.pricing.service.match.ItemMatchService itemMatchService;
 	private ItemPriceComparisonService service;
 
 	@BeforeEach
 	void setUp() {
 		priceSearchService = mock(PriceSearchService.class);
+		itemMatchService = mock(com.stocker.pricing.service.match.ItemMatchService.class);
+		when(itemMatchService.match(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString()))
+				.thenReturn(new com.stocker.pricing.service.match.ItemMatchService.MatchResult("lexical", List.of(), List.of(), false));
 		ServiceAreaProperties serviceArea = new ServiceAreaProperties();
 		serviceArea.setSupportedRegions(List.of("auckland"));
-		service = new ItemPriceComparisonService(priceSearchService, serviceArea);
+		service = new ItemPriceComparisonService(priceSearchService, itemMatchService, serviceArea);
 	}
 
 	@Test
@@ -133,5 +137,25 @@ class ItemPriceComparisonServiceTest {
 				.capturedAt(capturedAt)
 				.createdAt(capturedAt)
 				.build();
+	}
+
+	@Test
+	void aCommonProductIsPricedFromTheNormalizedIndexAndNeverCallsTheProvider() {
+		when(itemMatchService.match("milk 2l", "item-1")).thenReturn(new com.stocker.pricing.service.match.ItemMatchService.MatchResult(
+				"canonical", List.of(
+						matched("PAKNSAVE", "3.50"), matched("NEWWORLD", "3.70"), matched("WOOLWORTHS", "3.40")),
+				List.of(), false));
+
+		ItemPriceComparisonService.ItemComparison result =
+				service.compare(List.of(new ItemPriceComparisonService.ItemQuery("item-1", "milk 2l", "milk")), "").get(0);
+
+		assertEquals(List.of("woolworths", "paknsave", "newworld"),
+				result.prices().stream().map(ItemPriceComparisonService.StoreQuote::chainId).toList());
+		org.mockito.Mockito.verifyNoInteractions(priceSearchService);
+	}
+
+	private static com.stocker.pricing.service.match.ItemMatchService.MatchedProduct matched(String chain, String price) {
+		return new com.stocker.pricing.service.match.ItemMatchService.MatchedProduct(chain, chain.toLowerCase() + ":",
+				"Milk 2l", null, new java.math.BigDecimal(price), "NZD", false, NOW, 1.0, null, "2L");
 	}
 }
