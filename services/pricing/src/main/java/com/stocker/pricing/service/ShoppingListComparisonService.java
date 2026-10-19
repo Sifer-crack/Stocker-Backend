@@ -2,6 +2,9 @@ package com.stocker.pricing.service;
 
 import com.stocker.pricing.model.PriceStats;
 import com.stocker.pricing.repository.PriceStatsRepository;
+import com.stocker.pricing.service.fulfilment.FulfilmentMethod;
+import com.stocker.pricing.service.fulfilment.FulfilmentProperties;
+import com.stocker.pricing.service.fulfilment.FulfilmentProperties.ChainFees;
 import com.stocker.pricing.service.servicearea.ServiceAreaException;
 import com.stocker.pricing.service.servicearea.ServiceAreaProperties;
 import java.math.BigDecimal;
@@ -11,7 +14,10 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -22,11 +28,27 @@ import org.springframework.stereotype.Service;
  * partial total is used instead so a recommendation is still returned.
  */
 @Service
-@RequiredArgsConstructor
 public class ShoppingListComparisonService {
 
 	private final PriceStatsRepository priceStatsRepository;
 	private final ServiceAreaProperties serviceAreaProperties;
+	private final FulfilmentProperties fulfilmentProperties;
+
+	/** No fees configured: every chain is in_store at cost 0. */
+	public ShoppingListComparisonService(
+			PriceStatsRepository priceStatsRepository, ServiceAreaProperties serviceAreaProperties) {
+		this(priceStatsRepository, serviceAreaProperties, new FulfilmentProperties());
+	}
+
+	@Autowired
+	public ShoppingListComparisonService(
+			PriceStatsRepository priceStatsRepository,
+			ServiceAreaProperties serviceAreaProperties,
+			FulfilmentProperties fulfilmentProperties) {
+		this.priceStatsRepository = priceStatsRepository;
+		this.serviceAreaProperties = serviceAreaProperties;
+		this.fulfilmentProperties = fulfilmentProperties;
+	}
 
 	public record RequestedItem(String itemId, int quantity) {
 	}
@@ -38,17 +60,46 @@ public class ShoppingListComparisonService {
 			int itemsPriced,
 			int itemsRequested,
 			List<String> unavailableItemIds,
-			BigDecimal discountAmount) {
+			BigDecimal discountAmount,
+			List<FulfilmentOption> fulfilmentOptions,
+			FulfilmentOption bestOption,
+			BigDecimal totalWithFulfilment) {
+
+		/** Zero-fee defaults: in_store at cost 0, so totalWithFulfilment == totalAmount. */
+		public ChainTotal(
+				String chainId,
+				BigDecimal totalAmount,
+				String currency,
+				int itemsPriced,
+				int itemsRequested,
+				List<String> unavailableItemIds,
+				BigDecimal discountAmount) {
+			this(chainId, totalAmount, currency, itemsPriced, itemsRequested, unavailableItemIds, discountAmount,
+					List.of(zeroFeeInStore(totalAmount)), zeroFeeInStore(totalAmount), totalAmount);
+		}
+
+		private static FulfilmentOption zeroFeeInStore(BigDecimal totalAmount) {
+			return new FulfilmentOption(FulfilmentMethod.IN_STORE, BigDecimal.ZERO.setScale(2), totalAmount);
+		}
 
 		public boolean hasFullCoverage() {
 			return itemsPriced == itemsRequested;
 		}
 	}
 
+	/** One way of getting a chain's groceries: {@code totalAmount = items total + cost}. */
+	public record FulfilmentOption(FulfilmentMethod method, BigDecimal cost, BigDecimal totalAmount) {
+	}
+
 	public record ComparisonResult(List<ChainTotal> chainTotals, String cheapestChainId) {
 	}
 
 	public ComparisonResult compare(List<RequestedItem> items, String region) {
+		return compare(items, region, Set.of());
+	}
+
+	/** {@code allowedMethods} empty or null = every method. */
+	public ComparisonResult compare(List<RequestedItem> items, String region, Set<FulfilmentMethod> allowedMethods) {
 		if (items == null || items.isEmpty()) {
 			throw ServiceAreaException.outsideServiceArea();
 		}
@@ -60,17 +111,27 @@ public class ShoppingListComparisonService {
 		List<PriceStats> priceStats = priceStatsRepository.findByItemIdIn(quantitiesByItemId.keySet());
 		Map<String, Map<String, PriceStats>> cheapestRowByChainThenItem = groupByChainThenCheapestItem(priceStats);
 
+		Set<FulfilmentMethod> allowed = allowedMethods == null || allowedMethods.isEmpty()
+				? EnumSet.allOf(FulfilmentMethod.class)
+				: EnumSet.copyOf((Collection<FulfilmentMethod>) allowedMethods);
+
 		List<ChainTotal> chainTotals = new ArrayList<>();
 		for (Map.Entry<String, Map<String, PriceStats>> chainEntry : cheapestRowByChainThenItem.entrySet()) {
-			chainTotals.add(toChainTotal(chainEntry.getKey(), chainEntry.getValue(), quantitiesByItemId));
+			chainTotals.add(toChainTotal(chainEntry.getKey(), chainEntry.getValue(), quantitiesByItemId,
+					fulfilmentProperties.forChain(chainEntry.getKey()), allowed));
 		}
-		chainTotals.sort(Comparator.comparing(ChainTotal::totalAmount));
+		// Chains with no allowed method are listed last and never recommended.
+		chainTotals.sort(Comparator.comparing((ChainTotal c) -> c.bestOption() == null)
+				.thenComparing(ChainTotal::totalWithFulfilment)
+				.thenComparing(ChainTotal::totalAmount)
+				.thenComparing(ChainTotal::chainId));
 
-		String cheapestChainId = chainTotals.stream()
+		List<ChainTotal> eligible = chainTotals.stream().filter(c -> c.bestOption() != null).toList();
+		String cheapestChainId = eligible.stream()
 				.filter(ChainTotal::hasFullCoverage)
 				.findFirst()
 				.map(ChainTotal::chainId)
-				.orElseGet(() -> chainTotals.isEmpty() ? "" : chainTotals.get(0).chainId());
+				.orElseGet(() -> eligible.isEmpty() ? "" : eligible.get(0).chainId());
 
 		return new ComparisonResult(chainTotals, cheapestChainId);
 	}
@@ -97,7 +158,8 @@ public class ShoppingListComparisonService {
 	}
 
 	private static ChainTotal toChainTotal(
-			String chainId, Map<String, PriceStats> cheapestRowByItem, Map<String, Integer> quantitiesByItemId) {
+			String chainId, Map<String, PriceStats> cheapestRowByItem, Map<String, Integer> quantitiesByItemId,
+			ChainFees fees, Set<FulfilmentMethod> allowed) {
 		BigDecimal total = BigDecimal.ZERO;
 		BigDecimal discount = BigDecimal.ZERO;
 		int itemsPriced = 0;
@@ -122,13 +184,52 @@ public class ShoppingListComparisonService {
 			}
 		}
 
+		BigDecimal itemsTotal = total.setScale(2, RoundingMode.HALF_UP);
+		List<FulfilmentOption> options = fulfilmentOptions(itemsTotal, fees, allowed);
+		FulfilmentOption best = options.stream().min(Comparator.comparing(FulfilmentOption::totalAmount)).orElse(null);
+
 		return new ChainTotal(
 				chainId,
-				total.setScale(2, RoundingMode.HALF_UP),
+				itemsTotal,
 				currency,
 				itemsPriced,
 				quantitiesByItemId.size(),
 				unavailableItemIds,
-				discount.setScale(2, RoundingMode.HALF_UP));
+				discount.setScale(2, RoundingMode.HALF_UP),
+				options,
+				best,
+				best == null ? itemsTotal : best.totalAmount());
+	}
+
+	/** Allowed methods the chain offers, in tie-break order (in_store, click_and_collect, delivery). */
+	private static List<FulfilmentOption> fulfilmentOptions(
+			BigDecimal itemsTotal, ChainFees fees, Set<FulfilmentMethod> allowed) {
+		List<FulfilmentOption> options = new ArrayList<>();
+		for (FulfilmentMethod method : FulfilmentMethod.values()) {
+			if (!allowed.contains(method)) {
+				continue;
+			}
+			BigDecimal cost = costOf(method, itemsTotal, fees);
+			if (cost != null) {
+				BigDecimal scaled = cost.setScale(2, RoundingMode.HALF_UP);
+				options.add(new FulfilmentOption(method, scaled, itemsTotal.add(scaled)));
+			}
+		}
+		return options;
+	}
+
+	/** Null = the chain does not offer the method. */
+	private static BigDecimal costOf(FulfilmentMethod method, BigDecimal itemsTotal, ChainFees fees) {
+		return switch (method) {
+			case IN_STORE -> fees == null || fees.getTravelCost() == null ? BigDecimal.ZERO : fees.getTravelCost();
+			case CLICK_AND_COLLECT -> fees == null ? null : fees.getClickAndCollectFee();
+			case DELIVERY -> {
+				if (fees == null || fees.getDeliveryFee() == null) {
+					yield null;
+				}
+				boolean free = fees.getDeliveryFreeOver() != null && itemsTotal.compareTo(fees.getDeliveryFreeOver()) >= 0;
+				yield free ? BigDecimal.ZERO : fees.getDeliveryFee();
+			}
+		};
 	}
 }

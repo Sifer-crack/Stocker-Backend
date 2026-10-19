@@ -303,3 +303,26 @@ app:
     # Placeholder region list - needs product/team sign-off on the real supported-region set
     # before this ships. Matched case-insensitively by ServiceAreaProperties.isSupported.
     supported-regions: ${STOCKER_SERVICE_AREA_SUPPORTED_REGIONS:auckland,wellington,christchurch}
+  fulfilment:
+    # Per-chain cost of getting the groceries, added to the items total when comparing chains
+    # (docs/features/fulfilment-costs.md). Values are DATA: the team fills in real fees; none are invented here.
+    # travel-cost           NZD cost of going to the store (defaults to 0)
+    # delivery-fee          NZD; empty = delivery not offered
+    # click-and-collect-fee NZD; empty = click and collect not offered
+    # delivery-free-over    optional; delivery costs 0 when the items total is at least this (e.g. 100.00)
+    chains:
+      newworld:
+        travel-cost: ${STOCKER_FULFILMENT_NEWWORLD_TRAVEL_COST:0.00}
+        delivery-fee: ${STOCKER_FULFILMENT_NEWWORLD_DELIVERY_FEE:}
+        click-and-collect-fee: ${STOCKER_FULFILMENT_NEWWORLD_CLICK_AND_COLLECT_FEE:}
+        delivery-free-over: ${STOCKER_FULFILMENT_NEWWORLD_DELIVERY_FREE_OVER:}
+      paknsave:
+        travel-cost: ${STOCKER_FULFILMENT_PAKNSAVE_TRAVEL_COST:0.00}
+        delivery-fee: ${STOCKER_FULFILMENT_PAKNSAVE_DELIVERY_FEE:}
+        click-and-collect-fee: ${STOCKER_FULFILMENT_PAKNSAVE_CLICK_AND_COLLECT_FEE:}
+        delivery-free-over: ${STOCKER_FULFILMENT_PAKNSAVE_DELIVERY_FREE_OVER:}
+      woolworths:
+        travel-cost: ${STOCKER_FULFILMENT_WOOLWORTHS_TRAVEL_COST:0.00}
+        delivery-fee: ${STOCKER_FULFILMENT_WOOLWORTHS_DELIVERY_FEE:}
+        click-and-collect-fee: ${STOCKER_FULFILMENT_WOOLWORTHS_CLICK_AND_COLLECT_FEE:}
+        delivery-free-over: ${STOCKER_FULFILMENT_WOOLWORTHS_DELIVERY_FREE_OVER:}
