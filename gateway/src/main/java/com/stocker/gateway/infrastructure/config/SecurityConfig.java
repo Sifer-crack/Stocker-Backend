@@ -54,6 +54,7 @@ public class SecurityConfig {
 					.pathMatchers(HttpMethod.POST, "/internal/shopping/updates").permitAll()
 					.pathMatchers(HttpMethod.GET, "/api/products/**").permitAll()
 					.pathMatchers("/api/pantry-items/**").authenticated()
+				.pathMatchers("/api/notifications/**").authenticated()
 				.pathMatchers("/api/identity/**").authenticated()
 				.anyExchange().authenticated())
 			.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtDecoder(jwtDecoder)))

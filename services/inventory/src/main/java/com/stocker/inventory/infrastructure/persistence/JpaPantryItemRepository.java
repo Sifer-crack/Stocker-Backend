@@ -30,6 +30,8 @@ public class JpaPantryItemRepository implements PantryItemRepository {
         }
 
         entity.setQuantity(pantryItem.getQuantity());
+        entity.setExpirationDate(pantryItem.getExpirationDate());
+        entity.setNotifyDaysBefore(pantryItem.getNotifyDaysBefore());
 
         PantryItemEntity saved = repository.save(entity);
 
@@ -52,6 +54,11 @@ public class JpaPantryItemRepository implements PantryItemRepository {
     }
 
     @Override
+    public List<PantryItem> findAllWithExpirationDate() {
+        return repository.findByExpirationDateIsNotNull().stream().map(this::toDomain).toList();
+    }
+
+    @Override
     public void deleteById(UUID pantryItemId) {
         repository.deleteById(pantryItemId);
     }
@@ -62,7 +69,9 @@ public class JpaPantryItemRepository implements PantryItemRepository {
                 entity.getPantryItemId(),
                 entity.getUserId(),
                 entity.getProductId(),
-                entity.getQuantity()
+                entity.getQuantity(),
+                entity.getExpirationDate(),
+                entity.getNotifyDaysBefore()
         );
     }
 }

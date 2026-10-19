@@ -7,6 +7,16 @@ spring:
     url: ${STOCKER_DB_URL}
     username: ${STOCKER_DB_USER}
     password: ${STOCKER_DB_PASSWORD}
+  # The Neon database is shared with other services (pricing runs Flyway there too), so inventory keeps its
+  # own history table and baselines an already-populated schema instead of trying to recreate pantry_items.
+  flyway:
+    enabled: true
+    table: flyway_schema_history_inventory
+    baseline-on-migrate: true
+    baseline-version: 1
+    url: ${STOCKER_DB_MIGRATE_URL:${STOCKER_DB_URL}}
+    user: ${STOCKER_DB_MIGRATE_USER:${STOCKER_DB_USER}}
+    password: ${STOCKER_DB_MIGRATE_PASSWORD:${STOCKER_DB_PASSWORD}}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:

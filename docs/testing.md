@@ -30,6 +30,26 @@ STOCKER_NOTIFICATIONS_DB_IT=true ./gradlew :services:notifications:test --tests 
 
 ## Lessons learned
 
+### Feature 1: expiry notifications
+
+- **Check the baseline first.** `origin/dev` had two red tests unrelated to the feature (inventory's health
+  controller in the wrong package, a stale pricing test). They were fixed here exactly as on `feature/price-engine`
+  (commit `503ff8a`) so the two branches merge without a conflict.
+- **Share fakes between layers.** One in-memory repository per module (`InMemory*Repository`) serves the service
+  scenarios and the feature-integration tests; only the network edge differs.
+- **A JDK `HttpServer` is enough as a stub** for the other service (`InventoryStub`): no WireMock dependency, and
+  the real HTTP client and JSON contract are exercised. The same literal JSON is asserted on both sides.
+- **A shared database needs its own Flyway history table and a baseline.** The Neon schema is shared and
+  inventory's table was made by hand, so `PantryItemPostgresIT` simulates that exact case in a throwaway schema.
+- **Service-to-service endpoints go under `/internal`.** The gateway only routes `/api/**`, so they are not
+  reachable from a browser. The expiring-items list holds every user's data.
+- **Database tests use a throwaway Postgres as a test fixture** (the running system itself always uses Neon, one database per service). Never point them at the shared Neon `neondb`:
+  `docker --context default run --rm -p 5544:5432 -e POSTGRES_USER=stocker -e POSTGRES_PASSWORD=stocker -e POSTGRES_DB=notifications postgres:17`
+  (use `--context default` when Docker Desktop is not running), then
+  `STOCKER_NOTIFICATIONS_DB_IT=true STOCKER_DB_URL=jdbc:postgresql://localhost:5544/notifications ./gradlew :services:notifications:test --tests '*PostgresIT'`.
+- **Final proof is a real run:** both jars started against the throwaway Postgres and every acceptance scenario
+  driven with curl (add item, scan, list, acknowledge, rescan).
+
 ### Feature 2: favorite stores
 
 - **Check what is actually committed.** The first exploration read an uncommitted working tree

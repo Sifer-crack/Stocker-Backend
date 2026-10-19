@@ -11,5 +11,6 @@ public interface PantryItemRepository {
     List<PantryItem> findByUserId(UUID userId);
     Optional<PantryItem> findByUserIdAndProductId(UUID userId, UUID productId);
     Optional<PantryItem> findById(UUID pantryItemId);
+    List<PantryItem> findAllWithExpirationDate();
     void deleteById(UUID pantryItemId);
 }

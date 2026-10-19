@@ -18,7 +18,7 @@
 #   shopping :8083   (lists/items, Postgres+outbox)  -> stocker.shopping.events.v1
 #   pricing  :8084   (price quotes, MongoDB)         <- stocker.catalog/promotions
 #                                                      -> stocker.pricing.events.v1
-#   notifications :8085 (stateless consumer)
+#   notifications :8085 (expiry notifications; own PostgreSQL store, polls inventory)
 #   analytics :8086   (stateless consumer)
 #
 #   Kafka (KRaft single node) <-> all services
