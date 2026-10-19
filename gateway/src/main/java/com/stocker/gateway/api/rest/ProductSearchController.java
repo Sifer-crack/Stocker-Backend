@@ -9,6 +9,9 @@ import com.stocker.pricing.api.grpc.v1.SearchProductsRequest;
 import com.stocker.pricing.api.grpc.v1.SearchProductsResponse;
 import com.stocker.pricing.api.grpc.v1.SelectProductRequest;
 import com.stocker.pricing.api.grpc.v1.SelectProductResponse;
+import com.stocker.pricing.api.grpc.v1.SuggestProductsRequest;
+import com.stocker.pricing.api.grpc.v1.SuggestProductsResponse;
+import com.stocker.pricing.api.grpc.v1.Suggestion;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.time.Instant;
@@ -67,6 +70,19 @@ public class ProductSearchController {
 				.onErrorResume(StatusRuntimeException.class, ProductSearchController::mapError);
 	}
 
+	/** Search-bar suggestions from the stored supermarket products; a missing or short {@code q} is valid. */
+	@GetMapping("/suggest")
+	public Mono<SuggestBody> suggest(@RequestParam(required = false) String q,
+			@RequestParam(required = false) Integer limit) {
+		String query = q == null ? "" : q;
+		SuggestProductsRequest request = SuggestProductsRequest.newBuilder().setQ(query)
+				.setLimit(limit == null ? 0 : limit).build();
+		return Mono.fromCallable(() -> stub.suggestProducts(request))
+				.subscribeOn(Schedulers.boundedElastic())
+				.map(response -> toBody(query, response))
+				.onErrorResume(StatusRuntimeException.class, ProductSearchController::mapError);
+	}
+
 	@PutMapping("/items/{itemId}/product")
 	public Mono<SelectedProductBody> selectProduct(@PathVariable String itemId, @RequestBody SelectProductBody body) {
 		SelectProductRequest request = SelectProductRequest.newBuilder()
@@ -96,6 +112,13 @@ public class ProductSearchController {
 	public record ErrorBody(String error) {
 	}
 
+	public record SuggestionBody(String text, String canonicalKey, int chainCount, List<String> chains, String sampleSize,
+			int productCount) {
+	}
+
+	public record SuggestBody(String q, List<SuggestionBody> suggestions) {
+	}
+
 	public record SelectProductBody(String productKey) {
 	}
 
@@ -115,6 +138,16 @@ public class ProductSearchController {
 
 	public record ProductSearchBody(QueryBody query, String matchMethod, String status, boolean stale,
 			Map<String, String> refresh, List<ProductBody> products, List<ProductBody> alternatives) {
+	}
+
+	private static SuggestBody toBody(String q, SuggestProductsResponse response) {
+		return new SuggestBody(q, response.getSuggestionsList().stream().map(ProductSearchController::toBody).toList());
+	}
+
+	private static SuggestionBody toBody(Suggestion s) {
+		return new SuggestionBody(s.getText(), s.hasCanonicalKey() ? s.getCanonicalKey() : null, s.getChainCount(),
+				s.getChainsList().stream().map(chain -> chain.toLowerCase(java.util.Locale.ROOT)).toList(),
+				s.hasSampleSize() ? s.getSampleSize() : null, s.getProductCount());
 	}
 
 	private static SelectedProductBody toBody(SelectProductResponse response) {

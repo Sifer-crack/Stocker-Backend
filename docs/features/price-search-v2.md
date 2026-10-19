@@ -172,3 +172,61 @@ Details the contract above leaves open:
 3. `refresh` may be shown as per-chain chips (`pending` spinner, `done` tick, `failed` warning, `skipped` grey).
 4. `matchMethod: "generic-fallback"` means the products are of the same type, not the product the shopper typed; label them accordingly.
 5. After the shopper picks a product, `PUT /api/pricing/items/{itemId}/product` makes compare use exactly that product.
+
+## Search-bar suggestions: `GET /api/pricing/suggest`  (JWT required, through the gateway)
+
+Why: the shopping-list search box used `GET /api/products/search` (catalog service, 765 niche rows such as "gao yue long shan
+cooking wine 0.6 L", only 3 egg products), so shoppers picked items most NZ supermarkets do not stock and got "no exact match".
+Suggestions now come from what the chains actually sell: the stored `normalized_products` rows, read from the in-memory
+`NormalizedProductSnapshot` (no database when warm, **never a supermarket request**). Branch `feature/search-suggest`; additive.
+
+Query parameters: `q` (what has been typed; optional), `limit` (optional, default 8, max 20).
+
+```json
+{
+  "q": "wine",
+  "suggestions": [
+    { "text": "Wine",         "canonicalKey": "wine",         "chainCount": 3, "chains": ["newworld", "paknsave", "woolworths"], "sampleSize": "750ml", "productCount": 41 },
+    { "text": "Cooking wine", "canonicalKey": "cooking-wine", "chainCount": 3, "chains": ["newworld", "paknsave", "woolworths"], "sampleSize": "640ml", "productCount": 9 },
+    { "text": "Red wine",     "canonicalKey": "wine",         "chainCount": 3, "chains": ["newworld", "paknsave", "woolworths"], "sampleSize": "750ml", "productCount": 18 },
+    { "text": "White wine",   "canonicalKey": "wine",         "chainCount": 2, "chains": ["newworld", "woolworths"],             "sampleSize": "750ml", "productCount": 12 },
+    { "text": "Church Road Chardonnay", "canonicalKey": null, "chainCount": 1, "chains": ["woolworths"], "sampleSize": "750ml", "productCount": 1 }
+  ]
+}
+```
+
+(The numbers are illustrative; the shape is the contract.) Fields of each suggestion:
+
+- `text`: clean display name without size, grade or pack count ("Cooking wine", "Pams Free Range Eggs").
+- `canonicalKey`: the common-product key, or `null` for a specific product that has none. Several key-level suggestions can share a key
+  (`Wine`, `Red wine`, `White wine` are all `wine`).
+- `chainCount` 1-3 and `chains` (lower-case ids, sorted): how many chains carry a matching product.
+- `sampleSize`: the most common pack size behind the suggestion (`"640ml"`, `"12 pack"`), or `null`.
+- `productCount`: distinct products (name + size) behind it.
+
+Behaviour:
+
+- `q` is split into words. Every word except the last must be a whole word of the product (a plural is fine: "eggs" finds "egg");
+  the **last word is a prefix** (typing as you go): `eg` -> Eggs, `cooking wi` -> Cooking wine, `coo wine` -> nothing. A trailing number is ignored.
+- **Empty or 1-character `q`** returns the most widely stocked common products (`chainCount` 3 first), so the box can show ideas before typing.
+- Order: key-level generic suggestions first (the product name, then up to 2 aliases per key: `wine` -> Wine, Cooking wine, Red wine, White wine),
+  at most 5 of them; then specific products (brand + type), the rows of a key already offered are folded into that key's suggestion
+  (one "Eggs", not 30 egg rows). Within each group: `chainCount` desc (all three chains first), then `productCount` desc, then the shorter text.
+- Distinct texts (case-insensitive). Never an error for odd input: unknown text gives `{"q": "...", "suggestions": []}`.
+- Only products seen within `app.pricing.match.canonical-max-age` (90 days) with a positive price count.
+- Errors: 401 without a JWT. gRPC: `ProductSearch.SuggestProducts` (`price_search.proto`, identical copies in pricing and gateway).
+
+Speed: `ProductSuggestPerformanceTest` on a 5,000-product fixture (3 chains): best of 5 warm runs about 5-8 ms for an empty, prefix, two-word,
+brand-prefix and no-match query (bound in the test: 100 ms); the very first call (cold word cache and JIT) about 0.2-0.3 s.
+Cleaned names are remembered per stored name, so a keystroke is a loop over the snapshot with set lookups.
+
+### Frontend notes (suggestions)
+
+1. Use `GET /api/pricing/suggest?q=<typed text>&limit=8` for the shopping-list search box instead of `/api/products/search`
+   (debounce about 150-200 ms and abort the previous request; it is cheap and memory-only).
+2. Show `text`, and a small "at 2 of 3 chains" hint from `chainCount` / `chains` (e.g. chain chips); `sampleSize` can be shown muted next to it.
+3. When the shopper picks a suggestion, call `GET /api/pricing/products?term=<text>&itemId=<id>` (the term is the suggestion `text`; for a
+   key-level suggestion this is a common product and answers `canonical`). Then continue with the status handling described above.
+4. Keep `/api/products/search` only for the pantry catalog lookup, if the pantry still needs it; it must not feed the shopping list.
+5. An empty `suggestions` list is normal (nothing stored that matches): let the shopper search the typed text as is; `/api/pricing/products`
+   then reports `refreshing` or `not-found` as before.

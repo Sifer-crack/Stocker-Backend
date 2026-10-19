@@ -102,3 +102,5 @@
 ## Request cancellation
 
 `cancel/CancellationToken` carries "the request is gone" down the chain (gRPC Context -> services -> `OnDemandRefreshService` -> `IngestScheduler.refreshCategories(chain, urls, token)` -> `ChainScraperConfig.cancellation` -> scrapers/`ScrapePacer`; legacy provider path via `WebFetchRequest.cancellation` + `fetch/CancellableBlocking`). Scheduled crawls use `CancellationToken.NONE`. See `docs/features/price-engine-reliability.md`.
+
+- Suggestions (`GET /api/pricing/suggest` via gRPC `ProductSearch.SuggestProducts`): `service/search/ProductSuggestService`, snapshot-only (no DB when warm, no live request); contract and ranking in `docs/features/price-search-v2.md` ("Search-bar suggestions"). Timing test: `ProductSuggestPerformanceTest`.

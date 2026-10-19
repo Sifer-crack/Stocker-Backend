@@ -9,6 +9,9 @@ import com.stocker.pricing.api.grpc.v1.SearchProductsRequest;
 import com.stocker.pricing.api.grpc.v1.SearchProductsResponse;
 import com.stocker.pricing.api.grpc.v1.SelectProductRequest;
 import com.stocker.pricing.api.grpc.v1.SelectProductResponse;
+import com.stocker.pricing.api.grpc.v1.SuggestProductsRequest;
+import com.stocker.pricing.api.grpc.v1.SuggestProductsResponse;
+import com.stocker.pricing.service.search.ProductSuggestService;
 import com.stocker.pricing.service.search.ProductSearchService;
 import com.stocker.pricing.service.search.ProductSearchService.ProductNotFoundException;
 import com.stocker.pricing.service.search.ProductSearchService.SearchResult;
@@ -35,8 +38,36 @@ public class ProductSearchGrpcController extends ProductSearchGrpc.ProductSearch
 
 	private final ProductSearchService searchService;
 
-	public ProductSearchGrpcController(ProductSearchService searchService) {
+	private final ProductSuggestService suggestService;
+
+	public ProductSearchGrpcController(ProductSearchService searchService, ProductSuggestService suggestService) {
 		this.searchService = searchService;
+		this.suggestService = suggestService;
+	}
+
+	/** Search-bar suggestions from the stored products; a blank query is valid (the most widely stocked products). */
+	@Override
+	public void suggestProducts(SuggestProductsRequest request, StreamObserver<SuggestProductsResponse> responseObserver) {
+		if (isCancelled(responseObserver)) {
+			return;
+		}
+		log.info("gRPC suggestProducts: q={}", request.getQ());
+		SuggestProductsResponse.Builder response = SuggestProductsResponse.newBuilder();
+		for (ProductSuggestService.Suggestion suggestion : suggestService.suggest(request.getQ(), request.getLimit())) {
+			com.stocker.pricing.api.grpc.v1.Suggestion.Builder builder = com.stocker.pricing.api.grpc.v1.Suggestion.newBuilder()
+					.setText(suggestion.text())
+					.setChainCount(suggestion.chainCount())
+					.addAllChains(suggestion.chains())
+					.setProductCount(suggestion.productCount());
+			if (suggestion.canonicalKey() != null) {
+				builder.setCanonicalKey(suggestion.canonicalKey());
+			}
+			if (suggestion.sampleSize() != null) {
+				builder.setSampleSize(suggestion.sampleSize());
+			}
+			response.addSuggestions(builder);
+		}
+		reply(responseObserver, response.build());
 	}
 
 	@Override

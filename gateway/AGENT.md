@@ -42,3 +42,5 @@
 - Route config namespace for this stack is `spring.cloud.gateway.server.webflux.routes` (NOT the legacy `spring.cloud.gateway.routes`).
 - gRPC channel targets: `spring.grpc.client.channels.<name>.address`; the default channel is `spring.grpc.client.default-channel.address`.
 - Only `/healthz` (and actuator) may be exposed; keep the module structurally identical to the other services.
+
+- `GET /api/pricing/suggest?q=&limit=` (`ProductSearchController.suggest`): REST to gRPC `SuggestProducts`; JWT required; response `{q, suggestions[]}`, contract in `docs/features/price-search-v2.md`.

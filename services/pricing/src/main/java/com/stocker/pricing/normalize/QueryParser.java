@@ -45,4 +45,18 @@ public final class QueryParser {
 	public static String stripGrade(String text) {
 		return text == null ? "" : GRADE.matcher(text.toLowerCase(Locale.ROOT)).replaceAll(" ");
 	}
+
+	/** {@link #stripGrade} that keeps the original letter case (for display text). */
+	public static String stripGradeKeepCase(String text) {
+		if (text == null) {
+			return "";
+		}
+		String lower = text.toLowerCase(Locale.ROOT);
+		if (lower.length() != text.length()) {
+			return stripGrade(text);
+		}
+		char[] out = text.toCharArray();
+		PackSizeParser.blank(lower, out, GRADE);
+		return new String(out);
+	}
 }
