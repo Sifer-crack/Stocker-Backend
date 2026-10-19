@@ -112,7 +112,7 @@ peas-frozen|frozen|Frozen peas|frozen pea;pea;garden pea|frozen-vegetable|1kg|
 veg-frozen|frozen|Frozen mixed vegetables|frozen vegetable;mixed vegetable;stir fry vegetable|frozen-vegetable|1kg|
 chilli|vegetable|Fresh chilli|chilli;red chilli|chilli|50g|sauce;powder;flake;oil;paste;pepper;p;masala;noodle;crisp
 # --- pantry staples ---
-rice-white|grains|White rice|rice;white rice;long grain rice;jasmine rice;basmati rice|rice|1kg|cake;cracker;noodle;paper;wine;vinegar;milk;bubble
+rice-white|grains|White rice|rice;white rice;long grain rice;jasmine rice;basmati rice|rice|1kg|cake;cracker;noodle;paper;wine;vinegar;milk;bubble;fried;egg
 rice-brown|grains|Brown rice|brown rice|rice|1kg|
 flour|baking|Flour|flour;plain flour;wheat flour;high grade flour;self raising flour;all purpose flour|flour|1.5kg|almond;rice;coconut;corn;gluten
 sugar|baking|White sugar|sugar;white sugar;caster sugar;fine sugar|sugar|1.5kg|brown;icing;rock;free;cane;syrup

@@ -33,6 +33,17 @@ class CommonProductGuardTest {
 	}
 
 	@Test
+	void friedRiceDishesAreNotPlainRiceButRealRiceIs() {
+		for (String name : List.of("Ben's Original Microwave Rice Egg Fried Rice 250g Pouch", "Egg Fried Rice 250g",
+				"Chicken Fried Rice 350g")) {
+			assertThat(keyOf(name)).as(name).isNotEqualTo("rice-white");
+		}
+		for (String name : List.of("Pams Long Grain Rice 1kg", "Sunrice Jasmine Rice 2kg", "Basmati Rice 1kg")) {
+			assertThat(keyOf(name)).as(name).isEqualTo("rice-white");
+		}
+	}
+
+	@Test
 	void aDishWordBeforeTheCategoryWordDoesNotDisqualify() {
 		assertThat(keyOf("Vogels Sandwich Slice Bread 700g")).isEqualTo("bread");
 	}
