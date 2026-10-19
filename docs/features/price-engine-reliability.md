@@ -55,6 +55,80 @@ carried on through its whole list. Two changes, for all three chains (New World,
 - **Blocked is not empty.** A blocked page is neither visited nor a zero-result page, so `CategoryHealth` never
   quarantines a category because of a block.
 
+## Lean page loads and page templates (2026-10-20)
+
+What it is: each chain now loads its category pages with a **request filter** and reads them with a **page template**.
+This makes a page load lighter (time, bandwidth, Firefox memory). It does **not** reduce the number of page loads (pace,
+daily cap and circuit breaker are unchanged), and it does not make a blocked/429 response less likely by itself.
+
+**What is blocked** (per Playwright browser context, one filter per scrape; `ingest/impl/LeanPageRouter`):
+
+- Resource types `image`, `media`, `font` (default). `stylesheet` is **off** by default: add it only after a real crawl shows
+  the tiles are read the same without it (the saved-fixture tests pass without stylesheets, but they have no real layout).
+  Only passive types can be blocked; `document`, `script`, `xhr`, `fetch` are never aborted by type, whatever is configured.
+- Third-party analytics / ads / tracking hosts: a case-insensitive substring of the request **host** (google-analytics,
+  googletagmanager, doubleclick, facebook, hotjar, segment, optimizely, newrelic / nr-data, clarity.ms, criteo, sentry, ...; the
+  list is `app.ingest.lean.block-host-patterns` in `application.yml`).
+- Never blocked: the main-frame navigation, and anything on the chain's own domain (newworld.co.nz, paknsave.co.nz,
+  woolworths.co.nz and subdomains) by host pattern, so the chain's own HTML, scripts and product API keep working. HTTP status
+  handling (429 / 403 / 503 -> circuit breaker) and the `?pg=N` walker are untouched: the filter only decides about
+  sub-requests; the response of the page itself is read as before.
+
+**Settings** (env, default):
+
+| Env | Default | Meaning |
+|---|---|---|
+| `STOCKER_INGEST_LEAN_PAGES` | `true` | Kill switch. `false` = every request is made, exactly as before this change. |
+| `STOCKER_INGEST_{NEWWORLD,PAKNSAVE,WOOLWORTHS}_LEAN_ENABLED` | `true` | Switch one chain off (also needs the kill switch on). |
+| `STOCKER_INGEST_BLOCK_RESOURCE_TYPES` | `image,media,font` | Types to abort (allowed: image, media, font, stylesheet, texttrack, manifest). |
+| `STOCKER_INGEST_BLOCK_HOST_PATTERNS` | list in `application.yml` | Comma list of host substrings. |
+| `STOCKER_INGEST_LOG_REQUESTS` | `false` | Request log (below). |
+
+A chain can have its own lists under `app.ingest.<chain>.lean.block-resource-types` / `.block-host-patterns` in
+`application.yml` (unset = the shared list). Changes need a pricing restart.
+
+**Template.** The selectors and regexes that used to sit in the scraper bodies are in `ingest/parse/ChainPageTemplate`: the
+Foodstuffs template (shared by New World and PAK'nSAVE, `withField(...)` makes a chain-specific copy) and the Woolworths one.
+One `page.evaluate` returns compact JSON (one small object per tile plus the "Showing A - B of M products" line); no page
+HTML goes to Java. Unit price and promo / multibuy badges are **not** read (no verified selectors, and no field for them yet).
+
+**Reading the logs** (all per page, logger `com.stocker.pricing.ingest`):
+
+- `NEWWORLD page url=... tiles=68 claimed=451 blocked-requests=12/57` - tiles read on this page, the total the page claims
+  ("of 451 products"), aborted requests / all requests of the page load. `tiles` can exceed one page of products (the live grid
+  has promoted / repeated tiles: 68 tiles for "Showing 1 - 50"). Bytes saved are not logged: an aborted request has no size.
+  `claimed=?` = no "Showing" line (always so for Woolworths).
+- WARN `... page template field 'name' ([data-testid='product-title']) found nothing on any of N product tiles at URL` -
+  tiles exist but a mandatory value (name, product code, price) is missing on **all** of them: the site changed. Also
+  `field 'showing'` when tiles exist but the "Showing A - B of M" line is missing (later pages would not be walked).
+- WARN `zero product cards found at URL (template card selector ... may be stale)` - the tile selector found nothing
+  (unchanged behaviour, now naming the selector).
+- WARN `tiles dropped from 179 to 120 (below 80%) at URL` - fewer than 80% of the tiles seen **earlier in this process** for
+  the same URL (memory only; a restart forgets). Blocking something the grid needs shows up exactly like this. First check:
+  `STOCKER_INGEST_LEAN_PAGES=false` and compare.
+- Expected reference counts from real data (tiles per page, not "claimed"): New World yoghurt **179**, cheese **183**, eggs
+  **10**; PAK'nSAVE eggs **33**. A lean crawl that returns clearly fewer is broken, not "leaner".
+- `STOCKER_INGEST_LOG_REQUESTS=true` adds `NEWWORLD requests url=...: cdn.host [image 12 (all aborted), script 3]; ...` per
+  page: every request host with resource-type counts and how many were aborted. Run one crawl with it on, look for hosts that
+  are not first party and not needed, and add their name to the host patterns. It works without blocking too
+  (`LEAN_PAGES=false` + `LOG_REQUESTS=true` only observes).
+
+**When a site changes.** The WARNs above name the chain, the template field and the URL. Open the page in a browser, find the
+new selector, and change it in `ChainPageTemplate` (one field, or `withField` for one chain), then update the matching saved
+fixture in `src/test/resources/ingest/` and the `ChainPageTemplateTest` / `TemplatePageBrowserTest` expectation.
+
+**Honest limits.**
+
+- Verified with saved fixtures served from localhost (a real Firefox page) only: tiles, prices and codes are read the same with
+  the filter on, scripts and the product grid still render, trackers and images are not requested. No supermarket was contacted.
+- Whether blocking is **fully safe on the real sites** is proven only by the first real crawl. Things a fixture cannot show:
+  a site script that waits for a tracker or image before rendering the grid, an image `onerror` handler that swaps the
+  `src` (the stored image URL would then be a placeholder), consent or bot-check scripts hosted on a pattern we block, and a
+  stylesheet-dependent layout (hence `stylesheet` stays off). The `tiles dropped` WARN, the expected counts above and the kill
+  switch are the safety net.
+- The 80% check only has a baseline for a URL from the second load in the same process; the very first lean crawl after a
+  restart compares against nothing, so compare its tile counts with the reference counts by hand.
+
 ## Limits to know
 
 - The catalog map plus the configured pages come to about 153 pages per Foodstuffs chain and 137 for Woolworths (first pages

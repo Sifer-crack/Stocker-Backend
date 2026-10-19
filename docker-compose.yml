@@ -171,6 +171,9 @@ services:
       # Crawl pace and brake (docs/features/price-engine-reliability.md): random pause between two page loads of a chain
       # (20-40 s; 4-9 s drew HTTP 429 on 2026-10-20), optional per-chain override (empty = shared value), and the per-chain
       # circuit breaker (3 blocked responses in a row stop the chain; cool-down 6 h, doubling to at most 24 h).
+      # Lean page loads (abort images / media / fonts / trackers) and the per-page request log; see the same doc.
+      STOCKER_INGEST_LEAN_PAGES: ${STOCKER_INGEST_LEAN_PAGES:-true}
+      STOCKER_INGEST_LOG_REQUESTS: ${STOCKER_INGEST_LOG_REQUESTS:-false}
       STOCKER_INGEST_PAGE_DELAY_MIN_MILLIS: ${STOCKER_INGEST_PAGE_DELAY_MIN_MILLIS:-20000}
       STOCKER_INGEST_PAGE_DELAY_MAX_MILLIS: ${STOCKER_INGEST_PAGE_DELAY_MAX_MILLIS:-40000}
       STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MIN_MILLIS: ${STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MIN_MILLIS:-}

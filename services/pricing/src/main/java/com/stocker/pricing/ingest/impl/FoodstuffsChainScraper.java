@@ -2,10 +2,8 @@ package com.stocker.pricing.ingest.impl;
 
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
-import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.PlaywrightException;
-import com.microsoft.playwright.Response;
 import com.microsoft.playwright.options.Cookie;
 import com.stocker.pricing.fetch.model.RawProduct;
 import com.stocker.pricing.ingest.ChainId;
@@ -13,15 +11,15 @@ import com.stocker.pricing.ingest.ChainScraper;
 import com.stocker.pricing.ingest.ScrapePacer;
 import com.stocker.pricing.ingest.model.ChainScraperConfig;
 import com.stocker.pricing.ingest.model.CrawlBrake;
+import com.stocker.pricing.ingest.model.LeanPageOptions;
 import com.stocker.pricing.ingest.model.ScrapeException;
 import com.stocker.pricing.ingest.model.ScrapeResult;
 import com.stocker.pricing.ingest.parse.FoodstuffsProductCardExtractor;
+import com.stocker.pricing.ingest.parse.ChainPageTemplate;
 import com.stocker.pricing.ingest.parse.ProductCardFields;
 import com.stocker.pricing.ingest.impl.PaginatedCategoryWalker.LoadedPage;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,8 +31,8 @@ import org.slf4j.LoggerFactory;
  * {@link com.stocker.pricing.ingest.config.PlaywrightConfig}'s javadoc. Chromium gets a
  * Cloudflare Turnstile challenge on both banners; Firefox reaches them cleanly.
  *
- * <p>The product-card selectors below (schema.org microdata + {@code data-testid}) are verified
- * against the live site (captured real DOM, see INGEST_MODULE.md). The store-pin cookie names
+ * <p>The product-card selectors (schema.org microdata + {@code data-testid}) live in {@link ChainPageTemplate#foodstuffs};
+ * they are verified against the live site (captured real DOM, see INGEST_MODULE.md). The store-pin cookie names
  * ({@link #STORE_ID_COOKIE}, {@link #ECOM_STORE_ID_COOKIE}) remain an UNVERIFIED hypothesis -
  * store selection was not exercised when the selectors above were confirmed. Run the gated
  * live-verification integration test for this chain to confirm/correct the cookie behavior
@@ -48,29 +46,31 @@ public class FoodstuffsChainScraper implements ChainScraper {
 	private static final String STORE_ID_COOKIE = "STORE_ID_V2";
 	private static final String ECOM_STORE_ID_COOKIE = "eCom_STORE_ID";
 
-	// Verified against the live site (New World + PAK'nSave, see INGEST_MODULE.md).
-	private static final String PRODUCT_CARD_SELECTOR = "div[itemtype='https://schema.org/Product']";
-	private static final String PRODUCT_NAME_SELECTOR = "[data-testid='product-title']";
-	private static final String PRODUCT_SUBTITLE_SELECTOR = "[data-testid='product-subtitle']";
-	private static final String PRODUCT_PRICE_META_SELECTOR = "meta[itemprop='price']";
-	// Fallback for banners that omit the schema.org price meta tag (confirmed on PAK'nSave,
-	// which otherwise has identical markup to New World) - split dollar/cents text spans.
-	private static final String PRODUCT_PRICE_DOLLARS_SELECTOR = "[data-testid='price-dollars']";
-	private static final String PRODUCT_PRICE_CENTS_SELECTOR = "[data-testid='price-cents']";
-	private static final String PRODUCT_IMAGE_SELECTOR = "[data-testid='product-image']";
-	private static final String CARD_TESTID_ATTRIBUTE = "data-testid";
-	// Card data-testid looks like "product-5000518-EA-000" - the digits are the native code.
-	private static final Pattern NATIVE_CODE_PATTERN = Pattern.compile("product-(\\d+)-\\w+-\\d+");
-
 	private final ChainId chainId;
 	private final String baseUrl;
+	private final ChainPageTemplate template;
+	private final LeanPageOptions leanOptions;
+	private final PageCountMonitor pageCountMonitor = new PageCountMonitor();
 
+	/** Lean page loads off (tests, live checks). */
 	public FoodstuffsChainScraper(ChainId chainId, String baseUrl) {
+		this(chainId, baseUrl, LeanPageOptions.OFF);
+	}
+
+	public FoodstuffsChainScraper(ChainId chainId, String baseUrl, LeanPageOptions leanOptions) {
+		this(chainId, baseUrl, leanOptions, ChainPageTemplate.foodstuffs(chainId));
+	}
+
+	/** @param template the page template; pass a {@code withField}-adjusted copy for chain-specific differences */
+	public FoodstuffsChainScraper(ChainId chainId, String baseUrl, LeanPageOptions leanOptions,
+			ChainPageTemplate template) {
 		if (chainId != ChainId.NEWWORLD && chainId != ChainId.PAKNSAVE) {
 			throw new IllegalArgumentException("FoodstuffsChainScraper only supports NEWWORLD/PAKNSAVE, got " + chainId);
 		}
 		this.chainId = chainId;
 		this.baseUrl = baseUrl;
+		this.leanOptions = leanOptions;
+		this.template = template;
 	}
 
 	@Override
@@ -85,7 +85,11 @@ public class FoodstuffsChainScraper implements ChainScraper {
 		List<String> zeroResultCategoryUrls = new ArrayList<>();
 		List<String> warnings = new ArrayList<>();
 
+		LeanPageRouter router = new LeanPageRouter(chainId, leanOptions, baseUrl);
+		TemplatedPageLoader loader = new TemplatedPageLoader(chainId, template, router, pageCountMonitor,
+				leanOptions.logRequests());
 		try (BrowserContext context = browser.newContext()) {
+			router.install(context);
 			applyStorePin(context, config.getStoreId());
 			Page page = context.newPage();
 			page.setDefaultTimeout(config.getNavigationTimeoutSeconds() * 1000L);
@@ -111,12 +115,12 @@ public class FoodstuffsChainScraper implements ChainScraper {
 					PaginatedCategoryWalker<ProductCardFields> walker = new PaginatedCategoryWalker<>(
 							config.getMaxPagesPerCategory(), config.getExtraPageGate(),
 							() -> ScrapePacer.pauseBetweenPages(config), () -> config.getCancellation().isCancelled());
-					PaginatedCategoryWalker.Walk<ProductCardFields> walk = walker.walk(categoryUrl, url -> loadPage(page, url, config.getCrawlBrake()));
+					PaginatedCategoryWalker.Walk<ProductCardFields> walk = walker.walk(categoryUrl, url -> loadPage(loader, page, url, config.getCrawlBrake()));
 					visited.add(categoryUrl);
 					if (walk.items().isEmpty()) {
 						zeroResultCategoryUrls.add(categoryUrl);
-						log.warn("{}: zero product cards found at {} (selector may be stale, see class javadoc)",
-								chainId, categoryUrl);
+						log.warn("{}: zero product cards found at {} (template card selector {} may be stale, see ChainPageTemplate)",
+								chainId, categoryUrl, template.cardSelector());
 						continue;
 					}
 					for (ProductCardFields fields : walk.items()) {
@@ -149,34 +153,10 @@ public class FoodstuffsChainScraper implements ChainScraper {
 				.build();
 	}
 
-	/** Loads one category page and reads its tiles plus the visible text (for the "Showing A - B of M" line). */
-	private LoadedPage<ProductCardFields> loadPage(Page page, String url, CrawlBrake brake) {
-		Response response = page.navigate(url);
-		BlockGuard.failIfBlocked(response, url, brake);
-		waitForProductCards(page);
-		List<ProductCardFields> cards = new ArrayList<>();
-		for (Locator card : page.locator(PRODUCT_CARD_SELECTOR).all()) {
-			cards.add(extractFields(card));
-		}
-		if (cards.isEmpty()) {
-			BlockGuard.failIfChallenge(page, url, brake);
-		}
-		brake.onSuccess();
-		String text = cards.isEmpty() ? "" : page.locator("body").innerText();
-		return new LoadedPage<>(cards, text);
-	}
-
-	/**
-	 * The product grid renders client-side after the "load" event, so an immediate
-	 * {@code locator(...).all()} can see zero cards even on a valid page. Wait briefly for the
-	 * first card to appear; a timeout here is a legitimate "zero products" outcome, not an error.
-	 */
-	private void waitForProductCards(Page page) {
-		try {
-			page.waitForSelector(PRODUCT_CARD_SELECTOR, new Page.WaitForSelectorOptions().setTimeout(5000));
-		} catch (PlaywrightException e) {
-			// No cards appeared in time - fall through, the caller's empty-list check handles it.
-		}
+	/** Loads one category page through the template: its tiles plus the "Showing A - B of M" line. */
+	private LoadedPage<ProductCardFields> loadPage(TemplatedPageLoader loader, Page page, String url, CrawlBrake brake) {
+		TemplatedPageLoader.PageRead read = loader.load(page, url, brake);
+		return new LoadedPage<>(read.cards(), read.showingText() == null ? "" : read.showingText());
 	}
 
 	/** UNVERIFIED store-pin hypothesis - see class javadoc. */
@@ -189,53 +169,5 @@ public class FoodstuffsChainScraper implements ChainScraper {
 		context.addCookies(List.of(
 				new Cookie(STORE_ID_COOKIE, storeId).setDomain("." + domain).setPath("/"),
 				new Cookie(ECOM_STORE_ID_COOKIE, storeId).setDomain("." + domain).setPath("/")));
-	}
-
-	private ProductCardFields extractFields(Locator card) {
-		return new ProductCardFields(
-				textOrNull(card.locator(PRODUCT_NAME_SELECTOR)),
-				textOrNull(card.locator(PRODUCT_SUBTITLE_SELECTOR)),
-				extractPriceText(card),
-				extractNativeCode(card),
-				attributeOrNull(card.locator(PRODUCT_IMAGE_SELECTOR), "src"),
-				null);
-	}
-
-	private String extractPriceText(Locator card) {
-		String metaPrice = attributeOrNull(card.locator(PRODUCT_PRICE_META_SELECTOR), "content");
-		if (metaPrice != null && !metaPrice.isBlank()) {
-			return metaPrice;
-		}
-		String dollars = textOrNull(card.locator(PRODUCT_PRICE_DOLLARS_SELECTOR));
-		String cents = textOrNull(card.locator(PRODUCT_PRICE_CENTS_SELECTOR));
-		return dollars != null && cents != null ? dollars.trim() + "." + cents.trim() : null;
-	}
-
-	private String extractNativeCode(Locator card) {
-		String testId = attributeOrNull(card, CARD_TESTID_ATTRIBUTE);
-		if (testId == null) {
-			return null;
-		}
-		Matcher matcher = NATIVE_CODE_PATTERN.matcher(testId);
-		return matcher.matches() ? matcher.group(1) : null;
-	}
-
-	private String textOrNull(Locator locator) {
-		try {
-			return locator.count() > 0 ? locator.first().textContent() : null;
-		} catch (PlaywrightException e) {
-			return null;
-		}
-	}
-
-	// count() > 0 guard is required, not optional: getAttribute() on a locator matching zero
-	// elements auto-waits up to the page's full navigation timeout before giving up - fatally
-	// slow when a card legitimately lacks the element (e.g. no price shown), not an error.
-	private String attributeOrNull(Locator locator, String attribute) {
-		try {
-			return locator.count() > 0 ? locator.first().getAttribute(attribute) : null;
-		} catch (PlaywrightException e) {
-			return null;
-		}
 	}
 }
