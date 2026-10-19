@@ -70,3 +70,45 @@ Items total: paknsave 17.00, woolworths 17.70, newworld 19.00 (see `PriceFixture
 - Mixed (all methods allowed): paknsave {travel 4, C&C 3, delivery 9}, woolworths {travel 0.5, C&C 4.5, delivery 6}, newworld {travel 0, C&C 0, delivery 5}:
   best per chain = paknsave C&C 20.00, woolworths in_store 18.20, newworld 19.00 -> cheapest **woolworths**, `bestMethod` in_store.
   newworld ties at 19.00 between in_store and click_and_collect: **ties between methods go in the order in_store, click_and_collect, delivery**, so its best is in_store.
+
+## Frontend types
+
+Hand-mirrored from the gateway JSON in `../Stocker-Frontend/src/pricing/types.ts`. Add (existing fields stay as they are):
+
+```ts
+export type FulfilmentMethod = 'in_store' | 'delivery' | 'click_and_collect';
+
+export interface FulfilmentOption {
+  method: FulfilmentMethod;
+  cost: number;        // travel cost, delivery fee or click-and-collect fee
+  totalAmount: number; // items total + cost
+}
+
+// Added to the existing StoreTotal (storeTotals[] entry of POST /api/pricing/compare):
+export interface StoreTotal {
+  // ...existing: chainId, totalAmount, currency, itemsPriced, unavailableItemIds, savingsAmount
+  totalWithFulfilment: number;           // equals totalAmount when no fees apply
+  bestMethod: FulfilmentMethod | null;   // null = no allowed method available for this chain
+  fulfilmentCost: number;                // cost of bestMethod
+  fulfilmentOptions: FulfilmentOption[]; // every allowed option; empty when bestMethod is null
+}
+
+// Added to the compare request body:
+export interface CompareRequest {
+  // ...existing: items, region, selectedChainId?
+  allowedMethods?: FulfilmentMethod[];   // omit / empty = all methods
+}
+```
+
+Errors: an unknown method name or an out-of-area region is HTTP 422 `{ "error": string }` (show the message).
+
+### What the UI should show
+
+- Per supermarket: the best method (`bestMethod`, e.g. "Click and collect") and its cost (`fulfilmentCost`), with
+  `totalWithFulfilment` as the headline total and `totalAmount` as the "items" line. Optionally list `fulfilmentOptions`
+  so the user sees the alternatives.
+- A chain with `bestMethod === null` cannot be used with the chosen methods: show it greyed out, never as cheapest.
+- The recommendation (`cheapestChainId`) already accounts for fulfilment costs: label it "cheapest including
+  travel/delivery/collection" and show its best method. `savingsAmount` is relative to the selected chain's
+  `totalWithFulfilment`.
+- Let the user pick the methods they would use (checkboxes -> `allowedMethods`); with none ticked send nothing.
