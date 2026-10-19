@@ -113,8 +113,8 @@ public class ProductSearchController {
 			String grade, String unit, Double unitPrice, String cheapestChainId, Map<String, ChainPriceBody> prices) {
 	}
 
-	public record ProductSearchBody(QueryBody query, String matchMethod, boolean stale, List<ProductBody> products,
-			List<ProductBody> alternatives) {
+	public record ProductSearchBody(QueryBody query, String matchMethod, String status, boolean stale,
+			Map<String, String> refresh, List<ProductBody> products, List<ProductBody> alternatives) {
 	}
 
 	private static SelectedProductBody toBody(SelectProductResponse response) {
@@ -126,7 +126,9 @@ public class ProductSearchController {
 		QueryBody query = new QueryBody(q.getTerm(), q.getWordsList(), q.hasSize() ? q.getSize() : null,
 				q.hasPackCount() ? q.getPackCount() : null, q.hasGrade() ? q.getGrade() : null,
 				q.hasCategory() ? q.getCategory() : null);
-		return new ProductSearchBody(query, response.getMatchMethod(), response.getStale(),
+		Map<String, String> refresh = new java.util.TreeMap<>();
+		response.getRefreshMap().forEach((chain, state) -> refresh.put(chain.toLowerCase(java.util.Locale.ROOT), state));
+		return new ProductSearchBody(query, response.getMatchMethod(), response.getStatus(), response.getStale(), refresh,
 				response.getProductsList().stream().map(ProductSearchController::toBody).toList(),
 				response.getAlternativesList().stream().map(ProductSearchController::toBody).toList());
 	}

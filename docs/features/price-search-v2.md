@@ -18,11 +18,15 @@ egg grades `size 7`. They are NOT query parameters.
 {
   "query": { "term": "eggs size 7", "words": ["eggs"], "size": null, "packCount": null, "grade": "7", "category": "eggs" },
   "matchMethod": "canonical",
+  "status": "found",
   "stale": false,
+  "refresh": {},
   "products": [ Product ],
   "alternatives": [ Product ]
 }
 ```
+
+`status` and `refresh` are new (2026-10-20, additive; the other fields are unchanged). See "Status and refresh progress" below.
 
 `Product` (the same product from several chains is ONE entry):
 
@@ -53,7 +57,8 @@ egg grades `size 7`. They are NOT query parameters.
 - `alternatives` = genuinely **different** products of the same category (other brand, size or variant). Never a product that is already in
   `products`; never the same product at another chain. At most 5, ranked by relevance and closeness in price.
   If nothing of the requested size exists, `products` is empty and the other sizes are the alternatives.
-- Empty `products` and `alternatives` means "nothing stored yet", not an error. `stale: true` = some price is older than the freshness
+- Empty `products` and `alternatives` is not an error: read `status` (`refreshing` = a page load is still running, ask again; `not-found` = finished, nothing at any chain).
+- `stale: true` = some price is older than the freshness
   threshold; a refresh may be running in the background (ask again shortly). The request never waits on a supermarket.
 - Errors: 422 `{"error": "..."}` for blank `term`/`itemId`; 401 without a JWT.
 
@@ -65,6 +70,78 @@ per chain). If the user picks a different product (from `products` or `alternati
 `PUT /api/pricing/items/{itemId}/product`  body `{"productKey": "..."}` -> 200 `{"itemId": "...", "productKey": "...", "chains": ["paknsave", "woolworths"]}`;
 404 `{"error": ...}` when the key is not currently known. After this, compare prices that product.
 
+## Status and refresh progress (the UI can stop saying "we'll keep looking")
+
+Every `GET /api/pricing/products` answer carries a terminal-or-not `status`:
+
+| `status` | Meaning | UI |
+|---|---|---|
+| `found` | `products` is not empty (prices may still be updating, see `refresh`) | show the products |
+| `alternatives-only` | `products` is empty, `alternatives` is not, and no refresh is running | "No exact match - similar products:" |
+| `refreshing` | `products` is empty and at least one chain's page load is still `pending` (`alternatives` may already hold generic matches) | spinner, ask again in 2-3 s |
+| `not-found` | `products` and `alternatives` are empty and nothing is pending: the search is finished | "Nothing found at any supermarket" (stop polling) |
+
+`refresh` is a map of lower-case chain id -> `pending` | `done` | `failed` | `skipped`, for the chains whose category page
+was considered for this product or term in the last 30 minutes (empty object = no refresh known):
+
+- `pending`: the page load is queued or running. `done`: it finished (the stored data now includes it). `failed`: it threw.
+  `skipped`: no load was started (30-minute per-page cooldown, hourly cap, refresh disabled, request cancelled, or no known page).
+- It is read from memory: asking again never starts a new supermarket request while a page is pending or within its cooldown.
+  When a load finishes, the in-memory product copy is reloaded first, so `done` means the next answer already contains its prices.
+- A request never waits on a supermarket (deadline 0): the answer is what is stored right now.
+
+Example, a term nobody has stored yet, first ask then re-ask:
+
+```json
+{ "query": {"term": "quinoa flakes", "words": ["quinoa", "flake"], "size": null, "packCount": null, "grade": null, "category": null},
+  "matchMethod": "lexical", "status": "refreshing", "stale": false,
+  "refresh": {"newworld": "pending", "paknsave": "pending", "woolworths": "skipped"},
+  "products": [], "alternatives": [] }
+```
+```json
+{ "...": "...", "matchMethod": "lexical", "status": "not-found", "stale": false,
+  "refresh": {"newworld": "done", "paknsave": "failed", "woolworths": "skipped"}, "products": [], "alternatives": [] }
+```
+
+## Generic fallback (`matchMethod: "generic-fallback"`)
+
+When no stored product matches all words of the term (typically an unknown brand or a size nobody sells), the search no longer
+comes back empty if products of the same TYPE exist. It drops the words no stored product has (a brand such as
+"shaoxingshiye"), the size and pack-count qualifiers, then - if still nothing - the leading modifier words one by one, but never
+below the last two words (so "cooking wine" stays together). The products that contain all the words left are returned as
+`alternatives` (at most 5, never as `products`) with `matchMethod: "generic-fallback"` and `status: "alternatives-only"`.
+Dishes and condiments made with the type are never offered ("Rice Wine Vinegar" is not wine; a dish/condiment word after the last
+type word excludes the product). `query.size` still shows what the shopper asked for, so the UI can say "no 2.5L; here is what exists".
+
+```json
+{ "query": {"term": "shaoxingshiye cooking wine 2.5L", "words": ["shaoxingshiye", "cooking", "wine"], "size": "2.5L", "packCount": null, "grade": null, "category": "cooking-wine"},
+  "matchMethod": "generic-fallback", "status": "alternatives-only", "stale": false, "refresh": {},
+  "products": [],
+  "alternatives": [ {"productKey": "double-pagoda-shao-xing-cooking-wine|640ml", "name": "Double Pagoda Shao Xing Cooking Wine 640ml", "packSize": "640ml", "...": "..."},
+                    {"productKey": "shiwan-cooking-rice-wine|560ml", "name": "Shiwan Cooking Rice Wine 560ml", "...": "..."} ] }
+```
+
+A common product (`canonical`) whose only stored sizes differ from the requested one already returned those as `alternatives` with
+`matchMethod: "canonical"`; that is unchanged (now with `status: "alternatives-only"`).
+
+`cooking-wine` (common-products.txt) now also answers to "shao xing", "shaoxing", "rice wine" and "mirin" and excludes "vinegar".
+
+## Speed (B8)
+
+A warm request reads only the in-memory snapshot of the stored products (no database, no supermarket). Measured by
+`ProductSearchPerformanceTest` on a 5,000-product fixture (3 chains, best of 5 warm runs, shared dev machine): common product
+about 10-12 ms, lexical term about 11-16 ms, generic fallback about 16-18 ms, unknown term about 16-18 ms; the very first call
+(cold word cache and JIT) about 34 ms. Product names are normalised once and remembered (`ProductNormalizer`), which took the
+unknown-term path from 165 ms to under 30 ms. The snapshot itself reloads in the background (`app.pricing.snapshot.*`).
+
+## Replacing the chosen product
+
+`PUT /api/pricing/items/{itemId}/product` now REPLACES what was stored under `itemId`: the earlier product's price records and
+`price_stats` for that item id are deleted (only the copies stored under the shopping-item id, never the scraped chain rows), then the
+chosen product's newest row per chain is stored. Compare therefore prices the new product, also at a chain where the earlier product
+had a more recent observation. Selecting what is already stored changes nothing. The automatic store of the first search result still
+only adds (an item re-searched with a different term keeps the older stored rows until the shopper selects a product).
+
 ## Cancellation
 
 If the client aborts the request (closes the connection / aborts `fetch`), the server stops further work for it, including
@@ -75,7 +152,7 @@ pending on-demand supermarket page loads (see `docs/features/price-engine-reliab
 Matching, size and grade parsing: branch `feature/search-relevance-match`. Cancellation: `feature/search-relevance-cancel`.
 Merged product model, `GET /api/pricing/products` and `PUT /api/pricing/items/{itemId}/product`: implemented on
 `feature/search-relevance-v2` (pricing `ProductSearch` gRPC service in `price_search.proto`, `service/search/ProductSearchService`;
-gateway `ProductSearchController`). Not pushed or merged yet. The frontend still uses `/match` (unchanged, deprecated).
+gateway `ProductSearchController`). Status, refresh progress, generic fallback and replace-on-select: `feature/search-coverage-v3`. Not pushed or merged yet. The frontend still uses `/match` (unchanged, deprecated).
 
 Details the contract above leaves open:
 - `query.size` is the size label (`"2L"`, `"500g"`), `query.packCount` an integer (`12`), `query.grade` a string (`"7"`); `query.category` is the common
@@ -85,6 +162,13 @@ Details the contract above leaves open:
   and pack size, so a key stays valid in another word order. An extra descriptive word one chain adds (e.g. "Biscuits") makes a different product.
 - Common products: the matches are the indexed rows of that product; alternatives also come from sibling products on the same shelf
   (same sitemap keyword, e.g. other biscuits for Tim Tam). Other terms use word overlap over everything stored.
-- `PUT .../product` stores the chosen product's newest row per chain under the item id; it does not remove what was stored before (see below).
-- Known limitation: compare reads `price_stats` (cheapest row per chain and item, newest observation wins per store), so after a PUT a chain whose
-  earlier stored product was observed more recently than the chosen one keeps the earlier price until a newer observation arrives.
+- `PUT .../product` replaces what was stored under the item id (see "Replacing the chosen product").
+- Shopping's Kafka backfill (`PriceRecordCaptured`, newer-observation-only merge) can still keep a newer price of the earlier product on the shopping item itself; compare (pricing) is correct.
+
+## Frontend notes (section 4b of docs/frontend/FRONTEND_PROMPT.md should say the same)
+
+1. Render by `status`, not by "lists are empty": `found` (show), `alternatives-only` (show the alternatives with a "no exact match" line), `refreshing` (spinner and ask again every 2-3 s, at most about 10 times), `not-found` (final, stop).
+2. Re-asking is cheap and safe: it starts no new supermarket request while a page is pending or cooling down.
+3. `refresh` may be shown as per-chain chips (`pending` spinner, `done` tick, `failed` warning, `skipped` grey).
+4. `matchMethod: "generic-fallback"` means the products are of the same type, not the product the shopper typed; label them accordingly.
+5. After the shopper picks a product, `PUT /api/pricing/items/{itemId}/product` makes compare use exactly that product.
