@@ -75,6 +75,16 @@ message CompareShoppingListRequest {
   // Optional. If blank, the server uses the computed cheapest chain as the baseline for
   // StoreTotal.savings_amount, and echoes it back via effective_selected_chain_id.
   string selected_chain_id = 3;
+  // Optional. Which ways of getting the shopping ("in_store", "delivery", "click_and_collect") the user would use;
+  // empty = all. Each chain's best option is its cheapest allowed one (see docs/features/fulfilment-costs.md).
+  repeated string allowed_methods = 4;
+}
+
+// One way of getting the shopping from a chain, and what the whole list costs that way.
+message FulfilmentOption {
+  string method = 1;        // "in_store" | "delivery" | "click_and_collect"
+  double cost = 2;          // travel cost, delivery fee or click-and-collect fee
+  double total_amount = 3;  // StoreTotal.total_amount + cost
 }
 
 message StoreTotal {
@@ -85,6 +95,12 @@ message StoreTotal {
   repeated string unavailable_item_ids = 5;
   // Relative to CompareShoppingListResponse.effective_selected_chain_id.
   double savings_amount = 6;
+  // total_amount (the items) plus the cost of the best allowed way of getting them; the recommendation and
+  // savings_amount use this. Equals total_amount when no fees apply.
+  double total_with_fulfilment = 7;
+  string best_method = 8;       // empty when no allowed method is available for this chain
+  double fulfilment_cost = 9;   // cost of best_method
+  repeated FulfilmentOption fulfilment_options = 10;
 }
 
 message CompareShoppingListResponse {

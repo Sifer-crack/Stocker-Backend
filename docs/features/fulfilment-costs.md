@@ -68,4 +68,5 @@ Items total: paknsave 17.00, woolworths 17.70, newworld 19.00 (see `PriceFixture
 - Delivery: paknsave 9.00, woolworths 6.00 (free over 20), newworld 5.00, `allowedMethods=[delivery]` -> 26.00 / 23.70 / 24.00 -> **woolworths**.
 - Click and collect: paknsave 3.00, woolworths 4.50, newworld 0.00, `allowedMethods=[click_and_collect]` -> 20.00 / 22.20 / 19.00 -> **newworld**.
 - Mixed (all methods allowed): paknsave {travel 4, C&C 3, delivery 9}, woolworths {travel 0.5, C&C 4.5, delivery 6}, newworld {travel 0, C&C 0, delivery 5}:
-  best per chain = paknsave C&C 20.00, woolworths travel 18.20, newworld travel 19.00 -> cheapest **woolworths**, `bestMethod` in_store.
+  best per chain = paknsave C&C 20.00, woolworths in_store 18.20, newworld 19.00 -> cheapest **woolworths**, `bestMethod` in_store.
+  newworld ties at 19.00 between in_store and click_and_collect: **ties between methods go in the order in_store, click_and_collect, delivery**, so its best is in_store.
