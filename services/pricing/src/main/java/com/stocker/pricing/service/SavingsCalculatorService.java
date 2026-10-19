@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * Pure calculation over a ShoppingListComparisonService result - no repository/IO dependencies.
- * savingsAmount(chain) = (selectedTotal - chainTotal) + discountAmount(chain). When every chain
+ * savingsAmount(chain) = (selectedTotalWithFulfilment - chainTotalWithFulfilment) + discountAmount(chain). When every chain
  * ties on totalAmount, the first term is 0 for all of them, so savingsAmount reduces to exactly
  * discountAmount - showing discount-driven savings instead of a flat zero across the board.
  * Never clamped to zero: a chain pricier than the selected one legitimately shows negative
@@ -23,14 +23,14 @@ public class SavingsCalculatorService {
 	public List<ChainSavings> calculate(List<ChainTotal> chainTotals, String selectedChainId) {
 		BigDecimal selectedTotal = chainTotals.stream()
 				.filter(chainTotal -> chainTotal.chainId().equals(selectedChainId))
-				.map(ChainTotal::totalAmount)
+				.map(ChainTotal::totalWithFulfilment)
 				.findFirst()
 				.orElse(BigDecimal.ZERO);
 
 		return chainTotals.stream()
 				.map(chainTotal -> new ChainSavings(
 						chainTotal.chainId(),
-						selectedTotal.subtract(chainTotal.totalAmount())
+						selectedTotal.subtract(chainTotal.totalWithFulfilment())
 								.add(chainTotal.discountAmount())
 								.setScale(2, RoundingMode.HALF_UP)))
 				.toList();
