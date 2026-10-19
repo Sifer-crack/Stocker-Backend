@@ -18,7 +18,12 @@ pick_context() {
 
 # dc <args>: docker compose against the repo root with the working context and the repo .env.
 dc() {
-  docker --context "$DOCKER_CTX" compose --project-directory "$ROOT" --env-file "$ENV_FILE" -f "$ROOT/docker-compose.yml" "$@"
+  local files=(-f "$ROOT/docker-compose.yml")
+  # Resource caps (8 GiB RAM, 6 cores) unless STACK_LIMITS=off.
+  if [ "${STACK_LIMITS:-on}" != "off" ] && [ -f "$ROOT/docker-compose.limits.yml" ]; then
+    files+=(-f "$ROOT/docker-compose.limits.yml")
+  fi
+  docker --context "$DOCKER_CTX" compose --project-directory "$ROOT" --env-file "$ENV_FILE" "${files[@]}" "$@"
 }
 
 # Published ports (see docker-compose.yml).

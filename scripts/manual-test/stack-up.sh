@@ -13,6 +13,13 @@ echo
 # One image at a time: building all eight in parallel (each runs its own Gradle build) can exhaust memory and crash
 # the machine. Set BUILD_ALL_AT_ONCE=1 to skip this on a machine with plenty of headroom.
 export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-1}"
+# Builds run in a dedicated BuildKit container capped at 4 GiB RAM and cores 0-5, if it exists (see docs/MANUAL_TESTING.md):
+#   docker buildx create --name stocker-limited --driver docker-container --driver-opt memory=4g \
+#     --driver-opt cpuset-cpus=0-5 --driver-opt default-load=true
+if docker --context "$DOCKER_CTX" buildx inspect stocker-limited >/dev/null 2>&1; then
+  export BUILDX_BUILDER=stocker-limited
+  echo "Using the resource-limited builder 'stocker-limited' (4 GiB, cores 0-5)."
+fi
 if [ "${BUILD_ALL_AT_ONCE:-0}" != "1" ]; then
   for svc in identity catalog inventory pricing shopping notifications analytics gateway; do
     echo "Building image: ${svc} ..."
