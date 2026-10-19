@@ -83,6 +83,22 @@ STOCKER_COVERAGE_REPORT=/path/to/report.txt ./gradlew :services:pricing:test --t
 ```
 Reads `products` / `pantry_items` from the configured database (read-only).
 
+## Re-keying stored rows
+
+`normalized_products` columns derived from the name (`canonical_key`, `normalized_name`, `pack_quantity`, `pack_unit`,
+`unit_price`) are computed when a row is observed, so after a catalog change old rows keep their old keys until the next
+scrape. `NormalizedProductService.rekeyAll(batchSize)` re-derives them from `display_name` with the same function
+`observe` uses and saves ONLY rows whose values changed (a second run changes nothing). It pages through all rows
+(`findAll(PageRequest, sort id)`, 200 per page, one read plus one `saveAll` of the changed rows per page), logs one
+summary line (read / changed / key changed / failed pages, up to 20 `name old -> new` examples), and a failed page is
+logged and counted, never thrown. `brand` is not touched (it comes from the scraped attributes, not the display name).
+Database only: never deletes, never touches `price_records` / `price_stats`.
+
+It runs once at startup on a daemon thread (`normalize-rekey`) after the backfill thread finishes (waits up to 10 min),
+controlled by `app.normalize.rekey-on-startup` (env `STOCKER_NORMALIZE_REKEY`, default true). The in-memory
+`NormalizedProductSnapshot` reloads itself every `app.pricing.snapshot.refresh-interval` (15 s), so corrected keys
+reach lookups within about that long without explicit invalidation.
+
 ## Database / Neon
 
 - Pricing uses PostgreSQL via `STOCKER_DB_URL/USER/PASSWORD`. In this setup that is **Neon**: project `stocker`

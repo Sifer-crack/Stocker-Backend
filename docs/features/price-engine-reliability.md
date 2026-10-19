@@ -70,3 +70,10 @@ Rules:
   it loaded anything gives back its on-demand cooldown stamp and hourly-cap slot.
 - Not cancellable: the page that is loading when the cancel arrives (it finishes, at most one navigation timeout),
   and a database query already running. Kafka-driven refreshes (`PriceRefreshRequestConsumer`) are not request-bound.
+
+## Old rows follow catalog fixes at startup
+
+After a catalog change (new keys, dish guard) rows already stored kept their old `canonical_key` until re-scraped, so
+e.g. egg fried rice stayed filed under `eggs`. Pricing now re-derives key, pack size and unit price of every stored
+`normalized_products` row once per start (`app.normalize.rekey-on-startup`, env `STOCKER_NORMALIZE_REKEY`), writing only
+rows that changed. Database only; lookups pick the corrections up within about 15 s via the snapshot refresh.
