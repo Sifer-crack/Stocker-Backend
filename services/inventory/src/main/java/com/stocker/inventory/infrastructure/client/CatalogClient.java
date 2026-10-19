@@ -29,6 +29,15 @@ public class CatalogClient {
         }
     }
 
+    /** Returns null on 404; other failures propagate (callers treat the catalog as optional). */
+    public ProductResponse findById(java.util.UUID productId) {
+        try {
+            return restClient.get().uri("/products/{id}", productId).retrieve().body(ProductResponse.class);
+        } catch (HttpClientErrorException.NotFound e) {
+            return null;
+        }
+    }
+
     public ProductResponse createProduct(String name, String unit) {
         return restClient.post()
                 .uri(uriBuilder -> uriBuilder
