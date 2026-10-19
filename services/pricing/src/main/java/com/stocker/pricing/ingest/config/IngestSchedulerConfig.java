@@ -1,12 +1,14 @@
 package com.stocker.pricing.ingest.config;
 
 import com.microsoft.playwright.Browser;
+import com.stocker.pricing.ingest.CategoryHealth;
 import com.stocker.pricing.ingest.ChainScraper;
 import com.stocker.pricing.ingest.IngestScheduler;
 import com.stocker.pricing.refresh.CategoryMap;
 import com.stocker.pricing.repository.PriceRecordRepository;
 import com.stocker.pricing.service.PriceStatsService;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,8 +23,11 @@ public class IngestSchedulerConfig {
 	public IngestScheduler ingestScheduler(List<ChainScraper> chainScrapers, Browser browser,
 			IngestProperties properties, PriceRecordRepository priceRecordRepository,
 			PriceStatsService priceStatsService, CategoryMap categoryMap) {
+		Clock clock = Clock.systemUTC();
+		CategoryHealth categoryHealth = new CategoryHealth(properties.getQuarantineAfterZeroRuns(),
+				Duration.ofDays(properties.getQuarantineDays()), clock);
 		return new IngestScheduler(chainScrapers, browser, properties, priceRecordRepository, priceStatsService,
-				categoryMap, Clock.systemUTC());
+				categoryMap, clock, categoryHealth);
 	}
 
 	/** Seeds fresh data: one background ingest run after startup when app.ingest.run-on-startup=true. */

@@ -29,7 +29,12 @@ The next daily crawl picks the page up. Use `unmatched_search_terms` to find wha
 
 - The catalog needs about 134 pages per Foodstuffs chain and 138 for Woolworths; with the cap of 80 each page is
   refreshed every 2 days at most. Raise `max-pages-per-chain-per-day` only with the owner's approval (it is more load on the supermarkets).
-- Pages that return zero products are logged (`zeroResultCategoryUrls`) but not yet skipped automatically.
+- A page that returns zero products on `app.ingest.quarantine-after-zero-runs` runs in a row (default 2) is quarantined:
+  the scheduled crawl and the on-demand refresh skip it for `app.ingest.quarantine-days` (default 7), so it spends no
+  page budget, and it is then retried once (a zero on the retry quarantines it again at once; products clear it). A page
+  that failed with a scrape error or warning is not counted as zero. Quarantine state is in memory only: a restart
+  forgets it, so each empty page needs the zero runs again. Quarantined pages are logged (WARN on entry, INFO on retry,
+  and a list at the end of each full run).
 - Copies stored under a caller's item id are written in the background; a `POST /api/pricing/compare` for an item id
   within about a second of its `/match` can see no stored price yet.
 - Neon is in us-east-1; from New Zealand each query costs about 190 ms (Sydney, ap-southeast-2: about 31 ms). The snapshot hides this

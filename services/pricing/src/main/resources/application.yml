@@ -109,6 +109,9 @@ app:
     max-categories-per-run: ${STOCKER_INGEST_MAX_CATEGORIES_PER_RUN:0}
     # Hard cap on category pages per chain per Auckland day (scheduled run + on-demand refresh together).
     max-pages-per-chain-per-day: ${STOCKER_INGEST_MAX_PAGES_PER_CHAIN_PER_DAY:80}
+    # A page with this many zero-product runs in a row is skipped for quarantine-days, then retried once (in memory).
+    quarantine-after-zero-runs: ${STOCKER_INGEST_QUARANTINE_AFTER_ZERO_RUNS:2}
+    quarantine-days: ${STOCKER_INGEST_QUARANTINE_DAYS:7}
     newworld:
       enabled: ${STOCKER_INGEST_NEWWORLD_ENABLED:true}
       store-id: ${STOCKER_INGEST_NEWWORLD_STORE_ID:}
