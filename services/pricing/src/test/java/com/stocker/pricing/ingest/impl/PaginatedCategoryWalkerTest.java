@@ -132,4 +132,21 @@ class PaginatedCategoryWalkerTest {
 		assertThat(loaded).hasSize(1);
 		assertThat(walk.warning()).contains("cancelled");
 	}
+
+	/** Live New World pages carry ~68 tiles for 50 listed products: the tile count must not end the walk. */
+	@Test
+	void moreTilesThanListedProductsDoesNotStopTheWalkEarly() {
+		var walk = walker(8).walk(BASE, loader(Map.of(
+				BASE, page(1, 68, 120, 50),
+				"https://x/shop/category/milk?pg=2", page(101, 168, 120, 100),
+				"https://x/shop/category/milk?pg=3", page(201, 268, 120, 120))));
+
+		assertThat(walk.pagesLoaded()).isEqualTo(3);
+		assertThat(walk.warning()).isNull();
+	}
+
+	private static LoadedPage<Integer> page(int firstTile, int lastTile, int total, int listedUpTo) {
+		return new LoadedPage<>(IntStream.rangeClosed(firstTile, lastTile).boxed().toList(),
+				"Showing " + (listedUpTo - 49) + " - " + listedUpTo + " of " + total + " products");
+	}
 }

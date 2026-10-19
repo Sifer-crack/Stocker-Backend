@@ -1,0 +1,1045 @@
+URL: https://www.newworld.co.nz/shop/category/pantry/chips-nuts--snacks?pg=9
+TILES: 67
+SHOWING: Showing 401 - 449 of 449 products
+
+PAGINATION MARKUP: [<nav role="navigation" aria-label="pagination"><ul class="_10vhnom0"><li><a class="_10vhnom3 _10vhnom2 _10vhnom1" type="button" href="?pg=8" data-testid="pagination-decrement"><span data-testid="visually-hidden" class="wf9qe80">Previous page</span><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="m7.5 12 6 6 1.5-1.5-4.5-4.5L15 7.5 13.5 6l-6 6Z" fill="currentColor"></path></svg></a></li><li aria-hidden="true"></li><li><a href="/shop/category/pantry/chips-nuts--snacks" aria-current="false" class="_10vhnom2 _10vhnom1" type="button"><span data-testid="visually-hidden" class="wf9qe80">page</span><p data-testid="pagination-number" class="">1</p></a></li><li aria-hidden="true"><span class="_10vhnom1">…</span></li><li><a href="?pg=7" aria-current="false" class="_10vhnom2 _10vhnom1" type="button"><span data-testid="visually-hidden" class="wf9qe80">page</span><p data-testid="pagination-number" class="">7</p></a></li><li aria-hidden="true"></li><li><a href="?pg=8" aria-current="false" class="_10vhnom2 _10vhnom1" type="button"><span data-testid="visually-hidden" class="wf9qe80">page</span><p data-testid="pagination-number" class="">8</p></a></li><li aria-hidden="true"></li><li><a href="?pg=9" aria-current="page" class="_10vhnom2 _10vhnom1 _10vhnom4" type="button"><span data-testid="visually-hidden" class="wf9qe80">page</span><p data-testid="pagination-number" class="">9</p></a></li></ul></nav>, <a class="_10vhnom3 _10vhnom2 _10vhnom1" type="button" href="?pg=8" data-testid="pagination-decrement"><span data-testid="visually-hidden" class="wf9qe80">Previous page</span><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="m7.5 12 6 6 1.5-1.5-4.5-4.5L15 7.5 13.5 6l-6 6Z" fill="currentColor"></path></svg></a>, <p data-testid="pagination-number" class="">1</p>, <p data-testid="pagination-number" class="">7</p>, <p data-testid="pagination-number" class="">8</p>, <p data-testid="pagination-number" class="">9</p>]
+
+BODY TEXT (first 6000 chars):
+Skip to main content
+
+New World Metro Queen St
+
+Collect from New World Metro Queen St
+
+Book a slot
+
+Log in
+
+ or 
+
+join
+
+Hi there,
+
+You’re currently shopping from New World Metro Queen St.
+Change store
+Start shopping
+Close
+Search
+
+$0.00
+
+0
+
+Groceries
+
+Specials
+
+Everyday Low Price
+
+Mailer
+
+Recipes
+
+Discover
+
+About Club+
+
+My Lists
+
+Ways to save
+
+Pantry
+
+Chips, Nuts & Snacks
+
+Chips, Nuts & Snacks
+
+Chips
+
+Corn Chips & Salsa
+
+Muesli & Snack Bars
+
+Nuts & Trail Mixes
+
+Popcorn
+
+Nutritional Bars & Snacks
+
+Meat Snacks
+
+Vege & Savoury Snacks
+
+Show more
+
+Top Picks
+
+Pams Salted Pretzels
+
+200g
+
+3
+
+49
+
+ea
+
+$1.75/100g
+
+ea
+Add
+
+Bluebird Originals Green Onion Potato Chips
+
+150g
+
+2.
+
+19
+
+$1.46/100g
+
+3
+
+09
+
+ea
+
+$2.06/100g
+
+ea
+Add
+
+Bluebird Delisio Thai Style Sweet Chilli Relish Potato Chips
+
+140g
+
+2.
+
+89
+
+$2.06/100g
+
+Limit 12 assorted
+
+3
+
+89
+
+ea
+
+$2.78/100g
+
+ea
+Add
+
+Jack Link's Original Beef Stick
+
+12g
+
+1
+
+59
+
+ea
+
+$132.50/1kg
+
+ea
+Add
+
+Sunbites Grain Waves Sour Cream & Chives
+
+140g
+
+3
+
+09
+
+ea
+
+$2.21/100g
+
+ea
+Add
+
+Bluebird Originals Chicken Potato Chips
+
+150g
+
+2.
+
+19
+
+$1.46/100g
+
+3
+
+09
+
+ea
+
+$2.06/100g
+
+ea
+Add
+
+Tasti Dark Choc Cranberry Nut Bars
+
+6 x 35g
+
+3.
+
+89
+
+$1.85/100g
+
+5
+
+89
+
+ea
+
+$2.80/100g
+
+ea
+Add
+
+Copper Kettle Honey Soy Chicken Potato Chips
+
+150g
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Copper Kettle Sea Salt Potato Chips
+
+150g
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Copper Kettle Sea Salt & Vinegar Potato Chips
+
+150g
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Bluebird Thick Cut Ready Salted Potato Chips
+
+150g
+
+2.
+
+19
+
+$1.46/100g
+
+4
+
+69
+
+ea
+
+$3.13/100g
+
+ea
+Add
+
+Tasti Milkies Choc Strawberry Snack Size Bars
+
+10 x 20g
+
+6
+
+49
+
+ea
+
+$3.25/100g
+
+ea
+Add
+
+Bluebird Delisio English Deli-Style Sea Salt Potato Chips
+
+140g
+
+2.
+
+89
+
+$2.06/100g
+
+Limit 12 assorted
+
+3
+
+89
+
+ea
+
+$2.78/100g
+
+ea
+Add
+
+Tasti Fruitsies Apple Vanilla Snack Size Bars
+
+10 x 20g
+
+6
+
+49
+
+ea
+
+$3.25/100g
+
+ea
+Add
+
+Snacka Changi Chips Salted Kettle Fried Potato Chips
+
+150g
+
+2 for
+
+
+6.
+
+00
+
+$2.00/100g
+
+See all
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Bluebird Originals Ready Salted Potato Chips
+
+150g
+
+2.
+
+19
+
+$1.46/100g
+
+4.0 out of 5 stars. 3 reviews for Bluebird Originals Ready Salted Potato Chips.
+
+3
+
+09
+
+ea
+
+$2.06/100g
+
+ea
+Add
+
+Snacka Changi Chips Vinegar & Salt Kettle Fried Potato Chips
+
+150g
+
+2 for
+
+
+6.
+
+00
+
+$2.00/100g
+
+See all
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Heartland Sour Cream & Chives Old-Fashioned Wave Cut Chips
+
+150g
+
+3
+
+19
+
+ea
+
+$2.13/100g
+
+ea
+Add
+Categories
+Dietary
+Brands
+
+Specials only
+
+Sorted by:
+Relevance
+
+Nice & Natural Wild Things Fruit Snacks
+
+8 x 16g
+
+3.
+
+99
+
+$3.12/100g
+
+Limit 12 assorted
+
+4
+
+99
+
+ea
+
+$3.90/100g
+
+ea
+Add
+
+Sunbites Grain Waves Sweet Chilli Wholegrain Chips
+
+140g
+
+3
+
+09
+
+ea
+
+$2.21/100g
+
+ea
+Add
+
+Tom & Luke Triple Chocolate Brownie Choc 66% Dark Chocolate Coated Snackaballs
+
+128g
+
+5.
+
+99
+
+$4.68/100g
+
+Limit 12 assorted
+
+7
+
+49
+
+ea
+
+$5.85/100g
+
+ea
+Add
+
+Snacka Changi Chips Kettle Fried Sweet Chilli Potato Chips
+
+150g
+
+2 for
+
+
+6.
+
+00
+
+$2.00/100g
+
+See all
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Noshu Low Carb Cherry & Coconut Indulgence Bars
+
+5 x 32g
+
+8.
+
+49
+
+$5.31/100g
+
+9
+
+49
+
+ea
+
+$5.93/100g
+
+ea
+Add
+
+Tasti Fruit + Vege Strawberry & Beetroot Wholefood Balls
+
+207g
+
+4.
+
+99
+
+$2.41/100g
+
+Limit 12 assorted
+
+6
+
+49
+
+ea
+
+$3.14/100g
+
+ea
+Add
+
+Bluebird Delisio British Style Prawn Cocktail Potato Chips
+
+130g
+
+2.
+
+89
+
+$2.22/100g
+
+Limit 12 assorted
+
+3
+
+89
+
+ea
+
+$2.99/100g
+
+ea
+Add
+
+Old El Paso Mild Chunky Salsa Dip
+
+312g
+
+5
+
+59
+
+ea
+
+$1.79/100g
+
+ea
+Add
+
+Mother Earth Lightly Salted Roasted Deluxe Mixed Nuts
+
+400g
+
+16
+
+89
+
+ea
+
+$4.22/100g
+
+ea
+Add
+
+Graze Skinny Dipped Salted Caramel Milk Chocolate Cashews
+
+260g
+
+13
+
+99
+
+ea
+
+$5.38/100g
+
+ea
+Add
+
+Bluebird Delisio English Deli-Style Sea Salt Potato Chips
+
+140g
+
+2.
+
+89
+
+$2.06/100g
+
+Limit 12 assorted
+
+3
+
+89
+
+ea
+
+$2.78/100g
+
+ea
+Add
+
+Bluebird Delisio Thai Style Sweet Chilli Relish Potato Chips
+
+140g
+
+2.
+
+89
+
+$2.06/100g
+
+Limit 12 assorted
+
+3
+
+89
+
+ea
+
+$2.78/100g
+
+ea
+Add
+
+Bluebird Delisio Tuscan Style Caramelised Onion & Balsamic Vinegar Potato Chips
+
+140g
+
+2.
+
+89
+
+$2.06/100g
+
+Limit 12 assorted
+
+3
+
+89
+
+ea
+
+$2.78/100g
+
+ea
+Add
+
+Pams Butter Flavour Microwave Popcorn
+
+3 x 85g
+
+2
+
+99
+
+ea
+
+$1.17/100g
+
+ea
+Add
+
+Pams Extra Butter Flavour Microwave Popcorn
+
+85g
+
+1
+
+29
+
+ea
+
+$1.52/100g
+
+ea
+Add
+
+Pams Sweet & Salty Microwave Popcorn
+
+85g
+
+1
+
+29
+
+ea
+
+$1.52/100g
+
+ea
+Add
+
+Doritos Cheese Supreme Corn Chips Multipack
+
+5 x 18g
+
+3.
+
+59
+
+$3.99/100g
+
+4
+
+89
+
+ea
+
+$5.43/100g
+
+ea
+Add
+
+Heartland Extreme Crunch Southern Sea Salt Kettle Waves Potato Chips
+
+150g
+
+4
+
+79
+
+ea
+
+$3.19/100g
+
+ea
+Add
+
+Heartland Extreme Crunch Apple Cider Vinegar Kettle Waves Potato Chips
+
+150g
+
+4
+
+79
+
+ea
+
+$3.19/100g
+
+ea
+Add
+
+Sunbites Grain Waves Sour Cream & Chives Wholegrain Chips Multipack
+
+6 x 18g
+
+3.
+
+59
+
+$3.32/100g
+
+4
+
+89
+
+ea
+
+$4.53/100g
+
+ea
+Add
+
+Bluebird Original Ready Salted Potato Chips Multipack
+
+6 x 18g
+
+3.
+
+59
+
+$3.32/100g
+
+4
+
+39
+
+ea
+
+$4.06/100g
+
+ea
+Add
+
+Copper Kettle Sea Salt Potato Chips Multipack
+
+5 x 22g
+
+3.
+
+59
+
+$3.26/100g
+
+5
+
+49
+
+ea
+
+$4.99/100g
+
+ea
+Add
+
+Bluebird Originals Mix Potato Chips
+
+20 x 18g
+
+8
+
+39
+
+ea
+
+$2.33/100g
+
+ea
+Add
+
+Mother Earth Natural Deluxe Mixed Nuts
+
+400g
+
+16
+
+89
+
+ea
+
+$4.22/100g
+
+ea
+Add
+
+Snacka Changi Chips Kettle Fried Salted Potato Chips
+
+40g
+
+2
+
+49
+
+ea
+
+$6.23/100g
+
+ea
+Add
+
+Snacka Changi Chips Kettle Fried Vinegar & Salt Potato Chips
+
+40g
+
+2
+
+49
+
+ea
+
+$6.23/100g
+
+ea
+Add
+
+Chantal Organics Choc Almond Probiotic Protein Bar
+
+45g
+
+2
+
+99
+
+ea
+
+$6.64/100g
+
+ea
+Add
+
+Tasti Choc Peanut Nut Bars
+
+6 x 35g
+
+3.
+
+89
+
+$1.85/100g
+
+5
+
+89
+
+ea
+
+$2.80/100g
+
+ea
+Add
+
+Frooze Balls Raspberry Dark Choc Plant Powered Energy Balls
+
+210g
+
+5
+
+99
+
+ea
+
+$2.85/100g
+
+ea
+Add
+
+Calbee Harvest Snaps Original Salted Baked Pea Crisps Snackpack
+
+5 x 18g
+
+5
+
+59
+
+ea
+
+$6.21/100g
+
+ea
+Add
+
+Tasti Salted Caramel Nut Bars
+
+6 x 35g
+
+3.
+
+89
+
+$1.85/100g
+
+5
+
+89
+
+ea
+
+$2.80/100g
+
+ea
+Add
+
+Graze Roasted & Salted Deluxe Nuts
+
+400g
+
+15
+
+29
+
+ea
+
+$3.82/100g
+
+ea
+Add
+
+Bumper Peanut Chocolate Extreme Protein Trail Bar
+
+75g
+
+3
+
+89
+
+ea
+
+$5.19/100g
+
+ea
+Add
+
+Sunbites Grain Waves Sour Cream & Chives
+
+140g
+
+3
+
+09
+
+ea
+
+$2.21/100g
+
+ea
+Add
+
+The Na

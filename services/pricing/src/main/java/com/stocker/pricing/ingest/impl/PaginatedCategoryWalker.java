@@ -50,8 +50,11 @@ final class PaginatedCategoryWalker<T> {
 			return new Walk<>(items, pages, info.map(CategoryPagination::total).orElse(null), null);
 		}
 		int total = info.get().total();
+		int reached = info.get().to();
 		String stop = null;
-		while (items.size() < total && info.isPresent() && info.get().hasMore()) {
+		// The page's own "Showing A - B of M" decides, never the tile count: the live grid carries about a third
+		// more tiles than listed products (promoted / repeated tiles), so counting tiles would stop the walk early.
+		while (info.isPresent() && info.get().hasMore()) {
 			if (pages >= maxPages) {
 				stop = "page cap of " + maxPages + " reached";
 				break;
@@ -79,12 +82,14 @@ final class PaginatedCategoryWalker<T> {
 			}
 			items.addAll(next.items());
 			info = CategoryPagination.parse(next.text());
+			reached = info.map(CategoryPagination::to).orElse(reached);
 			if (info.isEmpty()) {
 				stop = "page " + pages + " has no 'Showing A - B of M' line";
 			}
 		}
-		String warning = items.size() < total && stop != null
-				? url + ": collected " + items.size() + " of " + total + " products (" + stop + ")"
+		String warning = stop != null && (info.isEmpty() || info.get().hasMore())
+				? url + ": read " + reached + " of " + total + " listed products ("
+						+ stop + ")"
 				: null;
 		return new Walk<>(items, pages, total, warning);
 	}

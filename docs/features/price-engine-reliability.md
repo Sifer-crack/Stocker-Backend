@@ -10,7 +10,7 @@ Goal: prices for the common NZ grocery items appear almost immediately, across a
 | Comparing a list could start live refreshes and lost the size hint | Compare **reads stored data only**; third-party provider fallback is opt-in | `ItemMatchService.matchStored`, `app.pricing.match.provider-fallback=false` |
 | ~20 database round trips per lookup (about 190 ms each from NZ to Neon us-east-1) | In-memory **snapshot** of `normalized_products` (one query per 30 s, refreshed in the background); matched copies are stored **after** the answer, built from the rows (no per-chain source lookups) | `NormalizedProductSnapshot`, `ItemMatchService` |
 | Crawl covered 12 of 63 pages per run, 2.6 days per page; Woolworths had 1 page | The crawl list is the **catalog map** (`category-map.txt`) plus configured extras; once a day at 03:00 NZ; a window that moves each day when the list is longer than the cap | `IngestScheduler`, `CategoryMap.urls` |
-| No guarantee on supermarket load | **Hard cap** of 80 pages per chain per Auckland day, shared by the scheduled crawl and on-demand refresh | `DailyPageBudget`, `app.ingest.max-pages-per-chain-per-day` |
+| No guarantee on supermarket load | **Hard cap** of 140 pages per chain per Auckland day (raised from 80 by the owner on 2026-10-20), shared by the scheduled crawl, on-demand refresh and the further pages of multi-page categories | `DailyPageBudget`, `app.ingest.max-pages-per-chain-per-day` |
 | `stale` flagged for normal daily data | `stale-after` is 26 h | `app.pricing.on-demand.stale-after` |
 
 Review fixes: Woolworths sitemap paths containing `loc` were corrupted; one price write held two pooled connections; the
@@ -27,8 +27,20 @@ The next daily crawl picks the page up. Use `unmatched_search_terms` to find wha
 
 ## Limits to know
 
-- The catalog needs about 134 pages per Foodstuffs chain and 138 for Woolworths; with the cap of 80 each page is
-  refreshed every 2 days at most. Raise `max-pages-per-chain-per-day` only with the owner's approval (it is more load on the supermarkets).
+- The catalog map plus the configured pages come to about 153 pages per Foodstuffs chain and 137 for Woolworths (first pages
+  only), before any sitemap-discovered staple pages (up to 40 per chain). With the cap of 140 and 20 pages held back for the
+  further pages of multi-page categories (`extra-pages-reserve-per-run`), a run plans 120 first pages: the common-product and
+  staple pages come first, the rest rotates daily, so each page is refreshed every 1-2 days. Raise
+  `max-pages-per-chain-per-day` only with the owner's approval (it is more load on the supermarkets).
+- Multi-page categories: New World and PAK'nSAVE show "Showing A - B of M products" at 50 products per page and link
+  `?pg=2,3,...` (confirmed live 2026-10-20: chips-nuts--snacks is 451-520 products over 9-11 pages). The crawler reads the
+  line and follows `?pg=N` until B reaches M or `max-pages-per-category` (8) is hit; each extra page is paid from the daily
+  budget, a single-page category still costs exactly one page, and any error / block / empty page / used-up budget ends
+  that category with a WARN ("read B of M listed products"). Woolworths NZ is not paginated by the crawler yet (its
+  pagination markup was not found; see INGEST_MODULE.md).
+- Staple discovery: sitemap category pages whose name contains a staple keyword (`staple-category-keywords.txt` plus the
+  keyword column of `common-products.txt`) are added to the crawl without being checked first. A dead page returns zero
+  products and is quarantined after 2 runs, so it costs at most 2 pages.
 - A page that returns zero products on `app.ingest.quarantine-after-zero-runs` runs in a row (default 2) is quarantined:
   the scheduled crawl and the on-demand refresh skip it for `app.ingest.quarantine-days` (default 7), so it spends no
   page budget, and it is then retried once (a zero on the retry quarantines it again at once; products clear it). A page

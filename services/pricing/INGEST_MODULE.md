@@ -70,6 +70,31 @@ Random pause between page loads (`page-delay-min/max-millis`), a per-run cap on 
 (`max-categories-per-run`, rotating daily) and no scrape on a search miss (`app.pricing.match.on-demand-ingest=false`).
 See `NORMALIZE_MODULE.md`.
 
+## Pagination, crawl order and the daily cap
+
+- **Pagination (New World, PAK'nSAVE).** Live probe 2026-10-20 (`PaginationLiveProbeTest`, `chips-nuts--snacks`): every
+  category page prints `Showing A - B of M products` (50 per page), has a `<nav aria-label="pagination">` with
+  `data-testid="pagination-number"` items, a `Next page` link and `?pg=N` hrefs, and `?pg=N` returns the next 50
+  (`Showing 51 - 100 of ...`; the last page ends `Showing 401 - 449 of 449`, mobile text `Page 10 of 11`). The tile selector
+  also matches ~18 promoted/repeated tiles per page (68 tiles for 50 products), so the walk is driven by the Showing line,
+  never by the tile count; duplicates are removed by native product code. `FoodstuffsChainScraper` walks pages through
+  `PaginatedCategoryWalker`: page 1, then `?pg=2..` while B < M, up to `app.ingest.max-pages-per-category` (default 8; the
+  probe category needs 9-11, so it is read up to page 8 with a WARN). Each page after the first asks
+  `ChainScraperConfig.extraPageGate`, which reserves one page from `DailyPageBudget`; an error, 403/429/503, empty page or
+  refused budget stops that category and keeps what was read. A one-page category costs exactly one page.
+- **Woolworths.** The scraper loads only the first page of each category. The probe loaded `biscuits-cookies` once: 36 tiles,
+  no "Showing" text and no pagination element in the DOM (it may be infinite scroll or rendered later). Not guessed; a
+  further look (scrolling) needs the owner's approval.
+- **Order and cap.** `DailyPageBudget` default 140 pages per chain per Auckland day (`app.ingest.max-pages-per-chain-per-day`).
+  `CrawlPlanner` orders a run: the catalogue's category pages, configured pages that match a staple keyword and
+  sitemap-discovered staple pages first; the other configured pages after them as a window that moves on each day. Pages
+  crawled in the last `recrawl-freshness-hours` (20) go to the back. When the list is longer than the budget,
+  `extra-pages-reserve-per-run` (20, at most a fifth of what is left) pages are held back for extra pages.
+- **Sitemap staple discovery.** `StapleCategoryMatcher` picks category URLs from the cached sitemap list whose last path
+  segment contains a staple keyword (`staple-category-keywords.txt` + the sitemap-keyword column of `common-products.txt`),
+  at most `max-discovered-pages-per-chain` (40), best match first. They are crawled unverified; `CategoryHealth` quarantines
+  a page after 2 zero runs. Off with `app.ingest.staple-discovery-enabled=false`.
+
 ## Wiring / scheduling
 
 `IngestScheduler` (one shared `Browser` bean, `@Scheduled(cron = "${app.ingest.cron}")`)
@@ -182,7 +207,11 @@ app:
     dry-run: ${STOCKER_INGEST_DRY_RUN:true}
     cron: ${STOCKER_INGEST_CRON:0 0 3 * * *}
     navigation-timeout-seconds: 30
-    max-pages-per-category: 5
+    max-pages-per-category: ${STOCKER_INGEST_MAX_PAGES_PER_CATEGORY:8}
+    max-pages-per-chain-per-day: ${STOCKER_INGEST_MAX_PAGES_PER_CHAIN_PER_DAY:140}
+    extra-pages-reserve-per-run: ${STOCKER_INGEST_EXTRA_PAGES_RESERVE_PER_RUN:20}
+    staple-discovery-enabled: ${STOCKER_INGEST_STAPLE_DISCOVERY_ENABLED:true}
+    max-discovered-pages-per-chain: ${STOCKER_INGEST_MAX_DISCOVERED_PAGES_PER_CHAIN:40}
     newworld:
       enabled: ${STOCKER_INGEST_NEWWORLD_ENABLED:false}
       store-id: ${STOCKER_INGEST_NEWWORLD_STORE_ID:}
@@ -226,6 +255,11 @@ STOCKER_INGEST_WOOLWORTHS_STORE_ID=      # accepted but NOT applied yet - no con
 STOCKER_INGEST_WOOLWORTHS_STORE_NAME=
 
 STOCKER_INGEST_SITEMAP_CACHE_TTL_DAYS=7  # sitemap category-URL cache TTL (both tiers)
+STOCKER_INGEST_MAX_PAGES_PER_CHAIN_PER_DAY=140
+STOCKER_INGEST_MAX_PAGES_PER_CATEGORY=8
+STOCKER_INGEST_EXTRA_PAGES_RESERVE_PER_RUN=20
+STOCKER_INGEST_STAPLE_DISCOVERY_ENABLED=true
+STOCKER_INGEST_MAX_DISCOVERED_PAGES_PER_CHAIN=40
 ```
 
 `category-urls` per chain is list-valued config, not an env var — set it in

@@ -1,0 +1,1002 @@
+URL: https://www.paknsave.co.nz/shop/category/pantry/chips-nuts--snacks?pg=1
+TILES: 50
+SHOWING: Showing 1 - 50 of 520 products
+
+PAGINATION MARKUP: [<nav role="navigation" aria-label="pagination"><ul class="_3a8x9c0"><li aria-hidden="true" class="_3a8x9c3"></li><li class="_3a8x9c3"><a aria-current="page" href="/shop/category/pantry/chips-nuts--snacks" data-testid="pagination-number" theme="tertiary" class="_1c9qavo0 _1c9qavo3 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">1</p></a></li><li aria-hidden="true" class="_3a8x9c3"></li><li class="_3a8x9c3"><a aria-current="false" href="?pg=2" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">2</p></a></li><li aria-hidden="true" class="_3a8x9c3"></li><li class="_3a8x9c3"><a aria-current="false" href="?pg=3" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">3</p></a></li><li aria-hidden="true" class="_3a8x9c3"></li><li class="_3a8x9c3"><a aria-current="false" href="?pg=4" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">4</p></a></li><li aria-hidden="true" class="_3a8x9c3"></li><li class="_3a8x9c3"><a aria-current="false" href="?pg=5" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">5</p></a></li><li aria-hidden="true" class="_3a8x9c3"><span>…</span></li><li class="_3a8x9c3"><a aria-current="false" href="?pg=11" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">11</p></a></li><li class="_3a8x9c1"><p data-testid="pagination-mobile" class="_10e5eu850">Page 1 of 11</p></li><li><a href="?pg=2" data-testid="pagination-increment" theme="secondary" class="_1c9qavo0 _1c9qavo2 _1c9qavoa"><span data-testid="visually-hidden" class="_1dfig0v0">Next page</span><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M9.58358 6.32427C9.37564 6.34393 9.20145 6.4243 9.04904 6.57088C8.86196 6.75082 8.77019 6.96506 8.77002 7.22223C8.76989 7.42212 8.82927 7.60096 8.949 7.76128C8.96803 7.78677 9.68378 8.50601 11.0782 9.90088L13.1787 12.0021L11.0782 14.1033C9.68378 15.4981 8.96803 16.2174 8.949 16.2429C8.82901 16.4036 8.76989 16.5816 8.77002 16.781, <a aria-current="page" href="/shop/category/pantry/chips-nuts--snacks" data-testid="pagination-number" theme="tertiary" class="_1c9qavo0 _1c9qavo3 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">1</p></a>, <p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">1</p>, <a aria-current="false" href="?pg=2" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">2</p></a>, <p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">2</p>, <a aria-current="false" href="?pg=3" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">3</p></a>, <p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">3</p>, <a aria-current="false" href="?pg=4" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">4</p></a>, <p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">4</p>, <a aria-current="false" href="?pg=5" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">5</p></a>, <p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">5</p>, <a aria-current="false" href="?pg=11" data-testid="pagination-number" theme="text" class="_1c9qavo0 _1c9qavo5 _1c9qavoa"><p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">11</p></a>, <p data-testid="pagination-number" class="_10e5eu8i _10e5eu829 _10e5eu840">11</p>, <p data-testid="pagination-mobile" class="_10e5eu850">Page 1 of 11</p>, <a href="?pg=2" data-testid="pagination-increment" theme="secondary" class="_1c9qavo0 _1c9qavo2 _1c9qavoa"><span data-testid="visually-hidden" class="_1dfig0v0">Next page</span><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M9.58358 6.32427C9.37564 6.34393 9.20145 6.4243 9.04904 6.57088C8.86196 6.75082 8.77019 6.96506 8.77002 7.22223C8.76989 7.42212 8.82927 7.60096 8.949 7.76128C8.96803 7.78677 9.68378 8.50601 11.0782 9.90088L13.1787 12.0021L11.0782 14.1033C9.68378 15.4981 8.96803 16.2174 8.949 16.2429C8.82901 16.4036 8.76989 16.5816 8.77002 16.7819C8.77019 17.0391 8.86196 17.2533 9.04904 17.4333C9.12775 17.509 9.1936 17.5552 9.28605 17.5995C9.41885 17.6632 9.58644 17.6936 9.73566 17.6811C9.9223 17.6654 10.0637 17.613 10.2076 17.5061C10.2335 17.4869 11.0058 16.7178 12.5889 15.1346C15.111 12.6125 14.9648 12.7615 15.0415 12.6357C15.1038 12.5335 15.1632 12.3862 15.1896 12.2685C15.2109 12.1736 15.2178 12.1079 15.2178 12.0021C15.2178 11.935 15.2152 11.8854 15.2096 11.8461C15.1767 11.6146 15.082 11.3974 14.9395 11.2261C14.8798 11.1545 10.2546 6.53297 10.2076 6.49803C10.0255 6.3627 9.81041 6.30281 9.58358 6.32427Z" fill="currentColor"></path></svg></a>]
+
+BODY TEXT (first 6000 chars):
+Skip to main content
+
+Your store is PAK'nSAVE Royal Oak
+
+Choose a timeslot
+
+Log in or join
+
+Search
+0
+
+$0.00
+
+Groceries
+Deals
+My Lists
+More
+
+Pantry
+
+Chips, Nuts & Snacks
+
+Chips, Nuts & Snacks
+
+Chips
+
+Corn Chips & Salsa
+
+Muesli & Snack Bars
+
+Nuts & Trail Mixes
+
+Popcorn
+
+Nutritional Bars & Snacks
+
+Meat Snacks
+
+Vege & Savoury Snacks
+
+Show more
+
+Categories
+Categories
+Dietary
+Dietary
+Brands
+Brands
+
+Deals only
+
+Sorted by:
+Relevance
+
+Bluebird Originals Chicken Potato Chips
+
+150g
+
+1
+
+99
+
+ea
+
+$1.33/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Originals Salt & Vinegar Potato Chips
+
+150g
+
+1
+
+99
+
+ea
+
+$1.33/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Originals Ready Salted Potato Chips
+
+150g
+
+1
+
+99
+
+ea
+
+$1.33/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Originals Sour Cream & Chives Potato Chips
+
+150g
+
+1
+
+99
+
+ea
+
+$1.33/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Fun Mix Multipack
+
+20 x 18g
+
+7
+
+29
+
+ea
+
+$2.03/100g
+
+Add to list
+Quantity
+ea
+Add
+
+1.
+
+99
+
+$0.95/100g
+
+Limit 6 assorted
+
+Tasti Choc Almond Nut Bars
+
+6 x 35g
+
+4
+
+59
+
+ea
+
+$2.19/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Originals Mix Potato Chips
+
+20 x 18g
+
+7
+
+29
+
+ea
+
+$2.03/100g
+
+Add to list
+Quantity
+ea
+Add
+
+1.
+
+99
+
+$0.95/100g
+
+Limit 6 assorted
+
+Tasti Dark Choc Cranberry Nut Bars
+
+6 x 35g
+
+4
+
+59
+
+ea
+
+$2.19/100g
+
+Add to list
+Quantity
+ea
+Add
+
+2 for
+
+5.
+
+00
+
+$1.67/100g
+
+See all
+
+Kettle Chip Company Honey Soy Chicken Potato Chips
+
+150g
+
+2
+
+79
+
+ea
+
+$1.86/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Thinly Cut Sour Cream & Chives Potato Chips
+
+140g
+
+1
+
+99
+
+ea
+
+$1.42/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Snacks Fav Mix
+
+20 x 18g
+
+7
+
+29
+
+ea
+
+$2.03/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Tasti Choc Brownie Oat Baked Squares
+
+150g
+
+3
+
+59
+
+ea
+
+$2.39/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Thinly Cut Chicken Potato Chips
+
+140g
+
+1
+
+99
+
+ea
+
+$1.42/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Thinly Cut Ready Salted Potato Chips
+
+140g
+
+1
+
+99
+
+ea
+
+$1.42/100g
+
+Add to list
+Quantity
+ea
+Add
+
+2 for
+
+5.
+
+00
+
+$1.67/100g
+
+See all
+
+Kettle Chip Company Sea Salt Potato Chips
+
+150g
+
+2
+
+79
+
+ea
+
+$1.86/100g
+
+Add to list
+Quantity
+ea
+Add
+
+2 for
+
+5.
+
+00
+
+$3.47/100g
+
+See all
+
+Bluebird Poppa Jacks Corn Snacks Multipack
+
+6 x 12g
+
+2
+
+99
+
+ea
+
+$4.15/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Mexicano Cheese Corn Chips
+
+300g
+
+3
+
+49
+
+ea
+
+$1.16/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Eta Uppercuts Sweet Chilli Relish Potato Chips
+
+140g
+
+1
+
+99
+
+ea
+
+$1.42/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Doritos Cheese Supreme Corn Chips Party Bag Share Pack
+
+300g
+
+3
+
+99
+
+ea
+
+$1.33/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Pringles Minis Sour Cream & Onion Potato Chips
+
+5 x 19g
+
+3
+
+99
+
+ea
+
+$4.20/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Eta Ripple Cut Chicken Potato Chips
+
+150g
+
+5.0 out of 5 stars. 1 review for Eta Ripple Cut Chicken Potato Chips.
+
+2
+
+29
+
+ea
+
+$1.53/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Eta Ripple Cut Ready Salted Potato Chips
+
+150g
+
+2
+
+29
+
+ea
+
+$1.53/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Eta Ripple Cut Sour Cream & Chives Potato Chips
+
+150g
+
+2
+
+29
+
+ea
+
+$1.53/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Eta Ripple Cut Salt & Vinegar Potato Chips
+
+150g
+
+2
+
+29
+
+ea
+
+$1.53/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Thinly Cut Salt & Vinegar Potato Chips
+
+140g
+
+1
+
+99
+
+ea
+
+$1.42/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Copper Kettle Sea Salt Potato Chips
+
+150g
+
+4
+
+49
+
+ea
+
+$2.99/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Copper Kettle Honey Soy Chicken Potato Chips
+
+150g
+
+4
+
+49
+
+ea
+
+$2.99/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Doritos Cheese Supreme Corn Chips
+
+170g
+
+2
+
+59
+
+ea
+
+$1.52/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Doritos Thai Sweet Chilli Corn Chips
+
+300g
+
+3
+
+99
+
+ea
+
+$1.33/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Heartland Southern Salt Old Fashioned Wave Cut Potato Chips
+
+150g
+
+2
+
+69
+
+ea
+
+$1.79/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Twisties Cheese Corn Snacks
+
+120g
+
+3
+
+39
+
+ea
+
+$2.83/100g
+
+Add to list
+Quantity
+ea
+Add
+
+OBAP Roasted Seasoned Korean Seaweed
+
+8 x 5g
+
+7
+
+39
+
+ea
+
+$18.48/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Doritos Thai Sweet Chilli Corn Chips
+
+170g
+
+2
+
+59
+
+ea
+
+$1.52/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Burger Rings
+
+120g
+
+3
+
+39
+
+ea
+
+$2.83/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Bluebird Cheezels
+
+120g
+
+3
+
+39
+
+ea
+
+$2.83/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Copper Kettle Wood Fired BBQ Potato Chips
+
+150g
+
+4
+
+49
+
+ea
+
+$2.99/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Pringles Sour Cream & Onion Potato Chips
+
+53g
+
+2
+
+99
+
+ea
+
+$5.64/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Pringles Original Potato Chips
+
+53g
+
+2
+
+99
+
+ea
+
+$5.64/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Heartland Sour Cream & Chives Old-Fashioned Wave Cut Chips
+
+150g
+
+2
+
+69
+
+ea
+
+$1.79/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Heartland Salt & Vinegar Old Fashioned Wave Cut Potato Chips
+
+150g
+
+2
+
+69
+
+ea
+
+$1.79/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Pams Ready Salted Potato Chips
+
+150g
+
+1
+
+39
+
+ea
+
+$0.93/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Heartland Maple Bacon Old-Fashioned Wave Cut Chips
+
+150g
+
+5.0 out of 5 stars. 1 review for Heartland Maple Bacon Old-Fashioned Wave Cut Chips.
+
+2
+
+69
+
+ea
+
+$1.79/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Eta Uppercuts Sea Salt Potato Chips
+
+140g
+
+1
+
+99
+
+ea
+
+$1.42/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Mother Earth Chocolate Chip Baked Oaty Slices
+
+6 x 40g
+
+3
+
+99
+
+ea
+
+$1.66/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Pringles Original Potato Chips
+
+134g
+
+4
+
+19
+
+ea
+
+$3.13/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Mexicano Jalapeno Corn Chips
+
+300g
+
+3
+
+49
+
+ea
+
+$1.16/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Mother Earth Afghan Baked Oaty Slices
+
+6 x 40g
+
+3
+
+99
+
+ea
+
+$1.66/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Healtheries Chicken Potato Stix
+
+160g
+
+5
+
+39
+
+ea
+
+$3.37/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Doritos Nacho Cheese Corn Chips Party Bag Share Pack
+
+300g
+
+3
+
+99
+
+ea
+
+$1.33/100g
+
+Add to list
+Quantity
+ea
+Add
+
+Pop'n'Good Light & Buttery Popcorn
+
+50g
+
+1
+
+39
+
+ea
+
+$2.78/100g
+
+Add to list
+Quantity
+ea
+Add
+
+1
+
+2
+
+3
+
+4
+
+5
+
+…
+
+11
+
+Next page
+
+Showing 1 - 50 of 520 products
+
+Back to top
+
+Customer service
+
+Contact us
+
+FAQs
+
+Store Finder
+
+Scam Alert
+
+Surveys
+
+Foodstuffs North Island
+
+Foodstuffs South Island
+
+Become a supplier
+
+Legal
+
+Privacy
