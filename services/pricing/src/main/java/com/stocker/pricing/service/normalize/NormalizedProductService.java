@@ -194,13 +194,24 @@ public class NormalizedProductService {
 		if (!StringUtils.hasText(row.getDisplayName()) || row.getPriceAmount() == null) {
 			return false;
 		}
-		Derived d = derive(row.getDisplayName(), row.getPriceAmount());
-		boolean differs = !Objects.equals(row.getCanonicalKey(), d.canonicalKey())
+		// Rows stored before pack counts were recognised kept "30pk" as the brand; fold it into the name so the size
+		// survives (and so a second pass finds nothing to change).
+		String display = row.getDisplayName();
+		boolean foldBrand = StoreProductText.sizeLike(row.getBrand());
+		if (foldBrand && !display.toLowerCase(java.util.Locale.ROOT).contains(row.getBrand().trim().toLowerCase(java.util.Locale.ROOT))) {
+			display = display + " " + row.getBrand().trim();
+		}
+		Derived d = derive(display, row.getPriceAmount());
+		boolean differs = foldBrand || !Objects.equals(row.getCanonicalKey(), d.canonicalKey())
 				|| !Objects.equals(row.getNormalizedName(), d.normalizedName())
 				|| !Objects.equals(row.getPackUnit(), d.packUnit())
 				|| !sameNumber(row.getPackQuantity(), d.packQuantity())
 				|| !sameNumber(row.getUnitPrice(), d.unitPrice());
 		if (differs) {
+			row.setDisplayName(display);
+			if (foldBrand) {
+				row.setBrand(null);
+			}
 			row.setCanonicalKey(d.canonicalKey());
 			row.setNormalizedName(d.normalizedName());
 			row.setPackQuantity(d.packQuantity());

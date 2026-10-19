@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
  * Finds the pack size inside free text ("Anchor Milk 2L", "Coke 12 x 330ml", "Eggs size 7 30pack").
  * A weight or volume wins over a bare item count when both are present.
  *
- * <p>Item counts understood: "12 pack", "12pk", "12-pack", "6 pk", "30pcs", "x12", "dozen" (12),
+ * <p>Item counts understood: "12 pack", "12pk", "12-pack", "6 pk", "30pcs", "x12", "tray 30", "dozen" (12),
  * "half dozen" (6), "2 dozen" (24) and the leading count of "12 x 330ml".
  */
 public final class PackSizeParser {
@@ -23,6 +23,8 @@ public final class PackSizeParser {
 	/** "x12" / "x 12" as a multiplier word, but not "x 330ml" (a measure) and not inside a word. */
 	private static final Pattern TIMES = Pattern
 			.compile("(?<![a-z0-9])x\\s?(\\d+)\\b(?!\\s*(?:kg|g|ml|l|lt|ltr|litres?|liters?)\\b)");
+	/** "tray 30", "tray of 30": egg trays are sold by their count. */
+	private static final Pattern TRAY = Pattern.compile("(?<![a-z0-9])tray\\s*(?:of\\s*)?(\\d+)\\b");
 	private static final Pattern DOZEN = Pattern.compile("(?<![a-z0-9])(?:(\\d+)\\s*|(half)\\s+|a\\s+)?dozen\\b");
 
 	private PackSizeParser() {
@@ -67,6 +69,10 @@ public final class PackSizeParser {
 		if (times.find()) {
 			return Optional.of(each(new BigDecimal(times.group(1))));
 		}
+		Matcher tray = TRAY.matcher(lower);
+		if (tray.find()) {
+			return Optional.of(each(new BigDecimal(tray.group(1))));
+		}
 		Matcher dozen = DOZEN.matcher(lower);
 		if (dozen.find()) {
 			BigDecimal twelve = BigDecimal.valueOf(12);
@@ -92,6 +98,7 @@ public final class PackSizeParser {
 		lower = SINGLE.matcher(lower).replaceAll(" ");
 		lower = COUNT.matcher(lower).replaceAll(" ");
 		lower = TIMES.matcher(lower).replaceAll(" ");
+		lower = TRAY.matcher(lower).replaceAll(" ");
 		return DOZEN.matcher(lower).replaceAll(" ");
 	}
 

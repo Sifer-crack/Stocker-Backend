@@ -55,6 +55,7 @@ public final class ProductNormalizer {
 			Map.entry("tomatoes", "tomato"),
 			Map.entry("potatoes", "potato"),
 			Map.entry("mangoes", "mango"),
+			Map.entry("peaches", "peach"),
 			Map.entry("loaves", "loaf"));
 
 	private ProductNormalizer() {
