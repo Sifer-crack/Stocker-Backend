@@ -13,6 +13,7 @@ import com.stocker.pricing.repository.PriceRecordRepository;
 import com.stocker.pricing.service.PriceStatsService;
 import com.stocker.pricing.service.RawProductPriceRecordMapper;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -48,6 +49,7 @@ public class IngestScheduler {
 	private final DailyPageBudget pageBudget;
 	private final CategoryMap categoryMap;
 	private final Clock clock;
+	private final CategoryHealth categoryHealth;
 
 	public IngestScheduler(List<ChainScraper> chainScrapers, Browser browser, IngestProperties properties,
 			PriceRecordRepository priceRecordRepository, PriceStatsService priceStatsService) {
@@ -58,6 +60,15 @@ public class IngestScheduler {
 	public IngestScheduler(List<ChainScraper> chainScrapers, Browser browser, IngestProperties properties,
 			PriceRecordRepository priceRecordRepository, PriceStatsService priceStatsService, CategoryMap categoryMap,
 			Clock clock) {
+		this(chainScrapers, browser, properties, priceRecordRepository, priceStatsService, categoryMap, clock,
+				new CategoryHealth(properties.getQuarantineAfterZeroRuns(),
+						Duration.ofDays(properties.getQuarantineDays()), properties.getQuarantineSiteWideZeroShare(), clock));
+	}
+
+	public IngestScheduler(List<ChainScraper> chainScrapers, Browser browser, IngestProperties properties,
+			PriceRecordRepository priceRecordRepository, PriceStatsService priceStatsService, CategoryMap categoryMap,
+			Clock clock, CategoryHealth categoryHealth) {
+		this.categoryHealth = categoryHealth;
 		this.chainScrapers = chainScrapers;
 		this.browser = browser;
 		this.properties = properties;
@@ -73,6 +84,11 @@ public class IngestScheduler {
 		for (ChainScraper scraper : chainScrapers) {
 			runOne(scraper);
 		}
+		List<CategoryHealth.QuarantinedPage> quarantined = categoryHealth.snapshot();
+		if (!quarantined.isEmpty()) {
+			log.warn("Quarantined category pages after this run ({}; in memory, a restart resets them): {}",
+					quarantined.size(), quarantined);
+		}
 	}
 
 	private void runOne(ChainScraper scraper) {
@@ -83,7 +99,13 @@ public class IngestScheduler {
 			log.info("{}: ingest disabled, skipping", chainId);
 			return;
 		}
-		List<String> crawlList = crawlList(chainId, chainConfig);
+		List<String> fullList = crawlList(chainId, chainConfig);
+		// Quarantined pages are dropped BEFORE the budget window is chosen, so they take no slot in it.
+		List<String> crawlList = withoutQuarantined(chainId, fullList);
+		if (crawlList.isEmpty() && !fullList.isEmpty()) {
+			log.info("{}: all {} category page(s) are quarantined, nothing to crawl", chainId, fullList.size());
+			return;
+		}
 		if (crawlList.isEmpty()) {
 			log.warn("{}: no category pages to crawl (see app.ingest.{}.category-urls and category-map.txt)",
 					chainId, chainId.name().toLowerCase());
@@ -109,6 +131,10 @@ public class IngestScheduler {
 		return List.copyOf(byPage.values());
 	}
 
+	private List<String> withoutQuarantined(ChainId chainId, List<String> urls) {
+		return urls.stream().filter(url -> !categoryHealth.isQuarantined(chainId, url)).toList();
+	}
+
 	private static String pageKey(String url) {
 		return url.replaceAll("\\?pg=1$", "");
 	}
@@ -122,8 +148,12 @@ public class IngestScheduler {
 		if (!chainConfig.isEnabled() || categoryUrls.isEmpty()) {
 			return 0;
 		}
+		List<String> pages = withoutQuarantined(chainId, categoryUrls);
+		if (pages.isEmpty()) {
+			return 0;
+		}
 		return chainScrapers.stream().filter(scraper -> scraper.chainId() == chainId).findFirst()
-				.map(scraper -> scrapeAndPersist(scraper, chainConfig, categoryUrls)).orElse(0);
+				.map(scraper -> scrapeAndPersist(scraper, chainConfig, pages)).orElse(0);
 	}
 
 	private int scrapeAndPersist(ChainScraper scraper, ChainConfig chainConfig, List<String> categoryUrls) {
@@ -160,6 +190,7 @@ public class IngestScheduler {
 		}
 
 		pageBudget.giveBack(chainId, granted - result.getCategoriesVisited().size());   // reserved but never loaded
+		categoryHealth.record(chainId, result);
 
 		if (!result.getZeroResultCategoryUrls().isEmpty()) {
 			log.warn("{}: {} of {} category page(s) returned zero products: {}", chainId,
