@@ -1,10 +1,14 @@
-description = 'notifications: outbound notifications (stateless, consumes events)'
+description = 'notifications: expiry notifications (own PostgreSQL store, consumes events)'
 
 dependencies {
 	implementation libs.spring.boot.starter.webmvc
 	implementation libs.spring.boot.starter.actuator
 	implementation libs.spring.boot.starter.kafka
+	implementation libs.spring.boot.starter.data.jpa
+	implementation libs.spring.boot.flyway
+	implementation libs.flyway.database.postgresql
 
+	runtimeOnly libs.postgresql
 	runtimeOnly libs.micrometer.registry.prometheus
 
 	testImplementation libs.spring.boot.starter.webmvc.test

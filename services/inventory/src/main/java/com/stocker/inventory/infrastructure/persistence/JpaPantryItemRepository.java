@@ -29,7 +29,12 @@ public class JpaPantryItemRepository implements PantryItemRepository {
             entity.setProductId(pantryItem.getProduct_id());
         }
 
+        entity.setName(pantryItem.getName());
+        entity.setCategory(pantryItem.getCategory());
+        entity.setUnit(pantryItem.getUnit());
         entity.setQuantity(pantryItem.getQuantity());
+        entity.setExpirationDate(pantryItem.getExpirationDate());
+        entity.setNotifyDaysBefore(pantryItem.getNotifyDaysBefore());
 
         PantryItemEntity saved = repository.save(entity);
 
@@ -52,8 +57,28 @@ public class JpaPantryItemRepository implements PantryItemRepository {
     }
 
     @Override
+    public Optional<PantryItem> findByIdAndUserId(UUID pantryItemId, UUID userId) {
+        return repository.findByPantryItemIdAndUserId(pantryItemId, userId).map(this::toDomain);
+    }
+
+    @Override
+    public List<PantryItem> findAllWithExpirationDate() {
+        return repository.findByExpirationDateIsNotNull().stream().map(this::toDomain).toList();
+    }
+
+    @Override
     public void deleteById(UUID pantryItemId) {
         repository.deleteById(pantryItemId);
+    }
+
+    @Override
+    public void deleteByUserId(UUID userId) {
+        repository.deleteByUserId(userId);
+        repository.flush();
+    }
+    @Override
+    public List<PantryItem> saveAll(List<PantryItem> pantryItems) {
+        return pantryItems.stream().map(this::save).toList();
     }
 
     // returns a new pantry item
@@ -62,7 +87,12 @@ public class JpaPantryItemRepository implements PantryItemRepository {
                 entity.getPantryItemId(),
                 entity.getUserId(),
                 entity.getProductId(),
-                entity.getQuantity()
+                entity.getName(),
+                entity.getCategory(),
+                entity.getUnit(),
+                entity.getQuantity(),
+                entity.getExpirationDate(),
+                entity.getNotifyDaysBefore()
         );
     }
 }

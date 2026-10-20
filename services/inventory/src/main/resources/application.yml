@@ -7,10 +7,20 @@ spring:
     url: ${STOCKER_DB_URL}
     username: ${STOCKER_DB_USER}
     password: ${STOCKER_DB_PASSWORD}
+  # The Neon database is shared with other services (pricing runs Flyway there too), so inventory keeps its
+  # own history table and baselines an already-populated schema instead of trying to recreate pantry_items.
+  flyway:
+    enabled: true
+    table: flyway_schema_history_inventory
+    baseline-on-migrate: true
+    baseline-version: 1
+    url: ${STOCKER_DB_MIGRATE_URL:${STOCKER_DB_URL}}
+    user: ${STOCKER_DB_MIGRATE_USER:${STOCKER_DB_USER}}
+    password: ${STOCKER_DB_MIGRATE_PASSWORD:${STOCKER_DB_PASSWORD}}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
-      group-id: stocker.analytics
+      group-id: stocker.inventory
       enable-auto-commit: false
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
@@ -27,6 +37,9 @@ management:
         include: health,info,prometheus
 
 app:
+  catalog:
+    # Pantry add looks products up in catalog over REST (service-to-service). Compose passes http://catalog:8082.
+    base-url: ${STOCKER_CATALOG_URL:http://localhost:8082}
   kafka:
     consumer:
       topics: stocker.household.events.v1,stocker.catalog.events.v1,stocker.shopping.events.v1,stocker.promotions.events.v1,stocker.pricing.events.v1

@@ -48,6 +48,13 @@ app:
 
 stocker:
   jwt:
-    secret: ${STOCKER_JWT_SECRET:dev-only-32-byte-minimum-secret-0123456789}
+    secret: ${STOCKER_JWT_SECRET}
     access-ttl-seconds: ${STOCKER_JWT_ACCESS_TTL:900}
     refresh-ttl-seconds: ${STOCKER_JWT_REFRESH_TTL:604800}
+  oauth:
+    success-redirect: ${STOCKER_OAUTH_SUCCESS_REDIRECT:http://localhost:5173/oauth/callback}
+    failure-redirect: ${STOCKER_OAUTH_FAILURE_REDIRECT:http://localhost:5173/oauth/callback}
+    github:
+      client-id: ${STOCKER_GITHUB_CLIENT_ID:}
+      client-secret: ${STOCKER_GITHUB_CLIENT_SECRET:}
+      redirect-uri: ${STOCKER_OAUTH_REDIRECT_URI:http://localhost:8080/api/identity/login/oauth2/code/github}

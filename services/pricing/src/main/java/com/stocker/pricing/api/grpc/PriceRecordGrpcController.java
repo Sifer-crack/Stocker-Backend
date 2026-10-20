@@ -3,17 +3,28 @@ package com.stocker.pricing.api.grpc;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.Timestamp;
+import com.stocker.pricing.api.grpc.v1.ChainMatch;
+import com.stocker.pricing.api.grpc.v1.CompareItemPricesRequest;
+import com.stocker.pricing.api.grpc.v1.CompareItemPricesResponse;
 import com.stocker.pricing.api.grpc.v1.CompareShoppingListRequest;
 import com.stocker.pricing.api.grpc.v1.CompareShoppingListResponse;
 import com.stocker.pricing.api.grpc.v1.FetchRequest;
 import com.stocker.pricing.api.grpc.v1.FetchResponse;
+import com.stocker.pricing.api.grpc.v1.ItemPriceComparison;
+import com.stocker.pricing.api.grpc.v1.MatchItemRequest;
+import com.stocker.pricing.api.grpc.v1.MatchItemResponse;
 import com.stocker.pricing.api.grpc.v1.PriceRecord;
 import com.stocker.pricing.api.grpc.v1.PriceRecordServiceGrpc;
 import com.stocker.pricing.api.grpc.v1.SaveRequest;
 import com.stocker.pricing.api.grpc.v1.SaveResponse;
 import com.stocker.pricing.api.grpc.v1.SearchRequest;
 import com.stocker.pricing.api.grpc.v1.SearchResponse;
+import com.stocker.pricing.api.grpc.v1.StorePrice;
 import com.stocker.pricing.api.grpc.v1.StoreTotal;
+import com.stocker.pricing.service.ItemPriceComparisonService;
+import com.stocker.pricing.service.ItemPriceComparisonService.ItemComparison;
+import com.stocker.pricing.service.ItemPriceComparisonService.ItemQuery;
+import com.stocker.pricing.service.ItemPriceComparisonService.StoreQuote;
 import com.stocker.pricing.service.PriceFetcherService;
 import com.stocker.pricing.service.PriceSearchService;
 import com.stocker.pricing.service.SavingsCalculatorService;
@@ -21,15 +32,25 @@ import com.stocker.pricing.service.SavingsCalculatorService.ChainSavings;
 import com.stocker.pricing.service.ShoppingListComparisonService;
 import com.stocker.pricing.service.ShoppingListComparisonService.ChainTotal;
 import com.stocker.pricing.service.ShoppingListComparisonService.ComparisonResult;
+import com.stocker.pricing.service.ShoppingListComparisonService.FulfilmentOption;
+import com.stocker.pricing.service.fulfilment.FulfilmentMethod;
 import com.stocker.pricing.service.ShoppingListComparisonService.RequestedItem;
+import com.stocker.pricing.service.match.ItemMatchService;
+import com.stocker.pricing.service.match.ItemMatchService.MatchResult;
+import com.stocker.pricing.service.match.ItemMatchService.MatchedProduct;
 import com.stocker.pricing.service.servicearea.ServiceAreaException;
+import io.grpc.Context;
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -50,16 +71,144 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 	private final PriceSearchService priceSearchService;
 	private final ShoppingListComparisonService shoppingListComparisonService;
 	private final SavingsCalculatorService savingsCalculatorService;
+	private final ItemPriceComparisonService itemPriceComparisonService;
+	private final ItemMatchService itemMatchService;
+
+	@Override
+	public void matchItem(MatchItemRequest request, StreamObserver<MatchItemResponse> responseObserver) {
+		if (isCancelled(responseObserver)) {
+			return;
+		}
+		log.info("gRPC matchItem: term={}, itemId={}", request.getSearchTerm(), request.getItemId());
+		if (!StringUtils.hasText(request.getSearchTerm()) || !StringUtils.hasText(request.getItemId())) {
+			responseObserver.onError(
+					Status.INVALID_ARGUMENT.withDescription("term and itemId are required").asRuntimeException());
+			return;
+		}
+		MatchResult result = itemMatchService.match(request.getSearchTerm(), request.getItemId(),
+				positiveOrNull(request.getWeightKg()), positiveOrNull(request.getVolumeL()), request.getCategory());
+		if (isCancelled(responseObserver)) {
+			return;
+		}
+		MatchItemResponse.Builder response = MatchItemResponse.newBuilder().setMatchMethod(result.matchMethod()).setStale(result.stale());
+		result.matches().forEach(match -> response.addChainMatches(toProto(match)));
+		result.alternatives().forEach(alternative -> response.addAlternatives(toProto(alternative)));
+		reply(responseObserver, response.build());
+	}
+
+	/**
+	 * True once the client has gone (abort, disconnect or deadline). Checked before each expensive step so a
+	 * cancelled call stops working and never writes to the closed call; completing normally does not count.
+	 */
+	private static boolean isCancelled(StreamObserver<?> responseObserver) {
+		boolean cancelled = Context.current().isCancelled()
+				|| (responseObserver instanceof ServerCallStreamObserver<?> call && call.isCancelled());
+		if (cancelled) {
+			log.info("gRPC call cancelled by the caller; skipping the remaining work");
+		}
+		return cancelled;
+	}
+
+	/** Sends the answer unless the call was cancelled meanwhile (a write to a cancelled call would only throw). */
+	private static <T> void reply(StreamObserver<T> responseObserver, T value) {
+		if (isCancelled(responseObserver)) {
+			return;
+		}
+		try {
+			responseObserver.onNext(value);
+			responseObserver.onCompleted();
+		} catch (StatusRuntimeException e) {
+			if (e.getStatus().getCode() != Status.Code.CANCELLED) {
+				throw e;
+			}
+			log.info("gRPC call cancelled while answering; dropping the response");
+		}
+	}
+
+	private static java.math.BigDecimal positiveOrNull(double value) {
+		return value > 0 ? java.math.BigDecimal.valueOf(value) : null;
+	}
+
+	private static ChainMatch toProto(MatchedProduct product) {
+		return ChainMatch.newBuilder()
+				.setChainId(product.chainId())
+				.setStoreId(product.storeId())
+				.setProductName(product.productName())
+				.setBrand(product.brand() == null ? "" : product.brand())
+				.setPriceAmount(product.priceAmount().doubleValue())
+				.setCurrency(product.currency() == null ? "" : product.currency())
+				.setPromoFlag(product.promoFlag())
+				.setCapturedAt(toProtoTimestamp(product.capturedAt()))
+				.setScore(product.score())
+				.setUnitPrice(product.unitPrice() == null ? 0 : product.unitPrice().doubleValue())
+				.setPackSize(product.packSize() == null ? "" : product.packSize())
+				.build();
+	}
+
+	@Override
+	public void compareItemPrices(
+			CompareItemPricesRequest request, StreamObserver<CompareItemPricesResponse> responseObserver) {
+		if (isCancelled(responseObserver)) {
+			return;
+		}
+		log.info("gRPC compareItemPrices: itemCount={}, region={}", request.getItemsCount(), request.getRegion());
+		List<ItemQuery> queries = request.getItemsList().stream()
+				.map(item -> new ItemQuery(item.getItemId(), item.getSearchTerm(), item.getCategory()))
+				.toList();
+
+		List<ItemComparison> comparisons;
+		try {
+			comparisons = itemPriceComparisonService.compare(queries, request.getRegion());
+		} catch (CancellationException ex) {
+			log.info("gRPC compareItemPrices cancelled by the caller");
+			return;
+		} catch (ServiceAreaException ex) {
+			log.warn("gRPC compareItemPrices rejected: {}", ex.getMessage());
+			responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(ex.getMessage()).asRuntimeException());
+			return;
+		}
+
+		CompareItemPricesResponse.Builder response = CompareItemPricesResponse.newBuilder();
+		comparisons.forEach(comparison -> response.addComparisons(toProto(comparison)));
+		reply(responseObserver, response.build());
+	}
+
+	private static ItemPriceComparison toProto(ItemComparison comparison) {
+		ItemPriceComparison.Builder proto = ItemPriceComparison.newBuilder()
+				.setItemId(comparison.itemId() == null ? "" : comparison.itemId())
+				.setFound(comparison.found());
+		comparison.prices().forEach(quote -> proto.addPrices(toProto(quote)));
+		if (comparison.found()) {
+			proto.setCheapest(toProto(comparison.cheapest()));
+		}
+		return proto.build();
+	}
+
+	private static StorePrice toProto(StoreQuote quote) {
+		return StorePrice.newBuilder()
+				.setChainId(quote.chainId())
+				.setStoreId(quote.storeId())
+				.setPriceAmount(quote.priceAmount().doubleValue())
+				.setCurrency(quote.currency() == null ? "" : quote.currency())
+				.setPromoFlag(quote.promoFlag())
+				.setCapturedAt(toProtoTimestamp(quote.capturedAt()))
+				.build();
+	}
 
 	@Override
 	public void fetch(FetchRequest request, StreamObserver<FetchResponse> responseObserver) {
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		log.info("gRPC fetch: itemId={}, storeId={}", request.getItemId(), request.getStoreId());
 		List<com.stocker.pricing.model.PriceRecord> records =
 				priceFetcherService.fetch(request.getItemId(), request.getStoreId());
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		FetchResponse.Builder response = FetchResponse.newBuilder();
 		records.stream().map(PriceRecordGrpcController::toProto).forEach(response::addPriceRecords);
-		responseObserver.onNext(response.build());
-		responseObserver.onCompleted();
+		reply(responseObserver, response.build());
 	}
 
 	@Override
@@ -95,6 +244,9 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 
 	@Override
 	public void search(SearchRequest request, StreamObserver<SearchResponse> responseObserver) {
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		log.info("gRPC search: searchTerm={}, itemId={}", request.getSearchTerm(), request.getItemId());
 		if (!StringUtils.hasText(request.getItemId())) {
 			log.warn("gRPC search rejected: itemId is required");
@@ -104,29 +256,50 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 		}
 		List<com.stocker.pricing.model.PriceRecord> records = priceSearchService.search(
 				request.getSearchTerm(), request.getItemId(), request.getStoreUrlsList(), request.getCategory());
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		SearchResponse.Builder response = SearchResponse.newBuilder();
 		records.stream().map(PriceRecordGrpcController::toProto).forEach(response::addPriceRecords);
-		responseObserver.onNext(response.build());
-		responseObserver.onCompleted();
+		reply(responseObserver, response.build());
 	}
 
 	@Override
 	public void compareShoppingList(
 			CompareShoppingListRequest request, StreamObserver<CompareShoppingListResponse> responseObserver) {
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		log.info("gRPC compareShoppingList: itemCount={}, region={}", request.getItemsCount(), request.getRegion());
 		List<RequestedItem> items = request.getItemsList().stream()
 				.map(item -> new RequestedItem(item.getItemId(), item.getQuantity()))
 				.toList();
 
+		Set<FulfilmentMethod> allowedMethods = EnumSet.noneOf(FulfilmentMethod.class);
+		try {
+			for (String name : request.getAllowedMethodsList()) {
+				allowedMethods.add(FulfilmentMethod.fromWireName(name));
+			}
+		} catch (IllegalArgumentException ex) {
+			log.warn("gRPC compareShoppingList rejected: {}", ex.getMessage());
+			responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(ex.getMessage()).asRuntimeException());
+			return;
+		}
+
 		ComparisonResult comparison;
 		try {
-			comparison = shoppingListComparisonService.compare(items, request.getRegion());
+			comparison = allowedMethods.isEmpty()
+					? shoppingListComparisonService.compare(items, request.getRegion())
+					: shoppingListComparisonService.compare(items, request.getRegion(), allowedMethods);
 		} catch (ServiceAreaException ex) {
 			log.warn("gRPC compareShoppingList rejected: {}", ex.getMessage());
 			responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(ex.getMessage()).asRuntimeException());
 			return;
 		}
 
+		if (isCancelled(responseObserver)) {
+			return;
+		}
 		String effectiveSelectedChainId = StringUtils.hasText(request.getSelectedChainId())
 				? request.getSelectedChainId()
 				: comparison.cheapestChainId();
@@ -140,19 +313,29 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 		for (ChainTotal chainTotal : comparison.chainTotals()) {
 			response.addStoreTotals(toStoreTotal(chainTotal, savingsByChainId.get(chainTotal.chainId())));
 		}
-		responseObserver.onNext(response.build());
-		responseObserver.onCompleted();
+		reply(responseObserver, response.build());
 	}
 
 	private static StoreTotal toStoreTotal(ChainTotal chainTotal, ChainSavings savings) {
-		return StoreTotal.newBuilder()
+		StoreTotal.Builder builder = StoreTotal.newBuilder()
 				.setChainId(chainTotal.chainId())
 				.setTotalAmount(chainTotal.totalAmount().doubleValue())
 				.setCurrency(chainTotal.currency() == null ? "" : chainTotal.currency())
 				.setItemsPriced(chainTotal.itemsPriced())
 				.addAllUnavailableItemIds(chainTotal.unavailableItemIds())
 				.setSavingsAmount(savings == null ? 0.0 : savings.savingsAmount().doubleValue())
-				.build();
+				.setTotalWithFulfilment(chainTotal.totalWithFulfilment().doubleValue());
+		if (chainTotal.bestOption() != null) {
+			builder.setBestMethod(chainTotal.bestOption().method().wireName())
+					.setFulfilmentCost(chainTotal.bestOption().cost().doubleValue());
+		}
+		for (FulfilmentOption option : chainTotal.fulfilmentOptions()) {
+			builder.addFulfilmentOptions(com.stocker.pricing.api.grpc.v1.FulfilmentOption.newBuilder()
+					.setMethod(option.method().wireName())
+					.setCost(option.cost().doubleValue())
+					.setTotalAmount(option.totalAmount().doubleValue()));
+		}
+		return builder.build();
 	}
 
 	private static PriceRecord toProto(com.stocker.pricing.model.PriceRecord record) {

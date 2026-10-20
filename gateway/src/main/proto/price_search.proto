@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package stocker.pricing.v1;
+
+option java_multiple_files = true;
+option java_package = "com.stocker.pricing.api.grpc.v1";
+option java_outer_classname = "PriceSearchProto";
+
+import "google/protobuf/timestamp.proto";
+
+// Merged-product search (docs/features/price-search-v2.md). Prices are per CHAIN, never per store.
+// pricing owns this file; gateway/src/main/proto/price_search.proto is an identical copy.
+service ProductSearch {
+  rpc SearchProducts (SearchProductsRequest) returns (SearchProductsResponse);
+  rpc SelectProduct (SelectProductRequest) returns (SelectProductResponse);
+  // Search-bar suggestions from the stored supermarket products (memory only, never a live request).
+  rpc SuggestProducts (SuggestProductsRequest) returns (SuggestProductsResponse);
+}
+
+message SearchProductsRequest {
+  string term = 1;
+  string item_id = 2;
+  string category = 3;   // optional hint, empty = none
+  int32 limit = 4;       // 0 = default (10); capped at 30
+}
+
+message SearchProductsResponse {
+  ParsedQuery query = 1;
+  string match_method = 2;
+  bool stale = 3;
+  repeated Product products = 4;
+  repeated Product alternatives = 5;
+  // found | alternatives-only | refreshing | not-found (docs/features/price-search-v2.md)
+  string status = 6;
+  // per-chain background refresh state, key = lower-case chain id, value = pending | done | failed | skipped; empty = none known
+  map<string, string> refresh = 7;
+}
+
+message ParsedQuery {
+  string term = 1;
+  repeated string words = 2;
+  optional string size = 3;        // e.g. "2L"
+  optional int32 pack_count = 4;   // e.g. 12
+  optional string grade = 5;       // egg grade, e.g. "7"
+  optional string category = 6;
+}
+
+message Product {
+  string product_key = 1;
+  string name = 2;
+  optional string brand = 3;
+  optional string category = 4;
+  optional string pack_size = 5;
+  optional string grade = 6;
+  optional string unit = 7;          // each | l | kg
+  optional double unit_price = 8;    // cheapest chain's price per unit
+  string cheapest_chain_id = 9;      // lower case
+  map<string, ChainPrice> prices = 10;   // key = lower-case chain id
+}
+
+message ChainPrice {
+  double price = 1;
+  optional double unit_price = 2;
+  bool promo = 3;
+  string store_id = 4;
+  google.protobuf.Timestamp captured_at = 5;
+  bool stale = 6;
+}
+
+message SelectProductRequest {
+  string item_id = 1;
+  string product_key = 2;
+}
+
+message SelectProductResponse {
+  string item_id = 1;
+  string product_key = 2;
+  repeated string chains = 3;
+}
+
+message SuggestProductsRequest {
+  string q = 1;       // what the shopper has typed so far; empty or 1 character = the most widely stocked common products
+  int32 limit = 2;    // 0 = default (8); capped at 20
+}
+
+message SuggestProductsResponse {
+  repeated Suggestion suggestions = 1;
+}
+
+message Suggestion {
+  string text = 1;                    // display name without size, e.g. "Cooking wine"
+  optional string canonical_key = 2;  // common-product key, absent for a specific product with none
+  int32 chain_count = 3;              // 1-3: chains that carry a matching product
+  repeated string chains = 4;         // lower-case chain ids, sorted
+  optional string sample_size = 5;    // e.g. "640ml"
+  int32 product_count = 6;            // distinct products (name + size) behind the suggestion
+}

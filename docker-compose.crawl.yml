@@ -1,0 +1,25 @@
+# Crawl-only profile: crawl all three supermarket chains AT THE SAME TIME (one Firefox per chain).
+#
+# Use ONLY when the other services are stopped. Bring up just what pricing needs (Kafka) plus pricing:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.limits.yml -f docker-compose.crawl.yml \
+#       up -d --build kafka kafka-init pricing
+#
+# (run it with STOCKER_INGEST_ENABLED=true STOCKER_INGEST_DRY_RUN=false in .env or the environment, and
+#  STOCKER_INGEST_RUN_ON_STARTUP=true if the crawl should start right away). Listing the services by name starts
+# nothing else, so gateway/identity/catalog/... stay stopped; stop them first if they are running.
+#
+# Memory: pricing gets 4608 MiB here instead of the normal 2304 MiB (docker-compose.limits.yml). Heap 25% of that
+# (~1.1 GiB) leaves ~3.4 GiB for three Firefox processes (~0.8-1 GiB each when loading a product list) and the
+# Playwright drivers; shm_size 768m because three Firefox share /dev/shm (the normal 256m is for one).
+# Total with Kafka (1024) and kafka-init (256, exits after creating the topics): 4608 + 1024 = 5632 MiB (5.5 GiB),
+# 5888 MiB (5.75 GiB) while kafka-init runs - under the 8 GiB cap. Do NOT combine this file with the other services running.
+#
+# Must come AFTER docker-compose.limits.yml: it overrides pricing's mem_limit, shm_size and JAVA_TOOL_OPTIONS.
+services:
+  pricing:
+    mem_limit: 4608m
+    shm_size: 768m
+    environment:
+      STOCKER_INGEST_PARALLEL_CHAINS: "true"
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=25 -XX:+UseSerialGC -Xss512k"

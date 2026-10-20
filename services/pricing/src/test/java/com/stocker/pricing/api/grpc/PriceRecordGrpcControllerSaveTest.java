@@ -3,6 +3,8 @@ package com.stocker.pricing.api.grpc;
 import com.stocker.pricing.api.grpc.v1.PriceRecord;
 import com.stocker.pricing.api.grpc.v1.SaveRequest;
 import com.stocker.pricing.api.grpc.v1.SaveResponse;
+import com.stocker.pricing.service.ItemPriceComparisonService;
+import com.stocker.pricing.service.match.ItemMatchService;
 import com.stocker.pricing.service.PriceFetcherService;
 import com.stocker.pricing.service.PriceSearchService;
 import com.stocker.pricing.service.SavingsCalculatorService;
@@ -38,7 +40,9 @@ class PriceRecordGrpcControllerSaveTest {
 				priceFetcherService,
 				priceSearchService,
 				mock(ShoppingListComparisonService.class),
-				mock(SavingsCalculatorService.class));
+				mock(SavingsCalculatorService.class),
+				mock(ItemPriceComparisonService.class),
+				mock(ItemMatchService.class));
 		observer = mock(StreamObserver.class);
 	}
 

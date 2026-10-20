@@ -61,4 +61,30 @@ class FoodstuffsProductCardExtractorTest {
 	void parsesPriceWithSpaceAndNoDecimals() {
 		assertEquals(new BigDecimal("12"), FoodstuffsProductCardExtractor.parsePrice("$ 12"));
 	}
+
+	@Test
+	void parsesTheDoubledSeparatorSeenInTheLiveCrawl() {
+		assertEquals(new BigDecimal("2.99"), FoodstuffsProductCardExtractor.parsePrice("2..99"));
+		assertEquals(new BigDecimal("2.99"), FoodstuffsProductCardExtractor.parsePrice("2. .99"));
+		assertEquals(new BigDecimal("2.99"), FoodstuffsProductCardExtractor.parsePrice("$2..99"));
+	}
+
+	@Test
+	void parsesOtherPriceShapes() {
+		assertEquals(new BigDecimal("2.99"), FoodstuffsProductCardExtractor.parsePrice("2.99"));
+		assertEquals(new BigDecimal("2.99"), FoodstuffsProductCardExtractor.parsePrice("$2.99"));
+		assertEquals(new BigDecimal("2.99"), FoodstuffsProductCardExtractor.parsePrice("$2.99/kg"));
+		assertEquals(new BigDecimal("2.99"), FoodstuffsProductCardExtractor.parsePrice("$2..99 /kg"));
+		assertEquals(new BigDecimal("12"), FoodstuffsProductCardExtractor.parsePrice("$12"));
+		org.junit.jupiter.api.Assertions.assertNull(FoodstuffsProductCardExtractor.parsePrice("2..."));
+		org.junit.jupiter.api.Assertions.assertNull(FoodstuffsProductCardExtractor.parsePrice("abc"));
+	}
+
+	@Test
+	void aCardWithTheDoubledSeparatorIsKeptNotSkipped() {
+		ProductCardFields fields = new ProductCardFields("Butter", "500g", "2..99", "5014564", null, null);
+		Optional<RawProduct> parsed = FoodstuffsProductCardExtractor.parse(fields, ChainId.PAKNSAVE, "s");
+		assertTrue(parsed.isPresent());
+		assertEquals(new BigDecimal("2.99"), parsed.get().getPrice());
+	}
 }

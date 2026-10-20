@@ -3,6 +3,30 @@ spring:
     name: notifications
   lifecycle:
     timeout-per-shutdown-phase: 10s
+  # Neon (serverless Postgres), its own `notifications` database in the shared project. No local default on
+  # purpose: the service must be pointed at Neon (see .env.example). Sized for Neon: compute auto-suspends
+  # and drops idle connections, so keep none idle, retire them before Neon does, allow for a cold start.
+  datasource:
+    url: ${STOCKER_DB_URL}
+    username: ${STOCKER_DB_USER}
+    password: ${STOCKER_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 0
+      idle-timeout: 120000
+      max-lifetime: 240000
+      connection-timeout: 30000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    table: flyway_schema_history_notifications
+    # Neon recommends the direct (non-pooler) endpoint for migrations; falls back to the application datasource.
+    url: ${STOCKER_DB_MIGRATE_URL:${STOCKER_DB_URL}}
+    user: ${STOCKER_DB_MIGRATE_USER:${STOCKER_DB_USER}}
+    password: ${STOCKER_DB_MIGRATE_PASSWORD:${STOCKER_DB_PASSWORD}}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
@@ -26,3 +50,12 @@ app:
   kafka:
     consumer:
       topics: stocker.household.events.v1,stocker.catalog.events.v1,stocker.shopping.events.v1,stocker.promotions.events.v1,stocker.pricing.events.v1
+  inventory:
+    # Service-to-service (not via the gateway): the expiring-items list contains every user's pantry.
+    base-url: ${STOCKER_INVENTORY_URL:http://localhost:8087}
+  notifications:
+    zone: ${STOCKER_NOTIFICATIONS_ZONE:Pacific/Auckland}
+    scan-interval: ${STOCKER_NOTIFICATIONS_SCAN_INTERVAL:PT15M}
+    scan-initial-delay: ${STOCKER_NOTIFICATIONS_SCAN_INITIAL_DELAY:PT30S}
+    # Items that expired more than this many days ago are not notified about (stops a first scan flooding).
+    skip-expired-older-than-days: ${STOCKER_NOTIFICATIONS_SKIP_EXPIRED_OLDER_THAN_DAYS:7}

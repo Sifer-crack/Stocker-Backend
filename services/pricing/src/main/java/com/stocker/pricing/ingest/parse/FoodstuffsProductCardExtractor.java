@@ -20,6 +20,8 @@ public final class FoodstuffsProductCardExtractor {
 	// content attribute) is already a clean decimal like "3.73" and needs no regex at all.
 	private static final Pattern PRICE_PATTERN = Pattern.compile("\\$\\s*([0-9]+(?:\\.[0-9]{1,2})?)");
 
+	private static final Pattern DOUBLED_SEPARATOR = Pattern.compile("(?<=\\d)\\.[\\s.]*\\.(?=\\d)");
+
 	private FoodstuffsProductCardExtractor() {
 	}
 
@@ -65,7 +67,14 @@ public final class FoodstuffsProductCardExtractor {
 		} catch (NumberFormatException e) {
 			// Not a clean decimal - fall back to extracting a "$X.XX" style substring.
 		}
-		Matcher matcher = PRICE_PATTERN.matcher(rawPriceText);
+		// Dollars and cents joined with a doubled separator ("2..99", "2. .99"): collapse to one dot.
+		String text = DOUBLED_SEPARATOR.matcher(rawPriceText).replaceAll(".");
+		try {
+			return new BigDecimal(text.trim());
+		} catch (NumberFormatException e) {
+			// fall through to the "$X.XX" substring
+		}
+		Matcher matcher = PRICE_PATTERN.matcher(text);
 		if (!matcher.find()) {
 			return null;
 		}
