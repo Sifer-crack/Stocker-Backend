@@ -45,14 +45,14 @@ boot against a real database for the first time in this project's history:
   consumer and the gateway push have only been tested in isolation, and pricing needs `STOCKER_SPREAD_API_KEY` (now passed through
   compose) to return real prices. The frontend does not consume any of this yet (it needs a fetch-based SSE client and calls to `/api/shopping/items`).
 - [ ] Shopping has no list entity, edit/delete/check-off endpoints or household sharing; the gateway push is per-instance.
-- [ ] `gateway/src/main/resources/application.yml`: the inventory route reuses `id: catalog` (duplicate route id) - one may shadow the other.
+- [x] `gateway/src/main/resources/application.yml`: the inventory route used to reuse `id: catalog` (duplicate route id); it is now `id: inventory`.
 - [ ] Pricing's "cheapest" for a keyword is the cheapest matching listing, not a guaranteed identical product (see the pending match task in `CLAUDE.md`).
 
 ## Price match (`GET /api/pricing/match`) - done, ingest-based
 
 - [x] `MatchItem` RPC + gateway endpoint: per-chain best match + labelled alternatives from the ingest's own scraped data; chosen products stored under the caller's item id for `compare`. Verified live: ingest scraped 83 milk products across New World / PAK'nSave / Woolworths, `match` returned one product per chain, `compare` priced them.
 - [x] **Gateway identity-header bug fixed** (`JwtClaimForwardFilter` never ran after `StripPrefix`; identity headers were spoofable). Regression test added.
-- [ ] Only milk is configured for ingest; Tim Tams / other categories need verified category URLs. `productUrl` is never populated.
+- [ ] Historical: this item said only milk was configured for ingest. The crawl list is now the catalog map (`category-map.txt`) plus the configured pages (about 150 per chain), so Tim Tams, eggs and the staples are covered once a crawl has run (the crawl is off by default and needs the owner's approval). `productUrl` is still never populated.
 - [ ] Matching is word overlap; a semantic matcher would slot in behind `matchMethod`.
 - [ ] The compose pricing container: set `STOCKER_INGEST_DRY_RUN=false` in `.env` to persist scraped rows (default is dry-run).
 
@@ -60,7 +60,7 @@ boot against a real database for the first time in this project's history:
 
 - [x] Pack-size/name normaliser, ~180 NZ common products, `normalized_products` index + `common_product_price_map` view (V5), canonical `MatchItem` path with unit prices and pantry size hints, miss log, ingest rate limiting, Neon-ready config. See `services/pricing/NORMALIZE_MODULE.md`.
 - [x] Sitemap discovery done (6 requests, 2026-10-18): New World / PAK'nSave ok, Woolworths failed twice. Proposal: `services/pricing/scrape-plan-proposed.txt`.
-- [x] Approved 2026-10-18: the 62 categories are in `application.yml` for New World / PAK'nSave; ingest runs at 03:00 and 20:00 Auckland time (12 pages per chain per run, rotating, paced 4-9 s). Woolworths still milk only: its `sitemaps/categories.xml` URL is known (user pasted the index) but its contents are not.
+- [x] Approved 2026-10-18: the 62 categories are in `application.yml` for New World / PAK'nSave; the ingest now runs once a day at 03:00 Auckland time (superseded: the 20:00 run and the 12-pages-per-run window are gone; cap 140 pages per chain per day, paced 20-40 s, per-chain circuit breaker). Historical note from then: Woolworths was milk only: its `sitemaps/categories.xml` URL is known (user pasted the index) but its contents are not.
 - [ ] V5 has not been applied to Neon yet (applies on the next pricing start; take a Neon branch first if you want a dry run).
 - [ ] No pantry-wide endpoint yet: the frontend calls `GET /api/pricing/match?term=<product name>&weightKg=|volumeL=` per pantry product. Catalog's event publisher is still a stub, so pricing cannot learn about new pantry products from Kafka.
 - [ ] Lexical fallback still loads all ingested rows (`findIngestedSince`); move it onto `normalized_products` before many categories are scraped.

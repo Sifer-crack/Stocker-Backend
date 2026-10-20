@@ -1,6 +1,8 @@
 package com.stocker.gateway.infrastructure.config;
 
 import com.stocker.pricing.api.grpc.v1.PriceRecordServiceGrpc;
+import java.time.Duration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.grpc.client.GrpcChannelFactory;
@@ -13,7 +15,8 @@ public class GrpcOutboundConfig {
 
 	@Bean
 	public PriceRecordServiceGrpc.PriceRecordServiceBlockingStub priceRecordServiceBlockingStub(
-			GrpcChannelFactory channels) {
-		return PriceRecordServiceGrpc.newBlockingStub(channels.createChannel("pricing"));
+			GrpcChannelFactory channels, @Value("${app.pricing.deadline:PT10S}") Duration deadline) {
+		return PriceRecordServiceGrpc.newBlockingStub(channels.createChannel("pricing"))
+				.withInterceptors(new PricingDeadlineInterceptor(deadline));
 	}
 }

@@ -17,8 +17,17 @@ public class PantryItemEntity {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    @Column(name = "product_id", nullable = false)
-    private UUID productId; // uses pre-existing id from the product table
+    @Column(name = "product_id")
+    private UUID productId; // pre-existing catalog id; null for free-text items
+
+    @Column(name = "name")
+    private String name;
+
+    @Column(name = "category")
+    private String category;
+
+    @Column(name = "unit")
+    private String unit;
 
     @Column(name = "quantity", nullable = false)
     private int quantity;
@@ -79,6 +88,13 @@ public class PantryItemEntity {
     public void setNotifyDaysBefore(Integer notifyDaysBefore) {
         this.notifyDaysBefore = notifyDaysBefore;
     }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+    public String getUnit() { return unit; }
+    public void setUnit(String unit) { this.unit = unit; }
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;

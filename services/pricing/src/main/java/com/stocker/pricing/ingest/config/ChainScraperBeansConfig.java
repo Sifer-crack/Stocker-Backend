@@ -13,17 +13,19 @@ import org.springframework.context.annotation.Configuration;
 public class ChainScraperBeansConfig {
 
 	@Bean
-	public ChainScraper newWorldChainScraper() {
-		return new FoodstuffsChainScraper(ChainId.NEWWORLD, "https://www.newworld.co.nz");
+	public ChainScraper newWorldChainScraper(IngestProperties properties) {
+		return new FoodstuffsChainScraper(ChainId.NEWWORLD, "https://www.newworld.co.nz",
+				properties.leanOptions(ChainId.NEWWORLD));
 	}
 
 	@Bean
-	public ChainScraper paknsaveChainScraper() {
-		return new FoodstuffsChainScraper(ChainId.PAKNSAVE, "https://www.paknsave.co.nz");
+	public ChainScraper paknsaveChainScraper(IngestProperties properties) {
+		return new FoodstuffsChainScraper(ChainId.PAKNSAVE, "https://www.paknsave.co.nz",
+				properties.leanOptions(ChainId.PAKNSAVE));
 	}
 
 	@Bean
-	public ChainScraper woolworthsChainScraper() {
-		return new WoolworthsNzChainScraper();
+	public ChainScraper woolworthsChainScraper(IngestProperties properties) {
+		return new WoolworthsNzChainScraper(properties.leanOptions(ChainId.WOOLWORTHS));
 	}
 }

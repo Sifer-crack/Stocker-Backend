@@ -54,7 +54,7 @@ class OnDemandRefreshNonBlockingTest {
 				new Object[] { "newworld", old }, new Object[] { "paknsave", old }, new Object[] { "woolworths", old }));
 		CountDownLatch pageLoadStarted = new CountDownLatch(1);
 		CountDownLatch finishPageLoad = new CountDownLatch(1);
-		when(scheduler.refreshCategories(any(), anyList())).thenAnswer(invocation -> {
+		when(scheduler.refreshCategories(any(), anyList(), any())).thenAnswer(invocation -> {
 			pageLoadStarted.countDown();
 			finishPageLoad.await(10, TimeUnit.SECONDS);   // a slow supermarket page
 			return 12;

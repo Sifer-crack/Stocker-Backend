@@ -3,23 +3,6 @@ name: stocker
 services:
   # --- infrastructure ---
 
-  postgres:
-    image: postgres:17
-    environment:
-      POSTGRES_USER: stocker
-      POSTGRES_PASSWORD: stocker
-      POSTGRES_DB: stocker
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stocker -d stocker"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   kafka:
     image: apache/kafka:4.3.1
     environment:
@@ -37,7 +20,7 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
     volumes:
       - kafka-data:/tmp/kraft-combined-logs
     healthcheck:
@@ -74,7 +57,7 @@ services:
       STOCKER_JWT_SECRET: ${STOCKER_JWT_SECRET}
       STOCKER_CORS_ALLOWED_ORIGINS: ${STOCKER_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
       # Shared with shopping: guards POST /internal/shopping/updates (shopping -> gateway push).
-      STOCKER_INTERNAL_TOKEN: ${STOCKER_INTERNAL_TOKEN:-dev-only-internal-token-change-me}
+      STOCKER_INTERNAL_TOKEN: ${STOCKER_INTERNAL_TOKEN:?STOCKER_INTERNAL_TOKEN must be set}
     ports:
       - "8080:8080"
     depends_on:
@@ -82,9 +65,10 @@ services:
       - pricing
       - catalog
       - inventory
+      - shopping
+      - notifications
 
-  # identity talks to Neon (see .env.example), not the local postgres below —
-  # so it waits on kafka only. catalog/shopping still use local postgres.
+  # Every service talks to its own Neon database (see .env.example); there is no local Postgres.
   identity:
     build:
       context: .
@@ -102,10 +86,12 @@ services:
       STOCKER_AUTH_COOKIE_SECURE: ${STOCKER_AUTH_COOKIE_SECURE:-false}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
   catalog:
     build:
@@ -117,13 +103,14 @@ services:
       STOCKER_DB_USER: ${STOCKER_DB_USER}
       STOCKER_DB_PASSWORD: ${STOCKER_DB_PASSWORD}
       SPRING_FLYWAY_ENABLED: "false"
-
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
-      - "8082:8082"
+      - "127.0.0.1:8082:8082"
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
   shopping:
     build:
@@ -140,12 +127,14 @@ services:
       # pushed to the gateway, which relays them to the frontend.
       STOCKER_GRPC_PRICING_ADDRESS: dns:///pricing:9094
       STOCKER_GATEWAY_URL: http://gateway:8080
-      STOCKER_INTERNAL_TOKEN: ${STOCKER_INTERNAL_TOKEN:-dev-only-internal-token-change-me}
+      STOCKER_INTERNAL_TOKEN: ${STOCKER_INTERNAL_TOKEN:?STOCKER_INTERNAL_TOKEN must be set}
     ports:
-      - "8083:8083"
+      - "127.0.0.1:8083:8083"
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
   pricing:
     build:
@@ -168,14 +157,69 @@ services:
       # STOCKER_INGEST_DRY_RUN=false to store the rows (the default is dry-run: scrape + log, persist nothing).
       STOCKER_INGEST_ENABLED: ${STOCKER_INGEST_ENABLED:-false}
       STOCKER_INGEST_DRY_RUN: ${STOCKER_INGEST_DRY_RUN:-true}
+      # One extra crawl right after startup (default off: the scheduled crawl runs at 03:00 Auckland time) and the
+      # on-demand refresh of stale pages (default on; it shares the same daily page budget as the crawl).
+      STOCKER_INGEST_RUN_ON_STARTUP: ${STOCKER_INGEST_RUN_ON_STARTUP:-false}
+      # true = the three chains are crawled at the same time, one Firefox each (about 3x the browser memory): use it
+      # through docker-compose.crawl.yml with the other services stopped. Default false = one after another.
+      STOCKER_INGEST_PARALLEL_CHAINS: ${STOCKER_INGEST_PARALLEL_CHAINS:-false}
+      STOCKER_PRICING_ON_DEMAND_ENABLED: ${STOCKER_PRICING_ON_DEMAND_ENABLED:-true}
+      # On-demand refresh limits: pages per category and the share of the daily budget kept for the scheduled crawl.
+      STOCKER_PRICING_ON_DEMAND_MAX_PAGES_PER_CATEGORY: ${STOCKER_PRICING_ON_DEMAND_MAX_PAGES_PER_CATEGORY:-2}
+      STOCKER_PRICING_ON_DEMAND_KEEP_BUDGET_SHARE: ${STOCKER_PRICING_ON_DEMAND_KEEP_BUDGET_SHARE:-0.3}
+      # Tuning pass-through. Each default equals application.yml: an EMPTY value would not fall back to it (it would bind
+      # as an empty string / empty list), so the real default is spelled out here.
+      STOCKER_DB_MIGRATE_URL: ${STOCKER_DB_MIGRATE_URL:-${STOCKER_DB_URL}}
+      STOCKER_DB_MIGRATE_USER: ${STOCKER_DB_MIGRATE_USER:-${STOCKER_DB_USER}}
+      STOCKER_DB_MIGRATE_PASSWORD: ${STOCKER_DB_MIGRATE_PASSWORD:-${STOCKER_DB_PASSWORD}}
+      STOCKER_DB_POOL_SIZE: ${STOCKER_DB_POOL_SIZE:-10}
+      STOCKER_DB_BATCH_SIZE: ${STOCKER_DB_BATCH_SIZE:-50}
+      STOCKER_INGEST_PERSIST_BATCH_SIZE: ${STOCKER_INGEST_PERSIST_BATCH_SIZE:-500}
+      STOCKER_INGEST_CRON: "${STOCKER_INGEST_CRON:-0 0 3 * * *}"
+      STOCKER_INGEST_MAX_CATEGORIES_PER_RUN: ${STOCKER_INGEST_MAX_CATEGORIES_PER_RUN:-0}
+      STOCKER_INGEST_RECRAWL_FRESHNESS_HOURS: ${STOCKER_INGEST_RECRAWL_FRESHNESS_HOURS:-20}
+      STOCKER_INGEST_BREAKER_SUCCESSES_TO_RESET: ${STOCKER_INGEST_BREAKER_SUCCESSES_TO_RESET:-3}
+      STOCKER_INGEST_NEWWORLD_LEAN_ENABLED: ${STOCKER_INGEST_NEWWORLD_LEAN_ENABLED:-true}
+      STOCKER_INGEST_PAKNSAVE_LEAN_ENABLED: ${STOCKER_INGEST_PAKNSAVE_LEAN_ENABLED:-true}
+      STOCKER_INGEST_WOOLWORTHS_LEAN_ENABLED: ${STOCKER_INGEST_WOOLWORTHS_LEAN_ENABLED:-true}
+      STOCKER_INGEST_BLOCK_RESOURCE_TYPES: ${STOCKER_INGEST_BLOCK_RESOURCE_TYPES:-image,media,font}
+      STOCKER_INGEST_BLOCK_HOST_PATTERNS: ${STOCKER_INGEST_BLOCK_HOST_PATTERNS:-google-analytics,googletagmanager,googletagservices,googlesyndication,doubleclick,adservice.google,facebook.net,facebook.com,hotjar,segment.io,segment.com,optimizely,newrelic,nr-data.net,clarity.ms,bat.bing.com,criteo,taboola,outbrain,quantserve,scorecardresearch,fullstory,mouseflow,mixpanel,amplitude.com,snapchat,tiktok,ads-twitter,analytics.twitter,sentry.io,datadoghq,tealiumiq,adobedtm,demdex,omtrdc}
+      # Crawl load limits (see docs/features/price-engine-reliability.md). 140 pages per chain per Auckland day is the
+      # hard cap for the scheduled crawl and on-demand refresh together; extra pages of a multi-page category count too.
+      STOCKER_INGEST_MAX_PAGES_PER_CHAIN_PER_DAY: ${STOCKER_INGEST_MAX_PAGES_PER_CHAIN_PER_DAY:-140}
+      STOCKER_INGEST_MAX_PAGES_PER_CATEGORY: ${STOCKER_INGEST_MAX_PAGES_PER_CATEGORY:-8}
+      STOCKER_INGEST_EXTRA_PAGES_RESERVE_PER_RUN: ${STOCKER_INGEST_EXTRA_PAGES_RESERVE_PER_RUN:-20}
+      STOCKER_INGEST_STAPLE_DISCOVERY_ENABLED: ${STOCKER_INGEST_STAPLE_DISCOVERY_ENABLED:-true}
+      STOCKER_INGEST_MAX_DISCOVERED_PAGES_PER_CHAIN: ${STOCKER_INGEST_MAX_DISCOVERED_PAGES_PER_CHAIN:-40}
+      # Crawl pace and brake (docs/features/price-engine-reliability.md): random pause between two page loads of a chain
+      # (20-40 s; 4-9 s drew HTTP 429 on 2026-10-20), optional per-chain override (empty = shared value), and the per-chain
+      # circuit breaker (3 blocked responses in a row stop the chain; cool-down 6 h, doubling to at most 24 h).
+      # Lean page loads (abort images / media / fonts / trackers) and the per-page request log; see the same doc.
+      STOCKER_INGEST_LEAN_PAGES: ${STOCKER_INGEST_LEAN_PAGES:-false}
+      STOCKER_INGEST_LOG_REQUESTS: ${STOCKER_INGEST_LOG_REQUESTS:-false}
+      STOCKER_INGEST_PAGE_DELAY_MIN_MILLIS: ${STOCKER_INGEST_PAGE_DELAY_MIN_MILLIS:-20000}
+      STOCKER_INGEST_PAGE_DELAY_MAX_MILLIS: ${STOCKER_INGEST_PAGE_DELAY_MAX_MILLIS:-40000}
+      STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MIN_MILLIS: ${STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MIN_MILLIS:-}
+      STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MAX_MILLIS: ${STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MAX_MILLIS:-}
+      STOCKER_INGEST_PAKNSAVE_PAGE_DELAY_MIN_MILLIS: ${STOCKER_INGEST_PAKNSAVE_PAGE_DELAY_MIN_MILLIS:-}
+      STOCKER_INGEST_PAKNSAVE_PAGE_DELAY_MAX_MILLIS: ${STOCKER_INGEST_PAKNSAVE_PAGE_DELAY_MAX_MILLIS:-}
+      STOCKER_INGEST_WOOLWORTHS_PAGE_DELAY_MIN_MILLIS: ${STOCKER_INGEST_WOOLWORTHS_PAGE_DELAY_MIN_MILLIS:-}
+      STOCKER_INGEST_WOOLWORTHS_PAGE_DELAY_MAX_MILLIS: ${STOCKER_INGEST_WOOLWORTHS_PAGE_DELAY_MAX_MILLIS:-}
+      # Per-chain crawl switches (default on). Turn one off to leave it alone, e.g. while its breaker is cooling down.
+      STOCKER_INGEST_NEWWORLD_ENABLED: ${STOCKER_INGEST_NEWWORLD_ENABLED:-true}
+      STOCKER_INGEST_PAKNSAVE_ENABLED: ${STOCKER_INGEST_PAKNSAVE_ENABLED:-true}
+      STOCKER_INGEST_WOOLWORTHS_ENABLED: ${STOCKER_INGEST_WOOLWORTHS_ENABLED:-true}
+      STOCKER_INGEST_WOOLWORTHS_MAX_PAGES_PER_CATEGORY: ${STOCKER_INGEST_WOOLWORTHS_MAX_PAGES_PER_CATEGORY:-10}
+      STOCKER_INGEST_BREAKER_BLOCKED_THRESHOLD: ${STOCKER_INGEST_BREAKER_BLOCKED_THRESHOLD:-3}
+      STOCKER_INGEST_BREAKER_COOLDOWN: ${STOCKER_INGEST_BREAKER_COOLDOWN:-PT6H}
+      STOCKER_INGEST_BREAKER_MAX_COOLDOWN: ${STOCKER_INGEST_BREAKER_MAX_COOLDOWN:-PT24H}
     ports:
-      - "8084:8084"
-      - "9094:9094"
+      - "127.0.0.1:8084:8084"
     depends_on:
-      postgres:
-        condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
   inventory:
     build:
@@ -187,13 +231,16 @@ services:
       STOCKER_DB_URL: ${STOCKER_DB_URL}
       STOCKER_DB_USER: ${STOCKER_DB_USER}
       STOCKER_DB_PASSWORD: ${STOCKER_DB_PASSWORD}
-
+      # Pantry add looks products up in catalog (service-to-service REST, not via the gateway).
+      STOCKER_CATALOG_URL: http://catalog:8082
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
-      - "8087:8087"
+      - "127.0.0.1:8087:8087"
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
   notifications:
     build:
@@ -207,12 +254,18 @@ services:
       STOCKER_DB_PASSWORD: ${STOCKER_DB_PASSWORD}
       # Service-to-service: the expiring-items list is not exposed through the gateway.
       STOCKER_INVENTORY_URL: http://inventory:8087
+      # How often the expiry scan polls inventory (ISO-8601). Short defaults here so a manual test sees a
+      # notification within about a minute; the production default in application.yml is PT15M.
+      STOCKER_NOTIFICATIONS_SCAN_INTERVAL: ${STOCKER_NOTIFICATIONS_SCAN_INTERVAL:-PT30S}
+      STOCKER_NOTIFICATIONS_SCAN_INITIAL_DELAY: ${STOCKER_NOTIFICATIONS_SCAN_INITIAL_DELAY:-PT10S}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
-      - "8085:8085"
+      - "127.0.0.1:8085:8085"
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       inventory:
         condition: service_started
 
@@ -224,11 +277,12 @@ services:
       SERVER_PORT: 8086
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
-      - "8086:8086"
+      - "127.0.0.1:8086:8086"
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
 volumes:
-  postgres-data:
   kafka-data:

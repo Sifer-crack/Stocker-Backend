@@ -88,4 +88,30 @@ class CatalogConsistencyTest {
 
 		assertThat(unknown).as("mapped pages that are not in category-index.txt (typo, or the page was renamed)").isEmpty();
 	}
+
+	@Test
+	void everyProductWithoutAKnownCategoryPageIsListedAsNeedingOne() throws Exception {
+		java.nio.file.Path doc = java.nio.file.Path.of("../../docs/features/coverage-staples.md");
+		org.junit.jupiter.api.Assumptions.assumeTrue(java.nio.file.Files.exists(doc), "docs not reachable from this working dir");
+		String text = java.nio.file.Files.readString(doc);
+		int start = text.indexOf("## Needs category URL");
+		assertThat(start).as("coverage-staples.md needs a 'Needs category URL' section").isGreaterThanOrEqualTo(0);
+		String section = text.substring(start);
+		List<String> unlisted = new ArrayList<>();
+		for (String[] row : lines("/category-map.txt")) {
+			if (("-".equals(row[1].trim()) || "-".equals(row[2].trim())) && !section.contains("`" + row[0].trim() + "`")) {
+				unlisted.add(row[0]);
+			}
+		}
+		assertThat(unlisted).as("keys with a '-' in category-map.txt that 'Needs category URL' does not list").isEmpty();
+	}
+
+	@Test
+	void everyProductHasAnAliasAndAKnownCategoryGroup() throws Exception {
+		CommonProductCatalog catalog = CommonProductCatalog.loadDefault();
+		assertThat(catalog.all()).allSatisfy(p -> {
+			assertThat(p.aliasWords()).as(p.key() + " aliases").isNotEmpty();
+			assertThat(p.category()).as(p.key() + " category").isNotBlank();
+		});
+	}
 }

@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.util.UUID;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PriceRecordRepository extends JpaRepository<PriceRecord, UUID> {
@@ -13,6 +14,10 @@ public interface PriceRecordRepository extends JpaRepository<PriceRecord, UUID> 
 	List<PriceRecord> findByItemIdAndStoreId(String itemId, String storeId);
 
 	List<PriceRecord> findByItemId(String itemId);
+
+	/** Drops the copies stored under a shopping-list item id (never the scraped "chain:code" rows). */
+	@Transactional
+	void deleteByItemId(String itemId);
 
 	/** Cache-aside L2 read: rows for this itemId still within the configured freshness window. */
 	List<PriceRecord> findByItemIdAndCapturedAtAfter(String itemId, OffsetDateTime threshold);

@@ -35,7 +35,7 @@ class PantryExpiryIntegrationTest {
 
     @Test
     void anItemAddedWithExpiryAppearsInTheExpiringListOnceItsWindowOpens() throws Exception {
-        mockMvc.perform(post("/pantry-items").param("userId", userId.toString())
+        mockMvc.perform(post("/pantry-items").header("X-User-Id", userId.toString())
                         .param("productId", UUID.randomUUID().toString()).param("quantity", "1")
                         .param("expirationDate", "2026-10-25").param("notifyDaysBefore", "2"))
                 .andExpect(status().isOk());
@@ -49,7 +49,7 @@ class PantryExpiryIntegrationTest {
 
     @Test
     void changingTheThresholdThroughTheApiMovesTheWindow() throws Exception {
-        String body = mockMvc.perform(post("/pantry-items").param("userId", userId.toString())
+        String body = mockMvc.perform(post("/pantry-items").header("X-User-Id", userId.toString())
                         .param("productId", UUID.randomUUID().toString()).param("quantity", "1")
                         .param("expirationDate", "2026-10-25"))
                 .andReturn().getResponse().getContentAsString();
@@ -58,7 +58,7 @@ class PantryExpiryIntegrationTest {
         mockMvc.perform(get("/internal/pantry-items/expiring").param("asOf", "2026-10-19"))
                 .andExpect(jsonPath("$.length()").value(0));
 
-        mockMvc.perform(put("/pantry-items/{id}/expiry", itemId)
+        mockMvc.perform(put("/pantry-items/{id}/expiry", itemId).header("X-User-Id", userId.toString())
                         .param("expirationDate", "2026-10-25").param("notifyDaysBefore", "10"))
                 .andExpect(status().isOk());
 
@@ -68,7 +68,7 @@ class PantryExpiryIntegrationTest {
 
     @Test
     void invalidThresholdIsRejectedEndToEnd() throws Exception {
-        mockMvc.perform(post("/pantry-items").param("userId", userId.toString())
+        mockMvc.perform(post("/pantry-items").header("X-User-Id", userId.toString())
                         .param("productId", UUID.randomUUID().toString()).param("quantity", "1")
                         .param("notifyDaysBefore", "3"))
                 .andExpect(status().isBadRequest());

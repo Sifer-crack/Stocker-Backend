@@ -36,7 +36,16 @@ public class PriceStatsWriter {
 	public void record(PriceRecord record) {
 		PriceStats stats = priceStatsRepository.findByItemIdAndStoreId(record.getItemId(), record.getStoreId())
 				.orElseGet(() -> newStats(record));
+		apply(stats, record);
+		priceStatsRepository.save(stats);
+	}
 
+	/**
+	 * Folds one observation into {@code stats} (history, current/lowest/highest/median, promo flag, timestamps). The
+	 * single place this is computed: {@link #record} and the batch path ({@link PriceBatchWriter}) both use it, so a
+	 * batch yields exactly what the same observations applied one by one would.
+	 */
+	static void apply(PriceStats stats, PriceRecord record) {
 		List<Map<String, Object>> history = new ArrayList<>(
 				stats.getPriceHistory() != null ? stats.getPriceHistory() : List.of());
 		history.add(observation(record));
@@ -60,11 +69,15 @@ public class PriceStatsWriter {
 		stats.setObservationCount(history.size());
 		stats.setLastObservedAt(record.getCapturedAt());
 		stats.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
-
-		priceStatsRepository.save(stats);
 	}
 
-	private static PriceStats newStats(PriceRecord record) {
+	/** Forgets the summaries of one item id (used when the product chosen for a list item is replaced). */
+	@Transactional
+	public void clearItem(String itemId) {
+		priceStatsRepository.deleteByItemId(itemId);
+	}
+
+	static PriceStats newStats(PriceRecord record) {
 		return PriceStats.builder()
 				.itemId(record.getItemId())
 				.storeId(record.getStoreId())

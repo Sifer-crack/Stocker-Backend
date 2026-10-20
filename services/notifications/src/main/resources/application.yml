@@ -57,3 +57,5 @@ app:
     zone: ${STOCKER_NOTIFICATIONS_ZONE:Pacific/Auckland}
     scan-interval: ${STOCKER_NOTIFICATIONS_SCAN_INTERVAL:PT15M}
     scan-initial-delay: ${STOCKER_NOTIFICATIONS_SCAN_INITIAL_DELAY:PT30S}
+    # Items that expired more than this many days ago are not notified about (stops a first scan flooding).
+    skip-expired-older-than-days: ${STOCKER_NOTIFICATIONS_SKIP_EXPIRED_OLDER_THAN_DAYS:7}

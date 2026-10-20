@@ -70,7 +70,7 @@ class OnDemandRefreshServiceTest {
 
 		assertFalse(outcome.stale());
 		assertFalse(outcome.refreshed());
-		verify(scheduler, never()).refreshCategories(any(), anyList());
+		verify(scheduler, never()).refreshCategories(any(), anyList(), any());
 	}
 
 	@Test
@@ -81,9 +81,9 @@ class OnDemandRefreshServiceTest {
 		OnDemandRefreshService.Outcome outcome = service.ensureFresh(milk, () -> { });
 
 		assertTrue(outcome.refreshed());
-		verify(scheduler, times(1)).refreshCategories(eq(ChainId.NEWWORLD), eq(List.of(MILK_NW)));
-		verify(scheduler, never()).refreshCategories(eq(ChainId.PAKNSAVE), anyList());
-		verify(scheduler, never()).refreshCategories(eq(ChainId.WOOLWORTHS), anyList());
+		verify(scheduler, times(1)).refreshCategories(eq(ChainId.NEWWORLD), eq(List.of(MILK_NW)), any());
+		verify(scheduler, never()).refreshCategories(eq(ChainId.PAKNSAVE), anyList(), any());
+		verify(scheduler, never()).refreshCategories(eq(ChainId.WOOLWORTHS), anyList(), any());
 	}
 
 	@Test
@@ -93,7 +93,7 @@ class OnDemandRefreshServiceTest {
 
 		OnDemandRefreshService.Outcome outcome = service.ensureFresh(milk, () -> { });
 
-		verify(scheduler).refreshCategories(eq(ChainId.WOOLWORTHS), eq(List.of(MILK_WW)));
+		verify(scheduler).refreshCategories(eq(ChainId.WOOLWORTHS), eq(List.of(MILK_WW)), any());
 		assertFalse(outcome.stale(), "a chain without rows is unavailable, not stale");
 	}
 
@@ -105,7 +105,7 @@ class OnDemandRefreshServiceTest {
 		service.ensureFresh(milk, () -> { });
 		OnDemandRefreshService.Outcome second = service.ensureFresh(milk, () -> { });
 
-		verify(scheduler, times(1)).refreshCategories(eq(ChainId.NEWWORLD), anyList());
+		verify(scheduler, times(1)).refreshCategories(eq(ChainId.NEWWORLD), anyList(), any());
 		assertTrue(second.stale(), "still old data, but we do not hammer the site");
 		assertFalse(second.refreshed());
 	}
@@ -120,7 +120,7 @@ class OnDemandRefreshServiceTest {
 		service.ensureFresh(milk, () -> { });
 		service.ensureFresh(milk, () -> { });
 
-		verify(scheduler, times(1)).refreshCategories(eq(ChainId.NEWWORLD), anyList());
+		verify(scheduler, times(1)).refreshCategories(eq(ChainId.NEWWORLD), anyList(), any());
 	}
 
 	@Test
@@ -132,7 +132,7 @@ class OnDemandRefreshServiceTest {
 		OnDemandRefreshService.Outcome outcome = service.ensureFresh(milk, () -> { });
 
 		assertTrue(outcome.stale());
-		verify(scheduler, never()).refreshCategories(any(), anyList());
+		verify(scheduler, never()).refreshCategories(any(), anyList(), any());
 	}
 
 	@Test
@@ -140,7 +140,7 @@ class OnDemandRefreshServiceTest {
 		properties.getOnDemand().setDeadline(Duration.ofMillis(100));
 		when(repository.newestByChain("milk")).thenReturn(List.of(
 				newest("newworld", hoursAgo(30)), newest("paknsave", hoursAgo(1)), newest("woolworths", hoursAgo(1))));
-		when(scheduler.refreshCategories(eq(ChainId.NEWWORLD), anyList())).thenAnswer(invocation -> {
+		when(scheduler.refreshCategories(eq(ChainId.NEWWORLD), anyList(), any())).thenAnswer(invocation -> {
 			Thread.sleep(600);
 			return 5;
 		});

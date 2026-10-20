@@ -1,9 +1,9 @@
 # AGENT.md — gateway
 
-## Implemented (skeleton)
+## Implemented
 
 - Boots a Spring Boot 4.0.7 app (Java 25, Gradle Groovy DSL) on port 8080 (`SERVER_PORT`).
-- Spring Cloud Gateway **Server WebFlux** (`spring-cloud-starter-gateway-server-webflux`); routes under `spring.cloud.gateway.server.webflux.routes` (identity, catalog, inventory and shopping; see `application.yml`).
+- Spring Cloud Gateway **Server WebFlux** (`spring-cloud-starter-gateway-server-webflux`); routes under `spring.cloud.gateway.server.webflux.routes` (identity `/api/identity/**`, catalog `/api/products/**`, inventory `/api/pantry-items/**`, notifications `/api/notifications/**`, shopping `/api/shopping/**` which includes `/api/shopping/favorite-stores`; all `StripPrefix=1`, see `application.yml`).
 - `GET /healthz` via `api/rest/HealthzController` (WebFlux annotation controller).
 - Spring gRPC **client** (`org.springframework.grpc:spring-grpc-client-spring-boot-starter` 1.0.3, BOM-managed) wired via `infrastructure/config/GrpcOutboundConfig`.
 - `pricing` gRPC channel (`spring.grpc.client.channels.pricing`, default `dns:///localhost:9094`) with a real `PriceRecordServiceGrpc.PriceRecordServiceBlockingStub` bean. `src/main/proto/price_record.proto` is a duplicate of pricing's copy (protobuf/grpc-java codegen plugin added to `build.gradle`) — there's no shared-proto mechanism in this repo, so keep the two files byte-for-byte in sync when the contract changes.
@@ -23,20 +23,29 @@
   (`X-Internal-Token` must equal `stocker.internal.token` / `STOCKER_INTERNAL_TOKEN`; closed if unset; no user JWT; blocked at the
   ingress in `infra/ingress/nginx.conf`). `application/ShoppingUpdateHub` is the in-memory fan-out (best effort, single gateway instance).
   A browser `EventSource` cannot send an `Authorization` header, so the frontend must read the stream with a fetch-based SSE client.
-- `api/rest/PricingController#match` - `GET /api/pricing/match?term&itemId[&category][&weightKg][&volumeL]` -> gRPC `MatchItem` (`weightKg`/`volumeL` = optional pack-size hints); JSON `{matchMethod ("canonical"|"lexical"), matches[], alternatives[], stale}` (`stale` = some prices are older than 12 h and a refresh may be running: ask again shortly), each item also carrying `unitPrice` (per kg/L/item) and `packSize` when known (`matches`: at most one per chain, cheapest first, `matchType: "exact"`; `alternatives`: `matchType: "alternative"`). Empty lists = nothing found yet (not an error). `INVALID_ARGUMENT` -> 422 `{error}`.
+- `api/rest/PricingController#match` - `GET /api/pricing/match?term&itemId[&category][&weightKg][&volumeL]` -> gRPC `MatchItem` (`weightKg`/`volumeL` = optional pack-size hints); JSON `{matchMethod ("canonical"|"lexical"), matches[], alternatives[], stale}` (`stale` = some prices are older than 26 h (`app.pricing.on-demand.stale-after`) and a refresh may be running: ask again shortly), each item also carrying `unitPrice` (per kg/L/item) and `packSize` when known (`matches`: at most one per chain, cheapest first, `matchType: "exact"`; `alternatives`: `matchType: "alternative"`). Empty lists = nothing found yet (not an error). `INVALID_ARGUMENT` -> 422 `{error}`.
 - `JwtClaimForwardFilter` (global filter, runs for EVERY proxied request, must not depend on the path - `StripPrefix` has already rewritten it by then): removes any client-supplied `X-User-Id` / `X-Household-Id` / `X-Roles`, then sets them from the verified JWT. `Authorization` is deliberately left in place (identity validates it itself). It previously checked `path.startsWith("/api/")` after StripPrefix, so it never ran and identity headers were spoofable; `JwtClaimForwardFilterTest` guards this with a real upstream.
 - `ShoppingUpdatesControllerTest` (`@SpringBootTest`, real signed JWTs) covers token rejection, per-user isolation and the pushed payload.
 - `HealthzControllerTest` (`@WebFluxTest`, no broker needed); `PricingControllerCompareTest`
   (`@WebFluxTest` + `@MockitoBean` stub) covers the success shape and the 422 error-mapping path.
+- `api/rest/ProductSearchController` - `GET /api/pricing/products?term&itemId[&category][&limit]` -> gRPC `ProductSearch.SearchProducts`; `PUT /api/pricing/items/{itemId}/product` body `{productKey}` -> `SelectProduct`. Contract: `docs/features/price-search-v2.md` (merged products, `prices` keyed by lower-case chain id, absent optional fields = JSON null, `INVALID_ARGUMENT` -> 422 `{error}`, `NOT_FOUND` -> 404 `{error}`). Stub bean in `ProductSearchOutboundConfig`; `price_search.proto` is a duplicate of pricing's (edit pricing's, then copy). The response also carries `status` and `refresh` (strings/map passed through from pricing, `refresh` keys lower-case, `{}` when none). The `matchMethod` is `canonical`, `lexical` or `generic-fallback`, `status` is `found` | `alternatives-only` | `refreshing` | `not-found`. `PUT .../product` REPLACES the product stored under the item id and answers 404 for an unknown key. The old `/match` is unchanged (deprecated). `ProductSearchControllerCancellationTest` covers abort propagation.
+- Client abort -> `Mono` dispose -> boundedElastic thread interrupted -> blocking gRPC call CANCELLED -> pricing's call Context cancelled. Verified for search/compare/match by `PricingControllerCancellationTest` (real gRPC server on loopback); keep every blocking stub call inside `Mono.fromCallable(...).subscribeOn(boundedElastic)`.
+
+- `api/rest/StoreProductsController` - `GET /api/pricing/stores/{chainId}/products?query&limit` -> gRPC `ChainCatalog.ListProducts` (favorite stores; database only in pricing, never a supermarket request; unknown chain -> 422 `{error}`). `chain_catalog.proto` is a duplicate of pricing's (stub in `ChainCatalogOutboundConfig`).
+- `infrastructure/config/PricingDeadlineInterceptor`: every outgoing pricing gRPC call gets a deadline (`app.pricing.deadline` / `STOCKER_PRICING_DEADLINE`, default PT10S) unless the call already has one, so a hung pricing cannot pin a thread.
+- `infrastructure/config/SecurityConfig` (the only CORS configuration, origins from `STOCKER_CORS_ALLOWED_ORIGINS`, default `http://localhost:5173`): public are `OPTIONS`, `GET /healthz`, actuator health/info, the four identity POSTs (register, login, refresh, logout), `POST /internal/shopping/updates` (guarded separately) and `GET /api/products/**`; any other `/api/products/**` method is denied (401 anonymous, 403 signed in); everything else needs a JWT. The JWT decoder (HS256, `STOCKER_JWT_SECRET`) validates signature, expiry AND `type=access`, so identity's 7-day refresh token is rejected as a Bearer token.
+- `/internal/**` is protected twice: `infrastructure/config/InternalNetworkFilter` answers 403 unless the socket address is loopback, link-local or private (Docker network) and the request carries no `X-Forwarded-For` / `Forwarded` header, and `ShoppingUpdatesController` requires `X-Internal-Token` = `STOCKER_INTERNAL_TOKEN` (the gateway refuses to start without it; compare in constant time). It is also blocked at the public ingress (`infra/ingress/nginx.conf`).
 
 ## Stubbed / TODO
 
-- Define real routes once other services (identity, catalog, ...) expose REST surfaces (in `application.yml`) — `PricingController` above is the only real endpoint so far.
 - `identity` gRPC channel exists in `application.yml` but has no stub bean yet (identity has no gRPC API to generate from).
+- The shopping push hub is in memory: one gateway instance only.
 
 ## Conventions
 
 - Package root: `com.stocker.gateway`.
 - Route config namespace for this stack is `spring.cloud.gateway.server.webflux.routes` (NOT the legacy `spring.cloud.gateway.routes`).
 - gRPC channel targets: `spring.grpc.client.channels.<name>.address`; the default channel is `spring.grpc.client.default-channel.address`.
-- Only `/healthz` (and actuator) may be exposed; keep the module structurally identical to the other services.
+- New endpoints go in `api/rest` (local REST-to-gRPC controllers) or as a route in `application.yml`, and must be added to `SecurityConfig` if they are not authenticated; keep every blocking gRPC stub call inside `Mono.fromCallable(...).subscribeOn(boundedElastic)`.
+
+- `GET /api/pricing/suggest?q=&limit=` (`ProductSearchController.suggest`): REST to gRPC `SuggestProducts`; JWT required; response `{q, suggestions[]}`, contract in `docs/features/price-search-v2.md`.

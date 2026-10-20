@@ -13,7 +13,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
@@ -29,7 +35,8 @@ import reactor.core.publisher.Mono;
 @EnableWebFluxSecurity
 public class SecurityConfig {
 
-	@Value("${STOCKER_CORS_ALLOWED_ORIGINS:http://localhost:5173}")
+	/** Single source of truth for CORS: STOCKER_CORS_ALLOWED_ORIGINS (via app.cors.allowed-origins). */
+	@Value("#{'${app.cors.allowed-origins}'.split(',')}")
 	private List<String> allowedOrigins;
 
 	@Bean
@@ -49,10 +56,13 @@ public class SecurityConfig {
 					"/api/identity/refresh",
 					"/api/identity/logout").permitAll()
 					// Service-to-service callback from shopping: no user JWT, guarded by a shared
-					// secret header that ShoppingUpdatesController checks. Never expose this path
-					// through the public ingress.
+					// secret header that ShoppingUpdatesController checks and by InternalNetworkFilter
+					// (private/loopback callers only). Also block it at the public ingress.
 					.pathMatchers(HttpMethod.POST, "/internal/shopping/updates").permitAll()
 					.pathMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+					// Catalog is read-only through the gateway: create/delete/import are service-to-service
+					// (identity issues no admin role yet). Anonymous callers get 401, signed-in ones 403.
+					.pathMatchers("/api/products/**").denyAll()
 					.pathMatchers("/api/pantry-items/**").authenticated()
 				.pathMatchers("/api/notifications/**").authenticated()
 				.pathMatchers("/api/identity/**").authenticated()
@@ -69,7 +79,7 @@ public class SecurityConfig {
 		CorsConfiguration config = new CorsConfiguration();
 		config.setAllowedOrigins(allowedOrigins);
 		config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-		config.setAllowedHeaders(List.of("*"));
+		config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With"));
 		config.setAllowCredentials(true);
 		config.setMaxAge(3600L);
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -83,9 +93,15 @@ public class SecurityConfig {
 		if (keyBytes.length < 32) {
 			throw new IllegalStateException("stocker.jwt.secret must be at least 32 bytes for HS256");
 		}
-		return NimbusReactiveJwtDecoder.withSecretKey(new SecretKeySpec(keyBytes, "HmacSHA256"))
+		NimbusReactiveJwtDecoder decoder = NimbusReactiveJwtDecoder
+			.withSecretKey(new SecretKeySpec(keyBytes, "HmacSHA256"))
 			.macAlgorithm(MacAlgorithm.HS256)
 			.build();
+		// Signature, expiry AND token type: identity's refresh token (same key, same subject, 7 days) must not
+		// work as a Bearer access token.
+		decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+			JwtValidators.createDefault(), new AccessTokenTypeValidator()));
+		return decoder;
 	}
 
 	private Mono<Void> writeError(ServerWebExchange exchange, HttpStatus status, String message) {
@@ -94,5 +110,17 @@ public class SecurityConfig {
 		String body = "{\"error\":\"" + message + "\"}";
 		DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(body.getBytes(StandardCharsets.UTF_8));
 		return exchange.getResponse().writeWith(Mono.just(buffer));
+	}
+
+	/** Identity puts type=access / type=refresh in every token it issues; only access tokens may call the API. */
+	static final class AccessTokenTypeValidator implements OAuth2TokenValidator<Jwt> {
+		private static final OAuth2Error ERROR = new OAuth2Error("invalid_token", "token type must be access", null);
+
+		@Override
+		public OAuth2TokenValidatorResult validate(Jwt jwt) {
+			return "access".equals(jwt.getClaimAsString("type"))
+				? OAuth2TokenValidatorResult.success()
+				: OAuth2TokenValidatorResult.failure(ERROR);
+		}
 	}
 }

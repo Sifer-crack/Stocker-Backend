@@ -83,13 +83,17 @@ management:
 
 app:
   cors:
-    # Comma-separated allowed origins for browser-based clients. No auth/credentials are sent
-    # cross-origin yet (auth is being built separately on identity), so allowCredentials is off.
-    allowed-origins: ${STOCKER_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+    # Comma-separated allowed origins for browser-based clients; the ONLY CORS configuration (SecurityConfig).
+    # Credentials (the refresh cookie) are allowed, so never put "*" here.
+    allowed-origins: ${STOCKER_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  pricing:
+    # Deadline for every gRPC call to pricing, so a hung pricing cannot pin a thread (ISO-8601 duration).
+    deadline: ${STOCKER_PRICING_DEADLINE:PT10S}
 stocker:
   jwt:
-    secret: ${STOCKER_JWT_SECRET:dev-only-32-byte-minimum-secret-0123456789}
+    # No default on purpose: the gateway refuses to start without the shared secret (at least 32 bytes).
+    secret: ${STOCKER_JWT_SECRET}
   internal:
     # Shared secret for service-to-service callbacks (shopping -> POST /internal/shopping/updates).
-    # Must match shopping's STOCKER_INTERNAL_TOKEN. The default is for local dev only.
-    token: ${STOCKER_INTERNAL_TOKEN:dev-only-internal-token-change-me}
+    # Must match shopping's STOCKER_INTERNAL_TOKEN. No default on purpose: the gateway refuses to start without it.
+    token: ${STOCKER_INTERNAL_TOKEN}

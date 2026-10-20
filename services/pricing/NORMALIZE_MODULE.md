@@ -26,8 +26,8 @@ Index item list is only published through Infoshare, which could not be download
 
 ## Search path (`ItemMatchService`)
 
-1. Pack size: request hint (`weightKg` / `volumeL`, e.g. the pantry product's selling weight/volume) -> size in the term -> the common product's typical size.
-2. Term -> common product -> `normalized_products` rows for that key (indexed lookup) -> per chain, same-size first, then word coverage, then lowest unit price. `matchMethod = "canonical"`.
+1. Query parsing (`normalize/QueryParser` -> `ParsedQuery`): the term's size (2L, 1.5 litres, 500g, 330ml, 12 x 330ml), pack count (12 pack, 12pk, 12-pack, 6 pk, x12, dozen = 12, half dozen = 6) and NZ egg grade (size 7, s7) are taken out of its words. A request hint (`weightKg` / `volumeL`) replaces the parsed size.
+2. Term -> common product -> `normalized_products` rows for that key (indexed lookup). A row must pass the product's exclude words and the dish guard (`CommonProductCatalog.accepts`: "Egg Fried Rice", "Egg Noodles", "Egg Mayonnaise" are not eggs; a dish word BEFORE the category word, as in "Sandwich Bread", is fine; the category's own words and the shopper's words are exempt), and share a word with the term. Per chain: with a qualifier only products that have every stated qualifier are matches (ranked word coverage, unasked variants, unit price) - the rest go to `alternatives` and to `MatchOutcome.otherSizes` (`ItemMatchService.matchDetailed`); without a qualifier all sizes compete on word coverage, then unit price. There is no typical-size fallback. `matchMethod = "canonical"`.
 3. Nothing indexed / not a common product -> the older word-overlap match over stored ingest rows (`"lexical"`).
 4. Still nothing -> empty result + a row in `unmatched_search_terms`. **No scrape** unless `app.pricing.match.on-demand-ingest=true` (default `false`).
 
@@ -38,28 +38,35 @@ only alternatives; the engine never forces a wrong match.
 
 `ItemMatchService` (behind `GET /api/pricing/match` and the add-item `CompareItemPrices` RPC) first maps the term to a
 common product, then asks `refresh/OnDemandRefreshService` whether each chain's newest stored price for it is older
-than `stale-after` (12 h). For stale chains only, it loads just the one category page that product lives on
-(`category-map.txt`: product -> New World/PAK'nSave path and Woolworths path), then answers from the fresh data.
-- If the refresh takes longer than `deadline` (6 s), the answer carries the stored prices with `stale: true`, the page
-  load finishes in the background, and the match is re-run so the fresh prices are stored under the item id and announced
-  (`PriceRecordCaptured` -> shopping -> SSE). Polling the match endpoint again also returns the fresh data.
+than `stale-after` (26 h, `app.pricing.on-demand.stale-after`). For stale chains only, it loads just the one category page that product lives on
+(`category-map.txt`: product -> New World/PAK'nSave path and Woolworths path); the answer itself never waits for it.
+- The `deadline` is `PT0S` (since 2026-10-20): the answer carries the stored prices with `stale: true` at once, the page
+  load runs in the background, and the match is re-run so the fresh prices are stored under the item id and announced
+  (`PriceRecordCaptured` -> shopping -> SSE). Polling the match endpoint again also returns the fresh data. (Earlier versions
+  waited up to 6 s.)
 - Guard rails: a page is never re-requested within `category-cooldown` (30 min), at most
-  `max-page-loads-per-chain-per-hour` (20) on-demand loads per chain, one load at a time per chain, plus the ingest's
-  4-9 s politeness delay. `STOCKER_PRICING_ON_DEMAND_ENABLED=false` switches the live fetch off (stale flag still set).
+  `max-page-loads-per-chain-per-hour` (20) on-demand loads per chain, one load at a time per chain, the 140-pages-per-chain-per-day budget shared with the crawl, and the circuit breaker
+  (an open breaker means no load: that chain shows as `skipped`). `STOCKER_PRICING_ON_DEMAND_ENABLED=false` switches the live fetch off (stale flag still set).
 - **Any other item** (not in the common list): the term is scored against every stored product (`normalized_products`);
   chains with no good match, or only an old one, get the one category page `refresh/CategoryRouter` routes the term to
   (term words vs. category path words, leaf words count most; the optional `category` request hint breaks ties; no hit =
   no page loaded). The supermarkets' search pages are off limits (robots.txt), so routing uses their category taxonomy
   (`category-index.txt`: 792 New World / PAK'nSave pages present on both chains, plus the known Woolworths pages;
   drop the full Woolworths categories.xml into `src/main/resources/woolworths-categories.txt` to cover all of Woolworths).
-  The same cooldown / hourly cap / deadline / one-browser-at-a-time limits apply. Only page 1 of a category is read.
+  The same cooldown / hourly cap / deadline / one-browser-at-a-time limits apply. An on-demand refresh loads one page; the scheduled
+  crawl now walks multi-page categories (`?pg=N`, New World / PAK'nSAVE up to `max-pages-per-category` = 8, Woolworths `?page=N` up to 10,
+  driven by the "Showing A - B of M" line; see `docs/features/price-engine-reliability.md`).
 - `stale` means a chain shows the product with old data; a chain that simply doesn't carry it is not stale.
 
 ## Rate limiting (supermarkets)
 
 Supermarket traffic comes only from the scheduled ingest, and now:
-- waits a random `page-delay-min/max-millis` (default 4-9 s) between two page loads on a chain;
-- loads at most `max-categories-per-run` (default 12) category pages per chain per run, taking the next window of the configured list each day;
+- waits a random `page-delay-min/max-millis` (default **20-40 s**; 4-9 s drew HTTP 429 on 2026-10-20) between two page loads on a chain;
+- stops a chain after 3 blocked responses in a row (circuit breaker, 6 h cool-down doubling to at most 24 h);
+- loads at most 140 pages per chain per Auckland day (`max-pages-per-chain-per-day`, cron + on-demand + further pages). `max-categories-per-run`
+  defaults to **0** = no fixed window: the run plans as many first pages as the remaining daily budget allows (minus the 20 held back for
+  further pages), common products first, and the rest rotates from day to day;
+- is off by default (`STOCKER_INGEST_ENABLED=false`) and each crawl needs the owner's approval;
 - sitemap category URLs stay cached for 7 days (two-tier cache);
 - normalising, backfilling, the price map and every search are database-only.
 
@@ -73,8 +80,8 @@ categories are still unknown. Nothing was cached in the database (the requests w
 Plain substring keywords over-match on real URLs (`oil` hits `toilet-cleaners`, `pie` hits `nappies`, `nut` hits
 `donuts`), so the proposal in `scrape-plan-proposed.txt` uses **62 exact leaf categories** instead
 (e.g. `pantry/baking-supplies--sugar/flour`). 124 page loads in total on the two Foodstuffs chains; at
-`max-categories-per-run=12` per chain that is about 6 daily runs, paced 4-9 s apart. A second approval is needed
-before any of them is added to `application.yml` or loaded.
+the old `max-categories-per-run=12` that was about 6 daily runs. (Historical: the pages are in `application.yml` now and the pace is
+20-40 s; see the daily-cap description above.)
 
 ## Coverage report (no supermarket contact)
 
@@ -83,11 +90,27 @@ STOCKER_COVERAGE_REPORT=/path/to/report.txt ./gradlew :services:pricing:test --t
 ```
 Reads `products` / `pantry_items` from the configured database (read-only).
 
+## Re-keying stored rows
+
+`normalized_products` columns derived from the name (`canonical_key`, `normalized_name`, `pack_quantity`, `pack_unit`,
+`unit_price`) are computed when a row is observed, so after a catalog change old rows keep their old keys until the next
+scrape. `NormalizedProductService.rekeyAll(batchSize)` re-derives them from `display_name` with the same function
+`observe` uses and saves ONLY rows whose values changed (a second run changes nothing). It pages through all rows
+(`findAll(PageRequest, sort id)`, 200 per page, one read plus one `saveAll` of the changed rows per page), logs one
+summary line (read / changed / key changed / failed pages, up to 20 `name old -> new` examples), and a failed page is
+logged and counted, never thrown. `brand` is not touched (it comes from the scraped attributes, not the display name).
+Database only: never deletes, never touches `price_records` / `price_stats`.
+
+It runs once at startup on a daemon thread (`normalize-rekey`) after the backfill thread finishes (waits up to 10 min),
+controlled by `app.normalize.rekey-on-startup` (env `STOCKER_NORMALIZE_REKEY`, default true). The in-memory
+`NormalizedProductSnapshot` reloads itself every `app.pricing.snapshot.refresh-interval` (15 s), so corrected keys
+reach lookups within about that long without explicit invalidation.
+
 ## Database / Neon
 
 - Pricing uses PostgreSQL via `STOCKER_DB_URL/USER/PASSWORD`. In this setup that is **Neon**: project `stocker`
-  (`holy-cake-97405541`), branch `main`, database `neondb`, `public` schema, shared with catalog, inventory,
-  shopping and identity. A dedicated `pricing` database was never created (older docs said otherwise).
+  (`holy-cake-97405541`), branch `main`, database `neondb`, `public` schema, shared with catalog, inventory
+  and identity. `shopping` and `notifications` have their own Neon databases. A dedicated `pricing` database was never created (older docs said otherwise).
 - Flyway V1-V5 are plain SQL (no extensions). Neon recommends the direct (no `-pooler`) endpoint for migrations
   (the pooled one lacks session-level features); V1-V4 did apply through the pooler here, so
   `STOCKER_DB_MIGRATE_URL` is an optional precaution. Unset = same datasource as before.

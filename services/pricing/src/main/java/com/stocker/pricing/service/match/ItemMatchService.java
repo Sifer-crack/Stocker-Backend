@@ -9,7 +9,9 @@ import com.stocker.pricing.normalize.CommonProduct;
 import com.stocker.pricing.normalize.CommonProductCatalog;
 import com.stocker.pricing.normalize.PackSize;
 import com.stocker.pricing.normalize.PackUnit;
+import com.stocker.pricing.normalize.ParsedQuery;
 import com.stocker.pricing.normalize.ProductNormalizer;
+import com.stocker.pricing.normalize.QueryParser;
 import com.stocker.pricing.refresh.OnDemandRefreshService;
 import com.stocker.pricing.service.normalize.NormalizedProductService;
 import com.stocker.pricing.service.normalize.NormalizedProductSnapshot;
@@ -67,6 +69,14 @@ public class ItemMatchService {
 			boolean stale) {
 	}
 
+	/**
+	 * Internal result: the public {@link MatchResult} plus the products that were left out of {@code matches} only
+	 * because they do not meet the size / pack count / egg grade the search term asked for ("milk 2L" leaves the 1L
+	 * and 3L milks here). Empty when the term states no such qualifier.
+	 */
+	public record MatchOutcome(MatchResult result, List<MatchedProduct> otherSizes) {
+	}
+
 	private record Candidate(NormalizedProduct row, String name, double score) {
 	}
 
@@ -122,7 +132,13 @@ public class ItemMatchService {
 
 	/** @param category optional hint (e.g. the pantry product's grocery type) used to route an unknown item to its page */
 	public MatchResult match(String term, String itemId, BigDecimal weightKg, BigDecimal volumeL, String category) {
-		return match(term, itemId, weightKg, volumeL, category, true);
+		return matchDetailed(term, itemId, weightKg, volumeL, category).result();
+	}
+
+	/** Like {@link #match(String, String, BigDecimal, BigDecimal, String)}, plus the products of other sizes. */
+	public MatchOutcome matchDetailed(String term, String itemId, BigDecimal weightKg, BigDecimal volumeL,
+			String category) {
+		return run(term, itemId, weightKg, volumeL, category, true);
 	}
 
 	/**
@@ -130,20 +146,19 @@ public class ItemMatchService {
 	 * never starts or waits for a live refresh. This is what comparing a shopping list uses.
 	 */
 	public MatchResult matchStored(String term, String itemId, BigDecimal weightKg, BigDecimal volumeL, String category) {
-		return match(term, itemId, weightKg, volumeL, category, false);
+		return run(term, itemId, weightKg, volumeL, category, false).result();
 	}
 
-	private MatchResult match(String term, String itemId, BigDecimal weightKg, BigDecimal volumeL, String category,
+	private MatchOutcome run(String term, String itemId, BigDecimal weightKg, BigDecimal volumeL, String category,
 			boolean refresh) {
 		PricingCacheProperties.Match config = properties.getMatch();
 		OffsetDateTime since = OffsetDateTime.now(ZoneOffset.UTC).minus(config.getMaxAge());
-		PackSize requested = PackSize.ofWeightKg(weightKg);
-		if (requested == null) {
-			requested = PackSize.ofVolumeL(volumeL);
+		PackSize hinted = PackSize.ofWeightKg(weightKg);
+		if (hinted == null) {
+			hinted = PackSize.ofVolumeL(volumeL);
 		}
-		if (requested == null) {
-			requested = ProductNormalizer.sizeOf(term);
-		}
+		// the term's own qualifiers (2L, 12 pack, size 7) are taken out of its words; an explicit hint wins for the size
+		ParsedQuery query = QueryParser.parse(term).withMeasure(hinted);
 		Optional<CommonProduct> common = catalog.match(term);
 		if (common.isPresent()) {
 			boolean stale = false;
@@ -152,10 +167,10 @@ public class ItemMatchService {
 				// this product lives on. A refresh that outlasts its deadline re-runs the match afterwards
 				// (without refreshing again) so the fresh prices are stored under itemId and announced.
 				OnDemandRefreshService.Outcome outcome = refreshService.ensureFresh(common.get(),
-						() -> match(term, itemId, weightKg, volumeL, category, false));
+						() -> run(term, itemId, weightKg, volumeL, category, false));
 				stale = outcome.stale();
 			}
-			MatchResult canonical = matchCanonical(term, itemId, common.get(), requested,
+			MatchOutcome canonical = matchCanonical(itemId, common.get(), query,
 					OffsetDateTime.now(ZoneOffset.UTC).minus(config.getCanonicalMaxAge()), config, stale);
 			if (canonical != null) {
 				return canonical;
@@ -164,16 +179,16 @@ public class ItemMatchService {
 		// Any other item (or a common product with nothing indexed): score everything stored against the term.
 		OffsetDateTime lexicalSince = OffsetDateTime.now(ZoneOffset.UTC).minus(config.getCanonicalMaxAge());
 		PricingCacheProperties.OnDemand onDemand = properties.getOnDemand();
-		Lexical lexical = lexical(term, lexicalSince, config, onDemand);
+		Lexical lexical = lexical(query, common.orElse(null), lexicalSince, config, onDemand);
 		if (refresh) {
 			// Chains with no good match, or only an old one, get the one category page this term is routed to.
 			Set<ChainId> needed = new java.util.LinkedHashSet<>(lexical.missing());
 			needed.addAll(lexical.staleChains());
 			if (!needed.isEmpty()) {
 				OnDemandRefreshService.Outcome outcome = refreshService.ensureForTerm(term, category, needed,
-						() -> match(term, itemId, weightKg, volumeL, category, false));
+						() -> run(term, itemId, weightKg, volumeL, category, false));
 				if (outcome.refreshed()) {
-					lexical = lexical(term, lexicalSince, config, onDemand);
+					lexical = lexical(query, common.orElse(null), lexicalSince, config, onDemand);
 				}
 			}
 		}
@@ -195,37 +210,69 @@ public class ItemMatchService {
 		persistUnderItemId(itemId, chosen);
 		alternatives.sort(Comparator.comparingDouble(MatchedProduct::score).reversed()
 				.thenComparing(MatchedProduct::priceAmount));
-		return new MatchResult(METHOD_LEXICAL, matches, List.copyOf(alternatives), lexical.stale());
+		List<MatchedProduct> otherSizes = lexical.otherSizes().stream().map(ItemMatchService::toProduct).toList();
+		return new MatchOutcome(new MatchResult(METHOD_LEXICAL, matches, List.copyOf(alternatives), lexical.stale()),
+				otherSizes);
 	}
 
-	private record Lex(NormalizedProduct row, double score) {
+	/** {@code qualifierOk}: the product has the size / pack count / egg grade the term asked for (true when none asked). */
+	private record Lex(NormalizedProduct row, double score, boolean qualifierOk) {
 	}
 
 	/** {@code missing}: chains with no good match; {@code staleChains}: chains whose chosen match is old. */
-	private record Lexical(List<Lex> chosen, List<Lex> alternatives, Set<ChainId> missing, Set<ChainId> staleChains,
-			boolean stale) {
+	private record Lexical(List<Lex> chosen, List<Lex> alternatives, List<Lex> otherSizes, Set<ChainId> missing,
+			Set<ChainId> staleChains, boolean stale) {
+	}
+
+	private static PackSize packOf(NormalizedProduct row) {
+		return row.getPackUnit() == null || row.getPackQuantity() == null || PackUnit.fromCode(row.getPackUnit()) == null
+				? null
+				: new PackSize(PackUnit.fromCode(row.getPackUnit()), row.getPackQuantity());
 	}
 
 	/** Every stored product (one per distinct product per chain), scored against the request by word overlap. */
-	private Lexical lexical(String term, OffsetDateTime since, PricingCacheProperties.Match config,
-			PricingCacheProperties.OnDemand onDemand) {
+	private Lexical lexical(ParsedQuery query, CommonProduct common, OffsetDateTime since,
+			PricingCacheProperties.Match config, PricingCacheProperties.OnDemand onDemand) {
 		Map<String, List<Lex>> byChain = new LinkedHashMap<>();
+		Set<String> queryWords = query.words();
 		for (NormalizedProduct row : dedupe(snapshot.findByCapturedAtAfter(since))) {
 			if (!StringUtils.hasText(row.getDisplayName()) || !knownChain(row.getChainId())
 					|| row.getPriceAmount() == null || row.getPriceAmount().signum() <= 0) {
 				continue;
 			}
-			double score = NameMatcher.score(term, row.getDisplayName());
+			String name = row.getDisplayName();
+			double words = NameMatcher.wordScore(query, name);
+			if (common != null) {
+				// the term is a common product: apply its excludes and the dish guard, and trust the catalog's own
+				// alias match ("timtam" = "Tim Tam") even when the plain words differ
+				if (!catalog.accepts(common, name, queryWords)) {
+					continue;
+				}
+				if (catalog.match(name).map(CommonProduct::key).filter(common.key()::equals).isPresent()) {
+					words = Math.max(words, config.getMinScore());
+				}
+			}
+			else if (CommonProductCatalog.looksLikeDish(ProductNormalizer.wordList(name), queryWords, queryWords)) {
+				continue;
+			}
+			if (words == 0.0) {
+				continue;
+			}
+			boolean qualifierOk = NameMatcher.qualifiersMatch(query, name, packOf(row));
+			double score = qualifierOk ? words : Math.min(words, NameMatcher.SIZE_MISMATCH_CAP);
 			if (score >= config.getAlternativeMinScore()) {
-				byChain.computeIfAbsent(row.getChainId(), chain -> new ArrayList<>()).add(new Lex(row, score));
+				byChain.computeIfAbsent(row.getChainId(), chain -> new ArrayList<>()).add(new Lex(row, score, qualifierOk));
 			}
 		}
 		OffsetDateTime staleBefore = OffsetDateTime.now(ZoneOffset.UTC).minus(onDemand.getStaleAfter());
 		List<Lex> chosen = new ArrayList<>();
 		List<Lex> alternatives = new ArrayList<>();
+		List<Lex> otherSizes = new ArrayList<>();
 		Set<ChainId> staleChains = new java.util.LinkedHashSet<>();
 		for (List<Lex> ranked : byChain.values()) {
+			// relevance first, then unit price (all sizes compete unless the term asked for one), then shelf price
 			ranked.sort(Comparator.comparingDouble(Lex::score).reversed()
+					.thenComparing(lex -> lex.row().getUnitPrice(), Comparator.nullsLast(Comparator.naturalOrder()))
 					.thenComparing(lex -> lex.row().getPriceAmount())
 					.thenComparing(lex -> lex.row().getDisplayName().length()));
 			Lex best = ranked.get(0);
@@ -241,16 +288,17 @@ public class ItemMatchService {
 					.filter(lex -> lex.score() >= config.getAlternativeMinScore())
 					.limit(config.getMaxAlternativesPerChain())
 					.forEach(alternatives::add);
+			ranked.stream().filter(lex -> !lex.qualifierOk()).limit(config.getMaxAlternativesPerChain())
+					.forEach(otherSizes::add);
 		}
 		Set<ChainId> missing = new java.util.LinkedHashSet<>(List.of(ChainId.values()));
 		chosen.forEach(lex -> missing.remove(ChainId.valueOf(lex.row().getChainId().toUpperCase(Locale.ROOT))));
-		return new Lexical(chosen, alternatives, missing, staleChains, !staleChains.isEmpty());
+		return new Lexical(chosen, alternatives, otherSizes, missing, staleChains, !staleChains.isEmpty());
 	}
 
 	private static MatchedProduct toProduct(Lex lex) {
 		NormalizedProduct row = lex.row();
-		PackSize size = row.getPackUnit() == null || row.getPackQuantity() == null ? null
-				: new PackSize(PackUnit.fromCode(row.getPackUnit()), row.getPackQuantity());
+		PackSize size = packOf(row);
 		return new MatchedProduct(row.getChainId().toUpperCase(Locale.ROOT), row.getStoreId(), row.getDisplayName(),
 				row.getBrand(), row.getPriceAmount(), row.getCurrency(), row.isPromoFlag(), row.getCapturedAt(),
 				Math.round(lex.score() * 100.0) / 100.0, row.getUnitPrice(), size == null ? null : size.label());
@@ -261,55 +309,66 @@ public class ItemMatchService {
 			"organic", "lactose", "lacto", "zero", "protein", "calci", "jersey", "homogenised", "flavoured", "reduced",
 			"free", "gluten", "vegan", "premium", "diet", "sugar");
 
-	private record Ranked(NormalizedProduct row, boolean sizeMatch, double coverage, int unaskedVariants) {
+	/** {@code qualifierOk}: the product has the size / pack count / egg grade the term asked for (true when none asked). */
+	private record Ranked(NormalizedProduct row, boolean qualifierOk, double coverage, int unaskedVariants) {
 	}
 
 	/**
 	 * The fast path: the request names a common NZ product, so the candidates are exactly the stored
 	 * products normalised to that product - no scan of the whole price history. A stored product must
-	 * share at least one word with the request (broad keys such as spices hold many different
-	 * products) and word coverage outranks pack size. Returns null when nothing qualifies, so the
-	 * caller falls back to word-overlap matching.
+	 * pass the product's exclude words and the dish guard (a dish that merely contains the word is no
+	 * instance of the category) and share at least one word with the request (broad keys such as
+	 * spices hold many different products).
+	 *
+	 * <p>Without a size / pack count / egg grade in the request every size competes: word coverage, then
+	 * fewest unasked variants (lite, organic, ...), then unit price. With one, only products that have it
+	 * can be a match (ranked the same way); the others are returned in {@code otherSizes} and stay
+	 * alternatives. Returns null when nothing qualifies, so the caller falls back to word-overlap matching.
 	 */
-	private MatchResult matchCanonical(String term, String itemId, CommonProduct common, PackSize requested,
-			OffsetDateTime since, PricingCacheProperties.Match config, boolean stale) {
+	private MatchOutcome matchCanonical(String itemId, CommonProduct common, ParsedQuery query, OffsetDateTime since,
+			PricingCacheProperties.Match config, boolean stale) {
 		List<NormalizedProduct> rows = dedupe(snapshot.findByCanonicalKeyAndCapturedAtAfter(common.key(), since));
-		Set<String> termWords = ProductNormalizer.words(term);
-		PackSize wanted = requested != null ? requested : common.typicalSize();
+		Set<String> termWords = query.words();
 		Map<String, List<Ranked>> byChain = new LinkedHashMap<>();
 		for (NormalizedProduct row : rows) {
 			if (row.getPriceAmount() == null || row.getPriceAmount().signum() <= 0 || !knownChain(row.getChainId())) {
 				continue;
 			}
-			Set<String> nameWords = ProductNormalizer.words(row.getDisplayName());
+			String name = row.getDisplayName();
+			if (!StringUtils.hasText(name) || !catalog.accepts(common, name, termWords)) {
+				continue;
+			}
+			Set<String> nameWords = ProductNormalizer.words(name);
 			long shared = termWords.stream().filter(nameWords::contains).count();
 			double coverage = termWords.isEmpty() ? 0.0 : (double) shared / termWords.size();
 			if (!termWords.isEmpty() && shared == 0) {
 				continue;
 			}
-			boolean sizeMatch = wanted != null && row.getPackUnit() != null && row.getPackQuantity() != null
-					&& wanted.sameAs(new PackSize(PackUnit.fromCode(row.getPackUnit()), row.getPackQuantity()));
+			boolean qualifierOk = NameMatcher.qualifiersMatch(query, name, packOf(row));
 			int unaskedVariants = (int) nameWords.stream()
 					.filter(word -> VARIANT_WORDS.contains(word) && !termWords.contains(word)).count();
 			byChain.computeIfAbsent(row.getChainId(), chain -> new ArrayList<>())
-					.add(new Ranked(row, sizeMatch, coverage, unaskedVariants));
+					.add(new Ranked(row, qualifierOk, coverage, unaskedVariants));
 		}
 		if (byChain.isEmpty()) {
 			return null;
 		}
 		Comparator<Ranked> ranking = Comparator.comparingDouble(Ranked::coverage).reversed()
-				.thenComparing(Comparator.comparing(Ranked::sizeMatch).reversed())
+				.thenComparing(Comparator.comparing(Ranked::qualifierOk).reversed())
 				.thenComparingInt(Ranked::unaskedVariants)
 				.thenComparing(ranked -> ranked.row().getUnitPrice(), Comparator.nullsLast(Comparator.naturalOrder()))
 				.thenComparing(ranked -> ranked.row().getPriceAmount());
+		// a product that lacks the asked-for size is never the best, whatever its coverage
+		Comparator<Ranked> choice = Comparator.comparing(Ranked::qualifierOk).reversed().thenComparing(ranking);
 		List<MatchedProduct> matches = new ArrayList<>();
 		List<MatchedProduct> alternatives = new ArrayList<>();
+		List<MatchedProduct> otherSizes = new ArrayList<>();
 		List<Candidate> chosen = new ArrayList<>();
 		for (List<Ranked> ranked : byChain.values()) {
-			ranked.sort(ranking);
+			ranked.sort(choice);
 			Ranked best = ranked.get(0);
 			int firstAlternative = 0;
-			if (requested == null || best.sizeMatch()) {
+			if (best.qualifierOk()) {
 				matches.add(toProduct(best, config));
 				chosen.add(new Candidate(best.row(), best.row().getDisplayName(),
 						Math.max(best.coverage(), config.getMinScore())));
@@ -317,12 +376,15 @@ public class ItemMatchService {
 			}
 			ranked.stream().skip(firstAlternative).limit(config.getMaxAlternativesPerChain())
 					.forEach(other -> alternatives.add(toProduct(other, config)));
+			ranked.stream().filter(other -> !other.qualifierOk()).limit(config.getMaxAlternativesPerChain())
+					.forEach(other -> otherSizes.add(toProduct(other, config)));
 		}
 		matches.sort(Comparator.comparing(MatchedProduct::priceAmount));
 		alternatives.sort(Comparator.comparingDouble(MatchedProduct::score).reversed()
 				.thenComparing(MatchedProduct::priceAmount));
 		persistUnderItemId(itemId, chosen);
-		return new MatchResult(METHOD_CANONICAL, matches, List.copyOf(alternatives), stale);
+		return new MatchOutcome(new MatchResult(METHOD_CANONICAL, matches, List.copyOf(alternatives), stale),
+				List.copyOf(otherSizes));
 	}
 
 	/**
@@ -342,9 +404,8 @@ public class ItemMatchService {
 
 	private static MatchedProduct toProduct(Ranked ranked, PricingCacheProperties.Match config) {
 		NormalizedProduct row = ranked.row();
-		PackSize size = row.getPackUnit() == null || row.getPackQuantity() == null ? null
-				: new PackSize(PackUnit.fromCode(row.getPackUnit()), row.getPackQuantity());
-		double score = ranked.sizeMatch() ? Math.max(ranked.coverage(), config.getMinScore()) : ranked.coverage();
+		PackSize size = packOf(row);
+		double score = ranked.qualifierOk() ? Math.max(ranked.coverage(), config.getMinScore()) : ranked.coverage();
 		return new MatchedProduct(row.getChainId().toUpperCase(Locale.ROOT), row.getStoreId(), row.getDisplayName(),
 				row.getBrand(), row.getPriceAmount(), row.getCurrency(), row.isPromoFlag(), row.getCapturedAt(),
 				Math.round(score * 100.0) / 100.0, row.getUnitPrice(), size == null ? null : size.label());
@@ -371,33 +432,8 @@ public class ItemMatchService {
 	}
 
 	private void persistNow(String itemId, List<Candidate> chosen) {
-		Set<String> alreadyStored = new HashSet<>();
-		repository.findByItemId(itemId).forEach(row -> alreadyStored.add(storedKey(row)));
-		for (Candidate candidate : chosen) {
-			NormalizedProduct source = candidate.row();
-			if (!alreadyStored.add(storedKey(source.getChainId(), source.getStoreId(), source.getCapturedAt()))) {
-				continue;
-			}
-			Map<String, Object> attributes = new LinkedHashMap<>();
-			attributes.put("name", source.getDisplayName());
-			if (StringUtils.hasText(source.getBrand())) {
-				attributes.put("brand", source.getBrand());
-			}
-			PriceRecord saved = repository.save(PriceRecord.builder()
-					.itemId(itemId)
-					.storeId(source.getStoreId())
-					.chainId(source.getChainId())
-					.channel("pickup")
-					.priceAmount(source.getPriceAmount())
-					.currency(source.getCurrency())
-					.promoFlag(source.isPromoFlag())
-					.capturedAt(source.getCapturedAt())
-					.rawAttributes(attributes)
-					.createdAt(OffsetDateTime.now(ZoneOffset.UTC))
-					.build());
-			eventPublisher.publishPriceRecordCaptured(saved);
-			priceStatsService.recordObservation(saved);
-		}
+		new ItemPriceStore(repository, priceStatsService, eventPublisher).store(itemId,
+				chosen.stream().map(Candidate::row).toList());
 	}
 
 	/** Test seam: the default stores on a daemon background thread. */
@@ -436,13 +472,5 @@ public class ItemMatchService {
 		} catch (IllegalArgumentException e) {
 			return false;
 		}
-	}
-
-	private static String storedKey(PriceRecord row) {
-		return storedKey(row.getChainId(), row.getStoreId(), row.getCapturedAt());
-	}
-
-	private static String storedKey(String chainId, String storeId, OffsetDateTime capturedAt) {
-		return chainId + "|" + storeId + "|" + (capturedAt == null ? "" : capturedAt.toInstant());
 	}
 }

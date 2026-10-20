@@ -79,6 +79,19 @@ class ExpirationNotificationPostgresIT {
 	}
 
 	@Test
+	void freeTextItemWithNullProductIdPersistsWithNameCategoryUnit() {
+		UUID itemId = UUID.randomUUID();
+		ExpirationNotification saved = repository.save(ExpirationNotification.create(userId, itemId, null,
+				LocalDate.of(2026, 10, 21), Instant.now(), "Nana's jam", "Pantry", "jar"));
+
+		ExpirationNotification loaded = repository.findByIdAndUserId(saved.getId(), userId).orElseThrow();
+		assertThat(loaded.getProductId()).isNull();
+		assertThat(loaded.getItemName()).isEqualTo("Nana's jam");
+		assertThat(loaded.getCategory()).isEqualTo("Pantry");
+		assertThat(loaded.getUnit()).isEqualTo("jar");
+	}
+
+	@Test
 	void scanAcknowledgeAndRescanAgainstPostgres() {
 		ExpiringItem due = new ExpiringItem(UUID.randomUUID(), userId, UUID.randomUUID(), 1,
 				LocalDate.now().plusDays(1), 3);

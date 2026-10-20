@@ -117,10 +117,10 @@ class PantryItemServiceTest {
     @Test
     void updatingQuantityKeepsTheExpiry() {
         UUID id = UUID.randomUUID();
-        when(repository.findById(id)).thenReturn(Optional.of(
+        when(repository.findByIdAndUserId(id, userId)).thenReturn(Optional.of(
                 new PantryItem(id, userId, productId, 1, TODAY.plusDays(4), 2)));
 
-        service.updatePantryItem(id, 6);
+        service.updatePantryItem(userId, id, 6);
 
         PantryItem item = saved();
         assertThat(item.getQuantity()).isEqualTo(6);
@@ -132,9 +132,9 @@ class PantryItemServiceTest {
     @Test
     void updateExpirySavesDateAndThreshold() {
         UUID id = UUID.randomUUID();
-        when(repository.findById(id)).thenReturn(Optional.of(new PantryItem(id, userId, productId, 3)));
+        when(repository.findByIdAndUserId(id, userId)).thenReturn(Optional.of(new PantryItem(id, userId, productId, 3)));
 
-        PantryItem result = service.updateExpiry(id, TODAY.plusDays(8), 6);
+        PantryItem result = service.updateExpiry(userId, id, TODAY.plusDays(8), 6);
 
         assertThat(result.getQuantity()).isEqualTo(3);
         assertThat(saved().getExpirationDate()).isEqualTo(TODAY.plusDays(8));
@@ -144,10 +144,10 @@ class PantryItemServiceTest {
     @Test
     void updateExpiryWithNullDateClearsBothFields() {
         UUID id = UUID.randomUUID();
-        when(repository.findById(id)).thenReturn(Optional.of(
+        when(repository.findByIdAndUserId(id, userId)).thenReturn(Optional.of(
                 new PantryItem(id, userId, productId, 3, TODAY.plusDays(2), 2)));
 
-        service.updateExpiry(id, null, null);
+        service.updateExpiry(userId, id, null, null);
 
         PantryItem item = saved();
         assertThat(item.getExpirationDate()).isNull();
@@ -157,11 +157,10 @@ class PantryItemServiceTest {
     @Test
     void updateExpiryOfUnknownItemFails() {
         UUID id = UUID.randomUUID();
-        when(repository.findById(id)).thenReturn(Optional.empty());
+        when(repository.findByIdAndUserId(id, userId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updateExpiry(id, TODAY, 1))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("not found");
+        assertThatThrownBy(() -> service.updateExpiry(userId, id, TODAY, 1))
+                .isInstanceOf(PantryItemNotFoundException.class);
     }
 
     @Test

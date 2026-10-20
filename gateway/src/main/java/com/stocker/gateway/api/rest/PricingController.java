@@ -11,21 +11,15 @@ import com.stocker.pricing.api.grpc.v1.SearchRequest;
 import com.stocker.pricing.api.grpc.v1.SearchResponse;
 import com.stocker.pricing.api.grpc.v1.ShoppingListItem;
 import com.stocker.pricing.api.grpc.v1.StoreTotal;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -35,6 +29,11 @@ import reactor.core.scheduler.Schedulers;
  * reconciliation is needed there — just sort ascending so the cheapest option is first. Compare's
  * "outside service area" gRPC error (Status.INVALID_ARGUMENT, raised by pricing's
  * ShoppingListComparisonService) is translated to an HTTP 422 with the description as the body.
+ *
+ * <p>Cancellation: when the HTTP client disconnects, WebFlux disposes the returned Mono. Reactor then interrupts the
+ * boundedElastic thread blocked in the gRPC stub, and grpc-java's blocking call turns that interrupt into a CANCELLED
+ * RPC, so pricing sees its call Context cancelled. No extra code is needed; PricingControllerCancellationTest holds
+ * this for search, compare and match against a real gRPC server.
  */
 @RestController
 @RequestMapping("/api/pricing")
@@ -79,8 +78,7 @@ public class PricingController {
 		// Blocking stub call, offloaded off the WebFlux/Netty event loop - never block it directly.
 		return Mono.fromCallable(() -> priceRecordServiceBlockingStub.compareShoppingList(request.build()))
 				.subscribeOn(Schedulers.boundedElastic())
-				.map(PricingController::toCompareResponse)
-				.onErrorResume(StatusRuntimeException.class, PricingController::mapServiceAreaError);
+				.map(PricingController::toCompareResponse);
 	}
 
 	/**
@@ -107,8 +105,7 @@ public class PricingController {
 		// Blocking stub call, offloaded off the WebFlux/Netty event loop - never block it directly.
 		return Mono.fromCallable(() -> priceRecordServiceBlockingStub.matchItem(request))
 				.subscribeOn(Schedulers.boundedElastic())
-				.map(PricingController::toMatchResponse)
-				.onErrorResume(StatusRuntimeException.class, PricingController::mapServiceAreaError);
+				.map(PricingController::toMatchResponse);
 	}
 
 	private static MatchResponseBody toMatchResponse(MatchItemResponse response) {
@@ -148,26 +145,6 @@ public class PricingController {
 	public record MatchView(String chainId, String storeId, String productName, String brand, double priceAmount,
 			String currency, boolean promoFlag, String capturedAt, double score, String productUrl, String matchType,
 			Double unitPrice, String packSize) {
-	}
-
-	private static <T> Mono<T> mapServiceAreaError(StatusRuntimeException ex) {
-		if (ex.getStatus().getCode() == Status.Code.INVALID_ARGUMENT) {
-			return Mono.error(new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, ex.getStatus().getDescription()));
-		}
-		return Mono.error(ex);
-	}
-
-	/**
-	 * Scoped to this controller only (not a global @ControllerAdvice). WebFlux's default error
-	 * body omits ResponseStatusException.getReason() unless server.error.include-message is set
-	 * globally - this puts the message in the body without that repo-wide config change.
-	 */
-	@ExceptionHandler(ResponseStatusException.class)
-	public ResponseEntity<ErrorResponseBody> handleServiceAreaError(ResponseStatusException ex) {
-		return ResponseEntity.status(ex.getStatusCode()).body(new ErrorResponseBody(ex.getReason()));
-	}
-
-	public record ErrorResponseBody(String error) {
 	}
 
 	private static CompareShoppingListResultResponse toCompareResponse(CompareShoppingListResponse response) {
