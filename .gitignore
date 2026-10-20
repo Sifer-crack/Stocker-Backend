@@ -39,7 +39,8 @@ out/
 
 
 ### Env files ###
-# ignore all .env files at any level, except examples
+# ignore all .env files at any level (including local backups/temp copies), except examples
 **/.env
 **/.env.*
+**/.env-*
 !**/.env.example
