@@ -41,7 +41,7 @@ public class ShoppingUpdatesController {
 	private final ShoppingUpdateHub hub;
 	private final byte[] internalToken;
 
-	public ShoppingUpdatesController(ShoppingUpdateHub hub, @Value("${stocker.internal.token:}") String internalToken) {
+	public ShoppingUpdatesController(ShoppingUpdateHub hub, @Value("${stocker.internal.token}") String internalToken) {
 		this.hub = hub;
 		this.internalToken = internalToken.getBytes(StandardCharsets.UTF_8);
 	}

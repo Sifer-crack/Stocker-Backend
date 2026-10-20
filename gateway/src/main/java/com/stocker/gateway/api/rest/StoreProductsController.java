@@ -5,19 +5,13 @@ import com.stocker.pricing.api.grpc.v1.ChainCatalogGrpc;
 import com.stocker.pricing.api.grpc.v1.ChainProduct;
 import com.stocker.pricing.api.grpc.v1.ListChainProductsRequest;
 import com.stocker.pricing.api.grpc.v1.ListChainProductsResponse;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import java.time.Instant;
 import java.util.List;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -45,8 +39,7 @@ public class StoreProductsController {
 		// Blocking stub call, offloaded off the WebFlux/Netty event loop - never block it directly.
 		return Mono.fromCallable(() -> chainCatalogBlockingStub.listProducts(request))
 				.subscribeOn(Schedulers.boundedElastic())
-				.map(StoreProductsController::toResponse)
-				.onErrorResume(StatusRuntimeException.class, StoreProductsController::mapInvalidArgument);
+				.map(StoreProductsController::toResponse);
 	}
 
 	private static StoreProductsResponse toResponse(ListChainProductsResponse response) {
@@ -70,22 +63,6 @@ public class StoreProductsController {
 			return null;
 		}
 		return Instant.ofEpochSecond(timestamp.getSeconds(), timestamp.getNanos()).toString();
-	}
-
-	private static <T> Mono<T> mapInvalidArgument(StatusRuntimeException ex) {
-		if (ex.getStatus().getCode() == Status.Code.INVALID_ARGUMENT) {
-			return Mono.error(new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, ex.getStatus().getDescription()));
-		}
-		return Mono.error(ex);
-	}
-
-	/** Scoped to this controller: puts the message in the body without a repo-wide error-message setting. */
-	@ExceptionHandler(ResponseStatusException.class)
-	public ResponseEntity<ErrorResponseBody> handleInvalidArgument(ResponseStatusException ex) {
-		return ResponseEntity.status(ex.getStatusCode()).body(new ErrorResponseBody(ex.getReason()));
-	}
-
-	public record ErrorResponseBody(String error) {
 	}
 
 	public record StoreProductsResponse(List<StoreProductView> products) {

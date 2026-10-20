@@ -12,15 +12,10 @@ import com.stocker.pricing.api.grpc.v1.SelectProductResponse;
 import com.stocker.pricing.api.grpc.v1.SuggestProductsRequest;
 import com.stocker.pricing.api.grpc.v1.SuggestProductsResponse;
 import com.stocker.pricing.api.grpc.v1.Suggestion;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -28,14 +23,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 /**
  * REST-in / gRPC-out for the merged-product search (docs/features/price-search-v2.md): {@code GET /api/pricing/products}
  * and {@code PUT /api/pricing/items/{itemId}/product}. Prices are keyed by lower-case chain id; absent optional fields
- * are JSON null. INVALID_ARGUMENT from pricing becomes 422 and NOT_FOUND 404, both as {@code {"error": ...}}.
+ * are JSON null. gRPC errors are mapped by PricingExceptionAdvice.
  *
  * <p>Cancellation works as in {@link PricingController}: a disposed Mono interrupts the boundedElastic thread blocked
  * in the gRPC stub, which cancels the RPC (ProductSearchControllerCancellationTest).
@@ -66,8 +60,7 @@ public class ProductSearchController {
 		// Blocking stub call, offloaded off the WebFlux/Netty event loop - never block it directly.
 		return Mono.fromCallable(() -> stub.searchProducts(request))
 				.subscribeOn(Schedulers.boundedElastic())
-				.map(ProductSearchController::toBody)
-				.onErrorResume(StatusRuntimeException.class, ProductSearchController::mapError);
+				.map(ProductSearchController::toBody);
 	}
 
 	/** Search-bar suggestions from the stored supermarket products; a missing or short {@code q} is valid. */
@@ -79,8 +72,7 @@ public class ProductSearchController {
 				.setLimit(limit == null ? 0 : limit).build();
 		return Mono.fromCallable(() -> stub.suggestProducts(request))
 				.subscribeOn(Schedulers.boundedElastic())
-				.map(response -> toBody(query, response))
-				.onErrorResume(StatusRuntimeException.class, ProductSearchController::mapError);
+				.map(response -> toBody(query, response));
 	}
 
 	@PutMapping("/items/{itemId}/product")
@@ -91,25 +83,7 @@ public class ProductSearchController {
 				.build();
 		return Mono.fromCallable(() -> stub.selectProduct(request))
 				.subscribeOn(Schedulers.boundedElastic())
-				.map(ProductSearchController::toBody)
-				.onErrorResume(StatusRuntimeException.class, ProductSearchController::mapError);
-	}
-
-	private static <T> Mono<T> mapError(StatusRuntimeException ex) {
-		return switch (ex.getStatus().getCode()) {
-			case INVALID_ARGUMENT -> Mono.error(new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, ex.getStatus().getDescription()));
-			case NOT_FOUND -> Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getStatus().getDescription()));
-			default -> Mono.error(ex);
-		};
-	}
-
-	/** Controller-scoped, like PricingController: puts the message in the body as {@code {"error": ...}}. */
-	@ExceptionHandler(ResponseStatusException.class)
-	public ResponseEntity<ErrorBody> handleStatus(ResponseStatusException ex) {
-		return ResponseEntity.status(ex.getStatusCode()).body(new ErrorBody(ex.getReason()));
-	}
-
-	public record ErrorBody(String error) {
+				.map(ProductSearchController::toBody);
 	}
 
 	public record SuggestionBody(String text, String canonicalKey, int chainCount, List<String> chains, String sampleSize,
