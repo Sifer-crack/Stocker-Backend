@@ -12,4 +12,6 @@ public interface PantryItemRepository {
     Optional<PantryItem> findByUserIdAndProductId(UUID userId, UUID productId);
     Optional<PantryItem> findById(UUID pantryItemId);
     void deleteById(UUID pantryItemId);
+    void deleteByUserId(UUID userID);
+    List<PantryItem> saveAll(List<PantryItem> pantryItems);
 }
