@@ -177,6 +177,7 @@ click and collect 3.50.
 - No delete API for users, shopping items or notifications: test data stays in Neon.
 - `notifications` and `analytics` Kafka handling is stubbed; shopping's outbox publisher is a stub.
 - The shopping list's SSE stream (`GET /api/updates/shopping`) is relayed by the gateway, but the frontend does not use it yet.
+- Catalog writes are blocked at the gateway. `SecurityConfig` denies every non-`GET` `/api/products/**` (create, delete and import are service-to-service; identity issues no admin role yet), so a signed-in caller gets 403 and an anonymous caller 401. The product seed in `smoke.sh` and the "Create a product" step in section 4.1 therefore FAIL through the gateway — seed products against the catalog service directly (`http://localhost:8082`) instead, or treat those two smoke checks as expected failures. The frontend is unaffected: it only reads `/api/products`.
 - Region/service-area list is a placeholder (auckland, wellington, christchurch) pending sign-off; fees do not model express delivery, surcharges or Club+.
 
 > `scripts/manual-test/stack-up.sh` builds the images **one at a time** (each image runs a Gradle build; all eight at once can exhaust RAM). Close heavy applications first and expect several minutes. Set `BUILD_ALL_AT_ONCE=1` only on a machine with plenty of free memory.
