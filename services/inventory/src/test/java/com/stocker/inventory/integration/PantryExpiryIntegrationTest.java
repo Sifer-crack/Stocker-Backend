@@ -58,7 +58,7 @@ class PantryExpiryIntegrationTest {
         mockMvc.perform(get("/internal/pantry-items/expiring").param("asOf", "2026-10-19"))
                 .andExpect(jsonPath("$.length()").value(0));
 
-        mockMvc.perform(put("/pantry-items/{id}/expiry", itemId)
+        mockMvc.perform(put("/pantry-items/{id}/expiry", itemId).header("X-User-Id", userId.toString())
                         .param("expirationDate", "2026-10-25").param("notifyDaysBefore", "10"))
                 .andExpect(status().isOk());
 
