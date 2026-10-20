@@ -9,9 +9,11 @@ import com.stocker.pricing.ingest.ChainId;
 import com.stocker.pricing.ingest.ChainScraper;
 import com.stocker.pricing.ingest.ScrapePacer;
 import com.stocker.pricing.ingest.model.ChainScraperConfig;
+import com.stocker.pricing.ingest.model.CrawlBrake;
 import com.stocker.pricing.ingest.model.LeanPageOptions;
 import com.stocker.pricing.ingest.model.ScrapeException;
 import com.stocker.pricing.ingest.model.ScrapeResult;
+import com.stocker.pricing.ingest.parse.CategoryPagination;
 import com.stocker.pricing.ingest.parse.ChainPageTemplate;
 import com.stocker.pricing.ingest.parse.ProductCardFields;
 import com.stocker.pricing.ingest.parse.WoolworthsProductCardExtractor;
@@ -106,7 +108,13 @@ public class WoolworthsNzChainScraper implements ChainScraper {
 				}
 				firstPage = false;
 				try {
-					List<ProductCardFields> cards = loader.load(page, categoryUrl, config.getCrawlBrake()).cards();
+					PaginatedCategoryWalker<ProductCardFields> walker = new PaginatedCategoryWalker<>(
+							config.getMaxPagesPerCategory(), config.getExtraPageGate(),
+							() -> ScrapePacer.pauseBetweenPages(config), () -> config.getCancellation().isCancelled(),
+							(url, n) -> CategoryPagination.pageUrl(url, n, template.pageParam()));
+					PaginatedCategoryWalker.Walk<ProductCardFields> walk = walker.walk(categoryUrl,
+							url -> loadPage(loader, page, url, config.getCrawlBrake()));
+					List<ProductCardFields> cards = walk.items();
 					visited.add(categoryUrl);
 					if (cards.isEmpty()) {
 						zeroResultCategoryUrls.add(categoryUrl);
@@ -117,6 +125,9 @@ public class WoolworthsNzChainScraper implements ChainScraper {
 					WoolworthsProductCardExtractor.PageParse parsed = WoolworthsProductCardExtractor.parseAll(cards,
 							config.getStoreId());
 					products.addAll(parsed.products());
+					if (!parsed.products().isEmpty()) {
+						config.getCategoryResultSink().onCategory(categoryUrl, List.copyOf(parsed.products()));
+					}
 					String summary = parsed.summary(categoryUrl, template.describeSelectors());
 					if (summary != null) {
 						log.warn(summary);
@@ -128,6 +139,13 @@ public class WoolworthsNzChainScraper implements ChainScraper {
 						log.warn("WOOLWORTHS: template stale or tiles not hydrated at {}: {} tiles found, 0 usable products "
 								+ "(check ChainPageTemplate.woolworths() against the live page, see INGEST_MODULE.md)",
 								categoryUrl, cards.size());
+					}
+					if (walk.extraPages() > 0) {
+						log.info("WOOLWORTHS: {} had {} tile(s) over {} pages", categoryUrl, cards.size(), walk.pagesLoaded());
+					}
+					if (walk.warning() != null) {
+						warnings.add(walk.warning());
+						log.warn("WOOLWORTHS: {}", walk.warning());
 					}
 				} catch (PlaywrightException e) {
 					String warning = "Failed to scrape " + categoryUrl + ": " + e.getMessage();
@@ -146,5 +164,12 @@ public class WoolworthsNzChainScraper implements ChainScraper {
 				.zeroResultCategoryUrls(zeroResultCategoryUrls)
 				.warnings(warnings)
 				.build();
+	}
+
+	/** Loads one category page through the template: its tiles plus the "A to B of M products" line. */
+	private PaginatedCategoryWalker.LoadedPage<ProductCardFields> loadPage(TemplatedPageLoader loader, Page page,
+			String url, CrawlBrake brake) {
+		TemplatedPageLoader.PageRead read = loader.load(page, url, brake);
+		return new PaginatedCategoryWalker.LoadedPage<>(read.cards(), read.showingText() == null ? "" : read.showingText());
 	}
 }

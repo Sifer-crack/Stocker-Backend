@@ -174,8 +174,11 @@ fixture in `src/test/resources/ingest/` and the `ChainPageTemplateTest` / `Templ
   `?pg=2,3,...` (confirmed live 2026-10-20: chips-nuts--snacks is 451-520 products over 9-11 pages). The crawler reads the
   line and follows `?pg=N` until B reaches M or `max-pages-per-category` (8) is hit; each extra page is paid from the daily
   budget, a single-page category still costs exactly one page, and any error / block / empty page / used-up budget ends
-  that category with a WARN ("read B of M listed products"). Woolworths NZ is not paginated by the crawler yet (its
-  pagination markup was not found; see INGEST_MODULE.md).
+  that category with a WARN ("read B of M listed products"). Woolworths NZ is paginated the same way: it shows "1 to 36 of
+  264 products" at 36 per page and links `?page=2,3,...` (confirmed live 2026-10-20, biscuits-cookies: 264 products over 8
+  pages); its cap is `app.ingest.woolworths.max-pages-per-category` (default 10) and it saves each category as soon as it
+  is read. Page budget: a Woolworths category of N products costs ceil(N/36) pages of the 140/day cap, so the 20 reserved
+  extra pages cover only a few large categories per run; see INGEST_MODULE.md.
 - Staple discovery: sitemap category pages whose name contains a staple keyword (`staple-category-keywords.txt` plus the
   keyword column of `common-products.txt`) are added to the crawl without being checked first. A dead page returns zero
   products and is quarantined after 2 runs, so it costs at most 2 pages.

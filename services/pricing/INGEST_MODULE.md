@@ -112,9 +112,22 @@ than before.
   probe category needs 9-11, so it is read up to page 8 with a WARN). Each page after the first asks
   `ChainScraperConfig.extraPageGate`, which reserves one page from `DailyPageBudget`; an error, 403/429/503, empty page or
   refused budget stops that category and keeps what was read. A one-page category costs exactly one page.
-- **Woolworths.** The scraper loads only the first page of each category. The probe loaded `biscuits-cookies` once: 36 tiles,
-  no "Showing" text and no pagination element in the DOM (it may be infinite scroll or rendered later). Not guessed; a
-  further look (scrolling) needs the owner's approval.
+- **Woolworths pagination.** Live probe 2026-10-20 (`WoolworthsPaginationLiveProbeTest`, two approved page loads of
+  `pantry/biscuits-crackers/biscuits-cookies`): 36 listed products per page, the page prints `1 to 36 of 264 products`
+  (`<div class="search-result-count_searchResultsCount__...">`), and `<nav aria-label="Pagination">` holds `Page 1 of 8`,
+  numbered `<a href=".../biscuits-cookies?page=N">` links and a `<a rel="next" href="...?page=2">Next</a>`. Following that
+  link (`?page=2`) gave `37 to 72 of 264 products`, 36 tiles and a different first product. Page 1 carried 44 tiles for
+  36 listed products (8 promoted/repeated tiles), so, as for Foodstuffs, the walk is driven by the count line, never by the
+  tile count. `WoolworthsNzChainScraper` uses the same `PaginatedCategoryWalker`: page 1, then `?page=2..` while B < M (the
+  template carries `pageParam`, `showingRegex`; the count line is read by `CategoryPagination`), each extra page asks
+  `extraPageGate` (DailyPageBudget), and an error, 403/429/503 (also reported to the circuit breaker), empty page or refused
+  budget stops that category, keeps the tiles already read and logs a WARN ("read B of M listed products"). A one-page
+  category costs exactly one page. Cap: `app.ingest.woolworths.max-pages-per-category`
+  (`STOCKER_INGEST_WOOLWORTHS_MAX_PAGES_PER_CATEGORY`, default 10 = 360 products; the shared `max-pages-per-category`
+  of 8 stays the default for the other chains). The scraper now also calls the `CategoryResultSink` after each category.
+  Fixtures: `woolworths-pagination-nav.html` (the real nav and count line), `woolworths-real-cards.html` (real tiles);
+  `WoolworthsPaginationBrowserTest` serves generated pages from localhost. Not verified live: the last page, a category
+  over 10 pages (cap), and whether more rapid page loads trip the site (the 20-40 s pace applies between pages).
   **Re-checked live on 2026-10-20 (one approved page load, `WoolworthsLiveProbeTest`):** HTTP 200, no bot check, "1 to 36 of
   264 products", 44 `div[class^='product-tile_imgAndTextArea_']` tiles and also 44 description links and 44 price spans, so
   every tile of a fully rendered page carries name, price and link and the old selectors still parse (hash suffixes changed,
@@ -163,7 +176,7 @@ and the scheduler's sink stores that category's rows at once (same path: `price_
 in the run therefore loses only the category being read. Logged as `CHAIN: stored N rows from <url> (run total M)`.
 A storing failure in one category is logged and counted, and the crawl carries on. `CategoryHealth`, `DailyPageBudget`
 and breaker accounting are unchanged and still run at the end of the scrape. A scraper that never calls the sink
-(an older one, or Woolworths until its extractor branch adds the one-line call) is stored at the end of the run as
+(an older one) is stored at the end of the run as
 before. The persisted data format is unchanged.
 
 ## Sitemap category-URL cache

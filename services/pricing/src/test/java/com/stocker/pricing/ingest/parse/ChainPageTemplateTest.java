@@ -40,14 +40,16 @@ class ChainPageTemplateTest {
 	}
 
 	@Test
-	void woolworthsHasItsOwnSelectorsAndNoShowingLine() {
+	void woolworthsHasItsOwnSelectorsAndTheToCountLine() {
 		ChainPageTemplate ww = ChainPageTemplate.woolworths();
 
 		assertThat(ww.chain()).isEqualTo(ChainId.WOOLWORTHS);
 		assertThat(ww.cardSelector()).isEqualTo("div[class^='product-tile_imgAndTextArea_']");
 		assertThat(ww.fields().get(ChainPageTemplate.PRICE_TEXT).selector()).isEqualTo("span[class^='product-price_value_']");
-		assertThat(ww.showingRegex()).isNull();
-		assertThat(ww.paginationNavSelector()).isNull();
+		assertThat(ww.showingRegex()).isEqualTo(CategoryPagination.WOOLWORTHS_SOURCE);
+		assertThat(ww.paginationNavSelector()).isEqualTo("nav[aria-label='Pagination' i]");
+		assertThat(ww.pageParam()).isEqualTo("page");
+		assertThat(ChainPageTemplate.foodstuffs(ChainId.NEWWORLD).pageParam()).isEqualTo("pg");
 	}
 
 	@Test

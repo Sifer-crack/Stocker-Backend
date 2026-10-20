@@ -4,11 +4,12 @@ import com.stocker.pricing.ingest.parse.CategoryPagination;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 
 /**
- * Walks every page of one category: loads page 1, reads "Showing A - B of M products" and follows
- * {@code ?pg=2,3,...} until all M products are collected or a stop condition hits. Knows nothing about browsers:
+ * Walks every page of one category: loads page 1, reads "Showing A - B of M products" (Woolworths: "A to B of M
+ * products") and follows {@code ?pg=2,3,...} (Woolworths {@code ?page=2,3,...}) until all M products are collected or a stop condition hits. Knows nothing about browsers:
  * the caller supplies a {@link Loader}. A single-page category costs exactly one load. Page 1 errors propagate;
  * an error, empty page or refused budget on a later page ends the walk with what is already collected.
  */
@@ -32,9 +33,17 @@ final class PaginatedCategoryWalker<T> {
 	private final BooleanSupplier extraPageGranted;
 	private final Runnable pauseBetweenPages;
 	private final BooleanSupplier cancelled;
+	private final BiFunction<String, Integer, String> pageUrl;
 
 	PaginatedCategoryWalker(int maxPages, BooleanSupplier extraPageGranted, Runnable pauseBetweenPages,
 			BooleanSupplier cancelled) {
+		this(maxPages, extraPageGranted, pauseBetweenPages, cancelled, CategoryPagination::pageUrl);
+	}
+
+	/** @param pageUrl builds the URL of page N from the category URL (the chain's page query parameter) */
+	PaginatedCategoryWalker(int maxPages, BooleanSupplier extraPageGranted, Runnable pauseBetweenPages,
+			BooleanSupplier cancelled, BiFunction<String, Integer, String> pageUrl) {
+		this.pageUrl = pageUrl;
 		this.maxPages = Math.max(1, maxPages);
 		this.extraPageGranted = extraPageGranted;
 		this.pauseBetweenPages = pauseBetweenPages;
@@ -71,7 +80,7 @@ final class PaginatedCategoryWalker<T> {
 			LoadedPage<T> next;
 			try {
 				pages++;
-				next = loader.load(CategoryPagination.pageUrl(url, pages));
+				next = loader.load(pageUrl.apply(url, pages));
 			} catch (RuntimeException e) {
 				stop = "page " + pages + " failed: " + String.valueOf(e.getMessage()).lines().findFirst().orElse("");
 				break;

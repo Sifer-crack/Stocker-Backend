@@ -311,7 +311,7 @@ class TemplatePageBrowserTest {
 		assertThat(result.getProducts()).extracting(p -> p.getPrice().toPlainString()).containsExactly("3.49", "2.10");
 		assertThat(result.getProducts().get(0).getImageUrl()).isEqualTo("https://img/131002.png");
 		assertThat(logs(Level.WARN)).isEmpty();
-		assertThat(logs(Level.INFO)).anyMatch(l -> l.startsWith("WOOLWORTHS page url=") && l.contains("tiles=2 claimed=?"));
+		assertThat(logs(Level.INFO)).anyMatch(l -> l.startsWith("WOOLWORTHS page url=") && l.contains("tiles=2 claimed=2"));
 	}
 
 	@Test
@@ -326,6 +326,7 @@ class TemplatePageBrowserTest {
 				&& l.contains("product-price_value_") && l.contains(url("/milk")));
 	}
 
+	private static final String COUNT = "<div>1 to 3 of 3 products</div>";
 	private static final String SHELL = "<div class=\"product-tile_imgAndTextArea__LeaM_\"></div>";
 
 	@Test
@@ -360,7 +361,7 @@ class TemplatePageBrowserTest {
 
 	@Test
 	void woolworthsTilesWithoutAnyProductCountAsZeroResultAndWarnTemplateStale() {
-		DYNAMIC.put("/biscuits", "<html><body>" + SHELL + SHELL + SHELL + "</body></html>");
+		DYNAMIC.put("/biscuits", "<html><body>" + COUNT + SHELL + SHELL + SHELL + "</body></html>");
 
 		ScrapeResult result = new WoolworthsNzChainScraper(LEAN, "http://127.0.0.1")
 				.scrape(browser, config(List.of(url("/biscuits"))));
@@ -381,7 +382,7 @@ class TemplatePageBrowserTest {
 				real.indexOf("</div></body>"));
 		String script = "<script>setTimeout(function(){document.getElementById('g').innerHTML=" + toJsString(filled)
 				+ ";},2000);</script>";
-		DYNAMIC.put("/biscuits", "<html><body><div id=\"g\">" + SHELL + SHELL + SHELL + "</div>" + script + "</body></html>");
+		DYNAMIC.put("/biscuits", "<html><body>" + COUNT + "<div id=\"g\">" + SHELL + SHELL + SHELL + "</div>" + script + "</body></html>");
 
 		ScrapeResult result = new WoolworthsNzChainScraper(LEAN, "http://127.0.0.1")
 				.scrape(browser, config(List.of(url("/biscuits"))));
