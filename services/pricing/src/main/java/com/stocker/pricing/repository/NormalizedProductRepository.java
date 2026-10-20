@@ -13,6 +13,8 @@ public interface NormalizedProductRepository extends JpaRepository<NormalizedPro
 
 	Optional<NormalizedProduct> findByItemIdAndStoreId(String itemId, String storeId);
 
+	List<NormalizedProduct> findByItemIdIn(java.util.Collection<String> itemIds);
+
 	List<NormalizedProduct> findByCanonicalKeyAndCapturedAtAfter(String canonicalKey, OffsetDateTime since);
 
 	List<NormalizedProduct> findByCapturedAtAfter(OffsetDateTime since);

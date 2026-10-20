@@ -23,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -84,10 +85,8 @@ class IngestPipelineIntegrationTest {
 		assertEquals("newworld-store", newworld.lastConfig.getStoreId());
 		assertEquals(5, newworld.lastConfig.getMaxPagesPerCategory());
 
-		ArgumentCaptor<PriceRecord> captor = ArgumentCaptor.forClass(PriceRecord.class);
-		verify(priceRecordRepository, times(2)).save(captor.capture());
-
-		List<PriceRecord> saved = captor.getAllValues();
+		List<PriceRecord> saved = storedRecords();
+		assertEquals(2, saved.size());
 		assertEquals(List.of("newworld:P1", "newworld:P2"), saved.stream().map(PriceRecord::getItemId).toList(),
 				"the duplicate P1 card must be de-duped away, first-seen product kept");
 		assertEquals(new BigDecimal("3.79"), saved.get(0).getPriceAmount());
@@ -113,7 +112,7 @@ class IngestPipelineIntegrationTest {
 		scheduler.runAll();
 
 		assertEquals(1, newworld.invocations, "dry-run must still scrape, just not persist");
-		verify(priceRecordRepository, never()).save(any(PriceRecord.class));
+		verify(priceStatsService, never()).saveAndRecordAll(anyList());
 	}
 
 	@Test
@@ -125,7 +124,7 @@ class IngestPipelineIntegrationTest {
 		scheduler.runAll();
 
 		assertEquals(0, newworld.invocations, "a disabled chain must never be scraped");
-		verify(priceRecordRepository, never()).save(any(PriceRecord.class));
+		verify(priceStatsService, never()).saveAndRecordAll(anyList());
 	}
 
 	@Test
@@ -141,7 +140,7 @@ class IngestPipelineIntegrationTest {
 		scheduler.runAll();
 
 		assertEquals(0, newworld.invocations, "an enabled chain with no category-urls must be skipped, not scraped");
-		verify(priceRecordRepository, never()).save(any(PriceRecord.class));
+		verify(priceStatsService, never()).saveAndRecordAll(anyList());
 	}
 
 	@Test
@@ -165,9 +164,9 @@ class IngestPipelineIntegrationTest {
 		assertEquals(1, newworld.invocations);
 		assertEquals(1, paknsave.invocations);
 
-		ArgumentCaptor<PriceRecord> captor = ArgumentCaptor.forClass(PriceRecord.class);
-		verify(priceRecordRepository, times(1)).save(captor.capture());
-		assertEquals("paknsave:P9", captor.getValue().getItemId(),
+		List<PriceRecord> stored = storedRecords();
+		assertEquals(1, stored.size());
+		assertEquals("paknsave:P9", stored.get(0).getItemId(),
 				"paknsave's products must still be persisted despite newworld's scrape failing");
 	}
 
@@ -188,9 +187,9 @@ class IngestPipelineIntegrationTest {
 		IngestScheduler scheduler = new IngestScheduler(List.of(woolworths), browser, properties, priceRecordRepository, priceStatsService);
 		scheduler.runAll();
 
-		ArgumentCaptor<PriceRecord> captor = ArgumentCaptor.forClass(PriceRecord.class);
-		verify(priceRecordRepository, times(1)).save(captor.capture());
-		assertEquals("woolworths:W1", captor.getValue().getItemId(),
+		List<PriceRecord> stored = storedRecords();
+		assertEquals(1, stored.size());
+		assertEquals("woolworths:W1", stored.get(0).getItemId(),
 				"the blank-nativeProductCode product must be skipped, not abort the whole chain's batch");
 	}
 
@@ -212,7 +211,17 @@ class IngestPipelineIntegrationTest {
 		IngestScheduler scheduler = new IngestScheduler(List.of(newworld), browser, properties, priceRecordRepository, priceStatsService);
 		scheduler.runAll();
 
-		verify(priceRecordRepository, times(1)).save(any(PriceRecord.class));
+		verify(priceStatsService, times(1)).saveAndRecordAll(anyList());
+	}
+
+	/** Every record the scheduler handed to the batch path, in order. */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private List<PriceRecord> storedRecords() {
+		ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+		verify(priceStatsService, org.mockito.Mockito.atLeastOnce()).saveAndRecordAll(captor.capture());
+		List<PriceRecord> all = new java.util.ArrayList<>();
+		captor.getAllValues().forEach(all::addAll);
+		return all;
 	}
 
 	private void enableChain(ChainId chainId, String storeId, String storeName, String... categoryUrls) {

@@ -17,6 +17,8 @@ public class IngestProperties {
 
 	private boolean enabled = false;
 	private boolean dryRun = true;
+	/** Rows stored per database transaction when a scraped category is persisted (one batch = a fixed number of round trips). */
+	private int persistBatchSize = 500;
 	private String cron = "0 0 3 * * *";
 	private String cronZone = "Pacific/Auckland";
 	private boolean runOnStartup = false;

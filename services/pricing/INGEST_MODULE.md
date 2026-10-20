@@ -179,6 +179,16 @@ and breaker accounting are unchanged and still run at the end of the scrape. A s
 (an older one) is stored at the end of the run as
 before. The persisted data format is unchanged.
 
+## Batched persist
+
+Each finished category is stored by `PriceStatsService.saveAndRecordAll`: one transaction for `price_records` +
+`price_stats` (one read of the affected stats rows, observations folded in memory in order, `saveAll`), then one batched
+`normalized_products` pass, in chunks of `app.ingest.persist-batch-size` (500). A failed chunk is rolled back and
+retried row by row; failures are logged and counted, never fatal. Hibernate JDBC batching (`batch_size` 50, ordered
+inserts/updates) and pgjdbc `reWriteBatchedInserts` are enabled in `application.yml`. Resulting data is identical to
+the per-row path (same fold code); a 300-row batch costs 5 repository calls instead of 1,500. Details and measurements:
+`docs/features/price-engine-reliability.md` ("Batched persist").
+
 ## Sitemap category-URL cache
 
 Category URLs can be discovered from a chain's own sitemap instead of hand-maintaining
@@ -332,6 +342,8 @@ WARN makes the gap visible instead of hiding it.
 STOCKER_INGEST_ENABLED=false             # launches Playwright/Firefox when true - see Known Risks
 STOCKER_INGEST_DRY_RUN=true              # true = scrape + log only, never persist
 STOCKER_INGEST_CRON="0 0 3 * * *"
+STOCKER_INGEST_PERSIST_BATCH_SIZE=500    # rows per DB transaction when a category is stored (batched writes)
+STOCKER_DB_BATCH_SIZE=50                 # Hibernate jdbc.batch_size (reWriteBatchedInserts is on)
 STOCKER_INGEST_PARALLEL_CHAINS=false     # true = three chains at once, one Firefox each (~3x browser memory)
 
 STOCKER_INGEST_NEWWORLD_ENABLED=false

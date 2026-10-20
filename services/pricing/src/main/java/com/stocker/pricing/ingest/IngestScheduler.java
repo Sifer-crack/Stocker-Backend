@@ -424,32 +424,66 @@ public class IngestScheduler {
 			}
 		}
 
-		/** Stores the products not yet stored in this run; a failure is logged and counted, never thrown. */
+		/**
+		 * Stores the products not yet stored in this run; a failure is logged and counted, never thrown. The rows go in
+		 * chunks of {@code persistBatchSize}, each chunk through {@link PriceStatsService#saveAndRecordAll} (one
+		 * transaction, a fixed number of round trips). A chunk that fails is rolled back as a whole and then retried row
+		 * by row on the old path, so one bad row costs only itself.
+		 */
 		boolean persist(String source, List<RawProduct> products) {
-			try {
-				for (RawProduct product : products) {
-					if (!seen.add(product.getNativeProductCode())) {
-						continue;       // same product in two categories: stored once
-					}
-					try {
-						PriceRecord record = RawProductPriceRecordMapper.toPriceRecord(product);
-						priceRecordRepository.save(record);
-						priceStatsService.recordObservation(record);
-						saved++;
-					} catch (IllegalArgumentException e) {
-						log.warn("{}: skipping product, could not derive itemId: {}", chainId, e.getMessage());
-					} catch (RuntimeException e) {
-						seen.remove(product.getNativeProductCode());     // not stored: a later category may carry it again
-						throw e;
-					}
+			boolean ok = true;
+			List<PriceRecord> chunk = new ArrayList<>();
+			List<String> chunkCodes = new ArrayList<>();
+			int chunkSize = Math.max(1, properties.getPersistBatchSize());
+			for (RawProduct product : products) {
+				if (!seen.add(product.getNativeProductCode())) {
+					continue;       // same product in two categories: stored once
 				}
-				return true;
-			} catch (RuntimeException e) {
-				failures++;
-				log.error("{}: storing the rows of {} failed ({} failure(s) so far), the crawl carries on: {}", chainId,
-						source, failures, e.toString());
-				return false;
+				try {
+					chunk.add(RawProductPriceRecordMapper.toPriceRecord(product));
+					chunkCodes.add(product.getNativeProductCode());
+				} catch (IllegalArgumentException e) {
+					log.warn("{}: skipping product, could not derive itemId: {}", chainId, e.getMessage());
+					continue;
+				}
+				if (chunk.size() >= chunkSize) {
+					ok &= storeChunk(source, chunk, chunkCodes);
+				}
 			}
+			if (!chunk.isEmpty()) {
+				ok &= storeChunk(source, chunk, chunkCodes);
+			}
+			return ok;
+		}
+
+		private boolean storeChunk(String source, List<PriceRecord> chunk, List<String> codes) {
+			List<PriceRecord> records = List.copyOf(chunk);
+			List<String> chunkCodes = List.copyOf(codes);
+			chunk.clear();
+			codes.clear();
+			try {
+				priceStatsService.saveAndRecordAll(records);
+				saved += records.size();
+				return true;
+			} catch (RuntimeException batchFailure) {
+				log.warn("{}: batch of {} rows from {} failed ({}), retrying row by row", chainId, records.size(), source,
+						batchFailure.toString());
+			}
+			boolean ok = true;
+			for (int i = 0; i < records.size(); i++) {
+				try {
+					priceRecordRepository.save(records.get(i));
+					priceStatsService.recordObservation(records.get(i));
+					saved++;
+				} catch (RuntimeException e) {
+					seen.remove(chunkCodes.get(i));     // not stored: a later category may carry it again
+					failures++;
+					ok = false;
+					log.error("{}: storing row {} of {} failed ({} failure(s) so far), the crawl carries on: {}", chainId,
+							records.get(i).getItemId(), source, failures, e.toString());
+				}
+			}
+			return ok;
 		}
 	}
 
