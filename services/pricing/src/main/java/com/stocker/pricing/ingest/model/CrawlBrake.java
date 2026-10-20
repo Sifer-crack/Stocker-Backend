@@ -24,10 +24,18 @@ public interface CrawlBrake {
 		}
 	};
 
+	/**
+	 * A page request is about to be sent (before the answer is known). Lets the caller count the requests really made,
+	 * including those that time out or fail with an error status and so never reach {@link #onSuccess()} or
+	 * {@link #onBlocked}. Default: ignored.
+	 */
+	default void onPageRequested() {
+	}
+
 	/** True while the chain must not be requested. */
 	boolean isOpen();
 
-	/** A page came back normally (not blocked). */
+	/** A page came back normally: HTTP status below 400 and at least one product tile. */
 	void onSuccess();
 
 	/** A page came back blocked (HTTP 429 / 403 / 503 or a captcha page); {@code retryAfter} may be null. */

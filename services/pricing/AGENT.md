@@ -6,7 +6,8 @@
 - `GET /healthz` via `api/rest/HealthzController`.
 - PostgreSQL (Neon `neondb` in the current setup; Flyway uses `STOCKER_DB_MIGRATE_URL` when set) via `spring.datasource.*` / env `STOCKER_DB_URL`, `STOCKER_DB_USER`, `STOCKER_DB_PASSWORD`
   (default: `jdbc:postgresql://localhost:5432/pricing`, `stocker`/`stocker`). Schema managed by Flyway
-  under `db/migration` (`V1__create_price_records.sql`); JPA `ddl-auto: validate`.
+  under `db/migration` (`V1` price_records, `V2` sitemap_category_cache, `V3` price_stats, `V4` price_stats.current_promo_flag, `V5` normalized_products /
+  unmatched_search_terms / view `common_product_price_map`); JPA `ddl-auto: validate`.
 - gRPC server: `PriceRecordService` (`stocker.pricing.v1`) with `Fetch`, `Save`, `Search`, and
   `CompareShoppingList` RPCs, implemented by `api/grpc/PriceRecordGrpcController` (`@GrpcService`,
   Spring gRPC server starter, `spring.grpc.server.port` default `9094`). `Save` validates `channel`
@@ -33,7 +34,9 @@
   (`matchMethod: "canonical"`, with `unit_price` / `pack_size`; optional `weight_kg` / `volume_l` request hints), falls back to word
   overlap, and on a miss only records the term - the on-demand ingest is OFF by default. Ingest is rate limited (page delay, per-run
   category cap). Before answering, `refresh/OnDemandRefreshService` checks data age per chain and loads only the stale chains' one
-  category page (`category-map.txt`), with cooldown/hourly cap/deadline; `MatchItemResponse.stale` flags old data; `CompareItemPrices`
+  category page (`category-map.txt`), with cooldown/hourly cap/deadline; an on-demand refresh loads at most `app.pricing.on-demand.max-pages-per-category`
+  (default 2) pages of that category and can never use the last `app.pricing.on-demand.keep-daily-budget-share` (default 0.3) of the chain's daily page budget, which stays
+  for the scheduled crawl (enforced in `IngestScheduler.refreshCategories`); `MatchItemResponse.stale` flags old data; `CompareItemPrices`
   prices common products through the same path before falling back to the provider. See `NORMALIZE_MODULE.md`.
 - `CompareItemPrices` RPC (per-item, used by shopping's add-item flow) -> `service/ItemPriceComparisonService`: for each
   item it calls `PriceSearchService.search` under the caller's item id (so the async refresh later publishes
@@ -70,7 +73,8 @@
 - `fetch/` web-crawl module (strategy pattern): `WebFetcher` interface + the active provider selected by
   `app.fetch.provider` (`spread` default). See `FETCH_MODULE.md`.
 - `ingest/` scheduled self-built supermarket scraping (New World / PAK'nSave / Woolworths NZ) via
-  Playwright for Java, fully decoupled from `Search`/`fetch/`. Default off (`app.ingest.enabled=false`);
+  Playwright for Java, fully decoupled from `Search`/`fetch/`. Default off (`app.ingest.enabled=false` in `IngestProperties`, `application.yml`
+  and `docker-compose.yml` alike: nothing reaches a supermarket without an explicit `STOCKER_INGEST_ENABLED=true`);
   selectors/store-pin cookies are unverified against the live sites — three live-verification tests
   gated per-chain (`STOCKER_INGEST_<CHAIN>_LIVE_VERIFY`) must be run first. See `INGEST_MODULE.md`.
   Dockerfile now installs headless Firefox + its system libs for this module
@@ -105,4 +109,5 @@
 
 - Suggestions (`GET /api/pricing/suggest` via gRPC `ProductSearch.SuggestProducts`): `service/search/ProductSuggestService`, snapshot-only (no DB when warm, no live request); contract and ranking in `docs/features/price-search-v2.md` ("Search-bar suggestions"). Timing test: `ProductSuggestPerformanceTest`.
 
-- Crawl pace and brake: page pause 20-40 s per chain (per-chain override `app.ingest.<chain>.page-delay-*`), and `ingest/CrawlBreaker` (3 blocked responses -> chain closed 6 h, doubling to 24 h; in memory) enforced through `DailyPageBudget` for cron, startup and on-demand (`skipped` in the search `refresh` map). See `docs/features/price-engine-reliability.md`.
+- Crawl pace and brake: page pause 20-40 s per chain (per-chain override `app.ingest.<chain>.page-delay-*`), and `ingest/CrawlBreaker` (3 blocked responses -> chain closed 6 h, doubling to 24 h; 3 good pages in a row clear the doubling; in memory) enforced through `DailyPageBudget` for cron, startup and on-demand (`skipped` in the search `refresh` map). See `docs/features/price-engine-reliability.md`.
+- Crawl hardening (final 2b, see `docs/features/price-engine-reliability.md`): the daily budget is charged for page requests really sent (`CrawlBrake.onPageRequested`), a scrape that throws gives its unrequested pages back; HTTP >= 400 other than 429/403/503 is a failed page (not a good page, not a zero-result category); a dead Firefox is replaced (`PerChainBrowsers`, `SelfHealingSharedBrowser`); a lost DB connection stops the row-by-row save and the category is retried soon; crawled URLs must be https on the chain's own domain (`ChainDomains`); `ProductSearchService` persists on a bounded queue (1000, oldest dropped) and search terms are capped at 100 characters.

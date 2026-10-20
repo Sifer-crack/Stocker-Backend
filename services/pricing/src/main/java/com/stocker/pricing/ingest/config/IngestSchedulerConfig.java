@@ -1,6 +1,8 @@
 package com.stocker.pricing.ingest.config;
 
 import com.stocker.pricing.ingest.ChainBrowsers;
+import com.stocker.pricing.ingest.ChainDomains;
+import com.stocker.pricing.service.cache.PricingCacheProperties;
 import com.stocker.pricing.ingest.CategoryHealth;
 import com.stocker.pricing.ingest.ChainScraper;
 import com.stocker.pricing.ingest.IngestScheduler;
@@ -29,12 +31,15 @@ public class IngestSchedulerConfig {
 	public IngestScheduler ingestScheduler(List<ChainScraper> chainScrapers, ChainBrowsers browsers,
 			IngestProperties properties, PriceRecordRepository priceRecordRepository,
 			PriceStatsService priceStatsService, CategoryMap categoryMap,
-			ObjectProvider<SitemapCategoryDiscoveryService> sitemapProvider) {
+			ObjectProvider<SitemapCategoryDiscoveryService> sitemapProvider, PricingCacheProperties cacheProperties) {
 		Clock clock = Clock.systemUTC();
 		CategoryHealth categoryHealth = new CategoryHealth(properties.getQuarantineAfterZeroRuns(),
 				Duration.ofDays(properties.getQuarantineDays()), properties.getQuarantineSiteWideZeroShare(), clock);
 		return new IngestScheduler(chainScrapers, browsers, properties, priceRecordRepository, priceStatsService,
-				categoryMap, clock, categoryHealth, stapleDiscovery(sitemapProvider, properties));
+				categoryMap, clock, categoryHealth, stapleDiscovery(sitemapProvider, properties))
+				.restrictToChainDomains()
+				.limitOnDemand(cacheProperties.getOnDemand().getMaxPagesPerCategory(),
+						cacheProperties.getOnDemand().getKeepDailyBudgetShare());
 	}
 
 	/**
@@ -47,8 +52,8 @@ public class IngestSchedulerConfig {
 		return chain -> {
 			SitemapCategoryDiscoveryService sitemap = sitemapProvider.getIfAvailable();
 			return sitemap == null ? List.of()
-					: StapleCategoryMatcher.select(sitemap.allCategoryUrls(chain), keywords,
-							properties.getMaxDiscoveredPagesPerChain());
+					: StapleCategoryMatcher.select(ChainDomains.onlyOwn(chain, sitemap.allCategoryUrls(chain), "sitemap"),
+							keywords, properties.getMaxDiscoveredPagesPerChain());
 		};
 	}
 

@@ -32,12 +32,35 @@ public class PerChainBrowsers implements ChainBrowsers {
 			throw new IllegalStateException("browsers are closed (shutting down)");
 		}
 		ManagedBrowser managed = browsers.get(chain);
+		if (managed != null && !isConnected(managed)) {
+			// Firefox crashed or was killed: every later scrape would fail at newContext. Start a fresh one.
+			log.warn("{}: its browser is no longer connected, starting a new one", chain);
+			browsers.remove(chain);
+			closeQuietly(managed);
+			managed = null;
+		}
 		if (managed == null) {
 			managed = factory.get();
 			browsers.put(chain, managed);
 			log.info("{}: started its own browser", chain);
 		}
 		return managed.browser();
+	}
+
+	private static boolean isConnected(ManagedBrowser managed) {
+		try {
+			return managed.browser().isConnected();
+		} catch (RuntimeException e) {
+			return false;
+		}
+	}
+
+	private static void closeQuietly(ManagedBrowser managed) {
+		try {
+			managed.close();
+		} catch (RuntimeException e) {
+			log.warn("closing a dead chain browser failed: {}", e.getMessage());
+		}
 	}
 
 	@Override

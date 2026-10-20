@@ -70,18 +70,30 @@ public class ProductSearchGrpcController extends ProductSearchGrpc.ProductSearch
 		reply(responseObserver, response.build());
 	}
 
+	/** Longest search term used: the term becomes a key in memory maps and in the database, so it is bounded. */
+	static final int MAX_TERM_LENGTH = 100;
+
+	static String capTerm(String term) {
+		if (term == null) {
+			return "";
+		}
+		String trimmed = term.strip();
+		return trimmed.length() <= MAX_TERM_LENGTH ? trimmed : trimmed.substring(0, MAX_TERM_LENGTH).strip();
+	}
+
 	@Override
 	public void searchProducts(SearchProductsRequest request, StreamObserver<SearchProductsResponse> responseObserver) {
 		if (isCancelled(responseObserver)) {
 			return;
 		}
-		log.info("gRPC searchProducts: term={}, itemId={}", request.getTerm(), request.getItemId());
+		String term = capTerm(request.getTerm());
+		log.info("gRPC searchProducts: term={}, itemId={}", term, request.getItemId());
 		if (!StringUtils.hasText(request.getTerm()) || !StringUtils.hasText(request.getItemId())) {
 			responseObserver.onError(
 					Status.INVALID_ARGUMENT.withDescription("term and itemId are required").asRuntimeException());
 			return;
 		}
-		SearchResult result = searchService.search(request.getTerm(), request.getItemId(), request.getCategory(),
+		SearchResult result = searchService.search(term, request.getItemId(), request.getCategory(),
 				request.getLimit());
 		if (isCancelled(responseObserver)) {
 			return;

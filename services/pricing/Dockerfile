@@ -14,8 +14,7 @@ RUN ./gradlew :services:pricing:installPlaywrightBrowsers --no-daemon
 
 FROM eclipse-temurin:25-jre
 # curl: /healthz healthcheck. Remaining packages: headless Firefox runtime deps for the
-# ingest/ module (Playwright). Package names are unverified against this base image's Debian
-# release - confirm with `docker build` and adjust if any fail to resolve.
+# ingest/ module (Playwright).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libgtk-3-0 libx11-xcb1 libasound2t64 libdbus-glib-1-2 libxt6 libpci3 \

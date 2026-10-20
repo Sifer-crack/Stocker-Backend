@@ -6,6 +6,7 @@ import com.stocker.pricing.fetch.model.RawProduct;
 import com.stocker.pricing.ingest.config.IngestProperties;
 import com.stocker.pricing.ingest.config.IngestProperties.ChainConfig;
 import com.stocker.pricing.ingest.model.CategoryResultSink;
+import com.stocker.pricing.ingest.model.CrawlBrake;
 import com.stocker.pricing.ingest.model.ChainScraperConfig;
 import com.stocker.pricing.ingest.model.ScrapeException;
 import com.stocker.pricing.ingest.model.ScrapeResult;
@@ -63,6 +64,11 @@ public class IngestScheduler {
 	private final Function<ChainId, List<String>> discoveredStaplePages;
 	private final Set<String> stapleKeywords = StapleCategoryMatcher.loadKeywords();
 	private final Map<String, Instant> lastCrawled = new ConcurrentHashMap<>();
+	/** Set by the Spring config: category pages must be https on the chain's own domain (see {@link ChainDomains}). */
+	private volatile boolean ownDomainsOnly;
+	/** On-demand refreshes only: page cap per category (0 = the scheduled crawl's cap) and the share of the day kept for the crawl. */
+	private volatile int onDemandMaxPagesPerCategory;
+	private volatile double onDemandKeepBudgetShare;
 
 	public IngestScheduler(List<ChainScraper> chainScrapers, Browser browser, IngestProperties properties,
 			PriceRecordRepository priceRecordRepository, PriceStatsService priceStatsService) {
@@ -121,8 +127,30 @@ public class IngestScheduler {
 		this.categoryMap = categoryMap;
 		this.clock = clock;
 		this.breaker = new CrawlBreaker(properties::getBreakerBlockedThreshold, properties::getBreakerCooldown,
-				properties::getBreakerMaxCooldown, clock);
+				properties::getBreakerMaxCooldown, clock,
+				properties::getBreakerSuccessesToReset);
 		this.pageBudget = new DailyPageBudget(properties::getMaxPagesPerChainPerDay, clock, breaker);
+	}
+
+	/**
+	 * From now on a configured, catalogued or sitemap-discovered category URL is only crawled when it is https on the
+	 * chain's own domain; any other is logged at WARN and skipped. Returns this scheduler.
+	 */
+	public IngestScheduler restrictToChainDomains() {
+		this.ownDomainsOnly = true;
+		return this;
+	}
+
+	/**
+	 * Limits for on-demand refreshes ({@link #refreshCategories}), so lookups cannot eat the scheduled crawl's day.
+	 *
+	 * @param maxPagesPerCategory most pages loaded for one category page (1 = no "next page"); 0 = no limit of its own
+	 * @param keepBudgetShare share (0..1) of the chain's daily page budget an on-demand refresh may never touch
+	 */
+	public IngestScheduler limitOnDemand(int maxPagesPerCategory, double keepBudgetShare) {
+		this.onDemandMaxPagesPerCategory = Math.max(0, maxPagesPerCategory);
+		this.onDemandKeepBudgetShare = Math.min(1.0, Math.max(0.0, keepBudgetShare));
+		return this;
 	}
 
 	/** True while the chain's circuit breaker is open: neither the schedule nor an on-demand refresh may load its pages. */
@@ -136,7 +164,11 @@ public class IngestScheduler {
 			runAllParallel();
 		} else {
 			for (ChainScraper scraper : chainScrapers) {
-				runOne(scraper);
+				try {
+					runOne(scraper);
+				} catch (Throwable t) {
+					log.error("{}: crawl failed, the other chains carry on", scraper.chainId(), t);
+				}
 			}
 		}
 		List<CategoryHealth.QuarantinedPage> quarantined = categoryHealth.snapshot();
@@ -214,7 +246,7 @@ public class IngestScheduler {
 				Duration.ofHours(properties.getRecrawlFreshnessHours()), clock.instant(), window, dayNumber());
 		log.info("{}: {} priority + {} other page(s) known, {} planned today (budget left {})", chainId, priority.size(),
 				others.size(), planned.size(), remaining);
-		scrapeAndPersist(scraper, chainConfig, planned, CancellationToken.NONE);
+		scrapeAndPersist(scraper, chainConfig, planned, CancellationToken.NONE, false);
 	}
 
 	private record CrawlLists(List<String> priority, List<String> others) {
@@ -232,10 +264,10 @@ public class IngestScheduler {
 	private CrawlLists crawlLists(ChainId chainId, ChainConfig chainConfig) {
 		Map<String, String> priority = new LinkedHashMap<>();
 		Map<String, String> others = new LinkedHashMap<>();
-		for (String url : categoryMap.urls(chainId)) {
+		for (String url : ownOnly(chainId, categoryMap.urls(chainId), "category-map")) {
 			priority.putIfAbsent(pageKey(url), url);
 		}
-		for (String url : chainConfig.getCategoryUrls()) {
+		for (String url : ownOnly(chainId, chainConfig.getCategoryUrls(), "configured")) {
 			if (priority.containsKey(pageKey(url))) {
 				continue;
 			}
@@ -246,7 +278,7 @@ public class IngestScheduler {
 			}
 		}
 		if (properties.isStapleDiscoveryEnabled()) {
-			for (String url : discoverStaplePages(chainId)) {
+			for (String url : ownOnly(chainId, discoverStaplePages(chainId), "sitemap-discovered")) {
 				String key = pageKey(url);
 				if (!priority.containsKey(key) && !others.containsKey(key)) {
 					priority.put(key, url);
@@ -254,6 +286,10 @@ public class IngestScheduler {
 			}
 		}
 		return new CrawlLists(List.copyOf(priority.values()), List.copyOf(others.values()));
+	}
+
+	private List<String> ownOnly(ChainId chainId, List<String> urls, String source) {
+		return ownDomainsOnly ? ChainDomains.onlyOwn(chainId, urls, source) : urls;
 	}
 
 	private List<String> discoverStaplePages(ChainId chainId) {
@@ -294,26 +330,29 @@ public class IngestScheduler {
 		if (!chainConfig.isEnabled() || categoryUrls.isEmpty()) {
 			return 0;
 		}
-		List<String> pages = withoutQuarantined(chainId, categoryUrls);
+		List<String> pages = withoutQuarantined(chainId, ownOnly(chainId, categoryUrls, "on-demand"));
 		if (pages.isEmpty()) {
 			return 0;
 		}
 		return chainScrapers.stream().filter(scraper -> scraper.chainId() == chainId).findFirst()
-				.map(scraper -> scrapeAndPersist(scraper, chainConfig, pages, cancellation)).orElse(0);
+				.map(scraper -> scrapeAndPersist(scraper, chainConfig, pages, cancellation, true)).orElse(0);
 	}
 
 	private int scrapeAndPersist(ChainScraper scraper, ChainConfig chainConfig, List<String> categoryUrls,
-			CancellationToken cancellation) {
+			CancellationToken cancellation, boolean onDemand) {
 		ChainId chainId = scraper.chainId();
 		if (pageBudget.isBlocked(chainId)) {
 			log.warn("{}: crawl circuit breaker is open until {}, not loading {} page(s)", chainId,
 					breaker.openUntil(chainId), categoryUrls.size());
 			return 0;
 		}
-		int granted = pageBudget.reserve(chainId, categoryUrls.size());
+		// An on-demand refresh may never take the last share of the day: it belongs to the scheduled crawl.
+		int keepFree = onDemand ? (int) Math.ceil(pageBudget.cap() * onDemandKeepBudgetShare) : 0;
+		int granted = pageBudget.reserve(chainId, categoryUrls.size(), keepFree);
 		if (granted == 0) {
-			log.warn("{}: daily page budget ({} per day) used up, not loading {} page(s)", chainId,
-					properties.getMaxPagesPerChainPerDay(), categoryUrls.size());
+			log.warn("{}: daily page budget ({} per day{}) used up, not loading {} page(s)", chainId,
+					properties.getMaxPagesPerChainPerDay(), keepFree > 0 ? ", " + keepFree + " kept for the scheduled crawl" : "",
+					categoryUrls.size());
 			return 0;
 		}
 		if (granted < categoryUrls.size()) {
@@ -322,19 +361,24 @@ public class IngestScheduler {
 		}
 		AtomicInteger extraPages = new AtomicInteger();
 		IncrementalSave save = new IncrementalSave(chainId);
+		CountingBrake brake = new CountingBrake(breaker.forChain(chainId));
+		int pageCap = properties.maxPagesPerCategory(chainId);
+		if (onDemand && onDemandMaxPagesPerCategory > 0) {
+			pageCap = Math.min(pageCap, onDemandMaxPagesPerCategory);
+		}
 		ChainScraperConfig config = ChainScraperConfig.builder()
 				.storeId(chainConfig.getStoreId())
 				.storeName(chainConfig.getStoreName())
 				.categoryUrls(categoryUrls)
-				.maxPagesPerCategory(properties.maxPagesPerCategory(chainId))
+				.maxPagesPerCategory(pageCap)
 				.navigationTimeoutSeconds(properties.getNavigationTimeoutSeconds())
 				.pageDelayMinMillis(properties.pageDelayMinMillis(chainId))
 				.pageDelayMaxMillis(properties.pageDelayMaxMillis(chainId))
-				.crawlBrake(breaker.forChain(chainId))
+				.crawlBrake(brake)
 				.cancellation(cancellation)
 				.categoryResultSink(save)
 				.extraPageGate(() -> {
-					boolean allowed = pageBudget.reserve(chainId, 1) == 1;
+					boolean allowed = pageBudget.reserve(chainId, 1, keepFree) == 1;
 					if (allowed) {
 						extraPages.incrementAndGet();
 					}
@@ -342,7 +386,7 @@ public class IngestScheduler {
 				})
 				.build();
 
-		ScrapeResult result;
+		ScrapeResult result = null;
 		ReentrantLock browserLock = lockFor(chainId);
 		if (!cancellation.lockUnlessCancelled(browserLock)) {
 			pageBudget.giveBack(chainId, granted);       // cancelled while waiting for the browser: nothing was loaded
@@ -357,12 +401,29 @@ public class IngestScheduler {
 			return save.saved;
 		} finally {
 			browserLock.unlock();
+			if (result == null) {
+				// The scrape threw (browser died, context failed ...): the pages it never requested go back to the budget
+				// instead of burning the whole day for nothing. Requests that were sent stay counted.
+				int firstPagesRequested = Math.max(brake.requested() - extraPages.get(), save.categoryCalls);
+				pageBudget.giveBack(chainId, granted - firstPagesRequested);
+			}
 		}
 
-		pageBudget.giveBack(chainId, granted - result.getCategoriesVisited().size());   // reserved but never loaded
-		categoryHealth.record(chainId, result);
+		// Reserved but never requested goes back. A first page that was requested and failed (timeout, error status,
+		// block) is NOT in categoriesVisited but did cost the supermarket a request: it stays counted.
+		int firstPagesRequested = Math.max(brake.requested() - extraPages.get(), result.getCategoriesVisited().size());
+		pageBudget.giveBack(chainId, granted - firstPagesRequested);
+		// Categories whose rows could not be stored are neither "crawled" (they come round again soon) nor judged by
+		// CategoryHealth (their products were found, but nothing was kept).
+		Set<String> notStored = save.failedCategories;
+		categoryHealth.record(chainId, withoutVisited(result, notStored));
 		Instant crawledAt = clock.instant();
-		result.getCategoriesVisited().forEach(url -> lastCrawled.put(url, crawledAt));
+		result.getCategoriesVisited().stream().filter(url -> !notStored.contains(url))
+				.forEach(url -> lastCrawled.put(url, crawledAt));
+		if (!notStored.isEmpty()) {
+			log.warn("{}: rows of {} categor{} could not be stored; they are retried on the next run: {}", chainId,
+					notStored.size(), notStored.size() == 1 ? "y" : "ies", notStored);
+		}
 		if (extraPages.get() > 0) {
 			log.info("{}: {} further page(s) of multi-page categories loaded, budget left today: {}", chainId,
 					extraPages.get(), pageBudget.remaining(chainId));
@@ -387,11 +448,59 @@ public class IngestScheduler {
 
 		if (save.categoryCalls == 0) {
 			// The scraper never reported a category (older scraper): store the whole run now, as before.
-			save.persist("end of run", result.getProducts());
+			if (!save.persist("end of run", result.getProducts())) {
+				result.getCategoriesVisited().forEach(lastCrawled::remove);
+			}
 		}
 		log.info("{}: persisted {} price records ({} after de-dupe, {} categor{} stored, {} failed)", chainId, save.saved,
 				save.seen.size(), save.categoryCalls, save.categoryCalls == 1 ? "y" : "ies", save.failures);
 		return save.saved;
+	}
+
+	/** The result as CategoryHealth should judge it: categories whose rows were not stored are left out. */
+	private static ScrapeResult withoutVisited(ScrapeResult result, Set<String> skip) {
+		if (skip.isEmpty()) {
+			return result;
+		}
+		return ScrapeResult.builder().chainId(result.getChainId()).products(result.getProducts())
+				.categoriesVisited(result.getCategoriesVisited().stream().filter(url -> !skip.contains(url)).toList())
+				.zeroResultCategoryUrls(result.getZeroResultCategoryUrls()).warnings(result.getWarnings()).build();
+	}
+
+	/** The chain's breaker, plus a count of the page requests the scraper really sent. */
+	private static final class CountingBrake implements CrawlBrake {
+
+		private final CrawlBrake delegate;
+		private final AtomicInteger requested = new AtomicInteger();
+
+		CountingBrake(CrawlBrake delegate) {
+			this.delegate = delegate;
+		}
+
+		int requested() {
+			return requested.get();
+		}
+
+		@Override
+		public void onPageRequested() {
+			requested.incrementAndGet();
+			delegate.onPageRequested();
+		}
+
+		@Override
+		public boolean isOpen() {
+			return delegate.isOpen();
+		}
+
+		@Override
+		public void onSuccess() {
+			delegate.onSuccess();
+		}
+
+		@Override
+		public void onBlocked(String reason, java.time.Duration retryAfter) {
+			delegate.onBlocked(reason, retryAfter);
+		}
 	}
 
 	/**
@@ -407,6 +516,8 @@ public class IngestScheduler {
 		private int saved;
 		private int failures;
 		private int categoryCalls;
+		/** Categories with at least one row that could not be stored. */
+		private final Set<String> failedCategories = new HashSet<>();
 
 		IncrementalSave(ChainId chainId) {
 			this.chainId = chainId;
@@ -422,8 +533,11 @@ public class IngestScheduler {
 			try {
 				if (persist(categoryUrl, products)) {
 					log.info("{}: stored {} rows from {} (run total {})", chainId, saved - before, categoryUrl, saved);
+				} else {
+					failedCategories.add(categoryUrl);
 				}
 			} catch (RuntimeException e) {
+				failedCategories.add(categoryUrl);
 				failures++;
 				log.error("{}: storing the rows of {} failed, the crawl carries on: {}", chainId, categoryUrl, e.toString());
 			}
@@ -495,6 +609,19 @@ public class IngestScheduler {
 					priceStatsService.recordObservation(records.get(i));
 					saved++;
 				} catch (RuntimeException e) {
+					if (TransientDbFailure.isTransient(e)) {
+						// The connection is gone: each further row would wait for its own connection timeout (about 30 s).
+						// Count the rest as failed at once; their category is retried on the next run.
+						int rest = records.size() - i;
+						for (int j = i; j < records.size(); j++) {
+							seen.remove(chunkCodes.get(j));
+						}
+						failures += rest;
+						log.error("{}: lost the database connection while storing rows of {} - the remaining {} row(s) of "
+								+ "this batch are counted as failed without trying them ({} failure(s) so far): {}", chainId,
+								source, rest, failures, e.toString());
+						return false;
+					}
 					seen.remove(chunkCodes.get(i));     // not stored: a later category may carry it again
 					failures++;
 					ok = false;

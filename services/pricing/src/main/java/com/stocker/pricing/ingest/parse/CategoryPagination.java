@@ -12,9 +12,9 @@ public record CategoryPagination(int from, int to, int total) {
 
 	/** Regex source shared with the page template (the browser runs it case-insensitively, see ChainPageTemplate). */
 	public static final String SHOWING_SOURCE =
-			"showing\\s+(\\d+)\\s*[-\\u2013]\\s*(\\d+)\\s+of\\s+(\\d+)\\s+products?";
+			"showing\\s+(\\d[\\d,]*)\\s*[-\\u2013]\\s*(\\d[\\d,]*)\\s+of\\s+(\\d[\\d,]*)\\s+products?";
 	/** Woolworths NZ: "1 to 36 of 264 products" (the second page reads "37 to 72 of 264 products"). */
-	public static final String WOOLWORTHS_SOURCE = "(\\d+)\\s+to\\s+(\\d+)\\s+of\\s+(\\d+)\\s+products?";
+	public static final String WOOLWORTHS_SOURCE = "(\\d[\\d,]*)\\s+to\\s+(\\d[\\d,]*)\\s+of\\s+(\\d[\\d,]*)\\s+products?";
 	/** Query parameter that carries the page number: Foodstuffs {@code pg}, Woolworths {@code page}. */
 	public static final String FOODSTUFFS_PAGE_PARAM = "pg";
 	public static final String WOOLWORTHS_PAGE_PARAM = "page";
@@ -32,8 +32,12 @@ public record CategoryPagination(int from, int to, int total) {
 				return Optional.empty();
 			}
 		}
-		return Optional.of(new CategoryPagination(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)),
-				Integer.parseInt(m.group(3))));
+		return Optional.of(new CategoryPagination(number(m.group(1)), number(m.group(2)), number(m.group(3))));
+	}
+
+	/** "1,234" -> 1234: the sites group thousands with commas. */
+	private static int number(String digits) {
+		return Integer.parseInt(digits.replace(",", ""));
 	}
 
 	public boolean hasMore() {

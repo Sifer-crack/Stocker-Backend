@@ -100,7 +100,49 @@ class CrawlBreakerTest {
 	}
 
 	@Test
-	void aSuccessAfterACoolDownStartsTheCoolDownSequenceOverAtSixHours() {
+	void threeGoodPagesInARowAfterACoolDownStartTheCoolDownSequenceOverAtSixHours() {
+		block(ChainId.NEWWORLD, 3);
+		clock.advance(Duration.ofHours(6));
+		breaker.isOpen(ChainId.NEWWORLD);
+		breaker.recordSuccess(ChainId.NEWWORLD);
+		breaker.recordSuccess(ChainId.NEWWORLD);
+		breaker.recordSuccess(ChainId.NEWWORLD);
+
+		block(ChainId.NEWWORLD, 3);
+
+		assertThat(remaining()).isEqualTo(Duration.ofHours(6));
+	}
+
+	@Test
+	void oneLuckyPageBetweenBlocksDoesNotResetTheDoublingCoolDown() {
+		block(ChainId.NEWWORLD, 3);
+		clock.advance(Duration.ofHours(6));
+		breaker.isOpen(ChainId.NEWWORLD);
+		breaker.recordSuccess(ChainId.NEWWORLD);          // one good page only
+
+		block(ChainId.NEWWORLD, 3);
+
+		assertThat(remaining()).isEqualTo(Duration.ofHours(12));
+	}
+
+	@Test
+	void aBlockedResponseRestartsTheCountOfGoodPagesInARow() {
+		block(ChainId.NEWWORLD, 3);
+		clock.advance(Duration.ofHours(6));
+		breaker.isOpen(ChainId.NEWWORLD);
+		breaker.recordSuccess(ChainId.NEWWORLD);
+		breaker.recordSuccess(ChainId.NEWWORLD);
+		breaker.recordBlocked(ChainId.NEWWORLD, "HTTP 429", null);       // a block in between: the good count starts over
+		breaker.recordSuccess(ChainId.NEWWORLD);                           // 3 in total, but only 1 since the block
+
+		block(ChainId.NEWWORLD, 3);
+
+		assertThat(remaining()).isEqualTo(Duration.ofHours(12));          // the history was not cleared: second trip
+	}
+
+	@Test
+	void theNumberOfGoodPagesThatResetIsConfigurable() {
+		breaker = new CrawlBreaker(() -> 3, () -> Duration.ofHours(6), () -> Duration.ofHours(24), clock, () -> 1);
 		block(ChainId.NEWWORLD, 3);
 		clock.advance(Duration.ofHours(6));
 		breaker.isOpen(ChainId.NEWWORLD);
@@ -109,6 +151,16 @@ class CrawlBreakerTest {
 		block(ChainId.NEWWORLD, 3);
 
 		assertThat(remaining()).isEqualTo(Duration.ofHours(6));
+	}
+
+	@Test
+	void openUntilIsReadOnlyAndDoesNotCloseTheBreakerAfterTheCoolDown() {
+		block(ChainId.NEWWORLD, 3);
+		clock.advance(Duration.ofHours(7));
+
+		assertThat(breaker.openUntil(ChainId.NEWWORLD)).isNull();       // cool-down over: nothing to report
+		assertThat(breaker.openUntil(ChainId.NEWWORLD)).isNull();       // asking twice changes nothing
+		assertThat(breaker.isOpen(ChainId.NEWWORLD)).isFalse();         // the real check still closes it
 	}
 
 	@Test

@@ -129,7 +129,41 @@ public class OnDemandRefreshService {
 		return result;
 	}
 
+	/** Most progress entries (one per product / free-text term) kept; term keys come from users, so the map is bounded. */
+	static final int MAX_PROGRESS_ENTRIES = 1000;
+
+	/** Drops entries whose every chain state is finished and older than the TTL; if still over the bound, the stalest finished ones. */
+	private void sweepProgress() {
+		if (progress.size() <= MAX_PROGRESS_ENTRIES) {
+			return;
+		}
+		Instant oldest = Instant.now().minus(PROGRESS_TTL);
+		progress.entrySet().removeIf(entry -> entry.getValue().values().stream()
+				.allMatch(p -> p.state() != RefreshState.PENDING && p.at().isBefore(oldest)));
+		if (progress.size() <= MAX_PROGRESS_ENTRIES) {
+			return;
+		}
+		// Still too many (a burst of distinct terms inside the TTL): evict the finished ones, stalest first.
+		List<Map.Entry<String, Map<ChainId, Progress>>> finished = progress.entrySet().stream()
+				.filter(entry -> entry.getValue().values().stream().noneMatch(p -> p.state() == RefreshState.PENDING))
+				.sorted(java.util.Comparator.comparing(entry -> entry.getValue().values().stream()
+						.map(Progress::at).max(Instant::compareTo).orElse(Instant.MIN)))
+				.toList();
+		for (Map.Entry<String, Map<ChainId, Progress>> entry : finished) {
+			if (progress.size() <= MAX_PROGRESS_ENTRIES) {
+				break;
+			}
+			progress.remove(entry.getKey(), entry.getValue());
+		}
+	}
+
+	/** Number of products / terms with a known refresh state (tests, diagnostics). */
+	int progressEntries() {
+		return progress.size();
+	}
+
 	private void mark(String label, ChainId chain, RefreshState state, boolean onlyIfUnknown) {
+		sweepProgress();
 		Map<ChainId, Progress> known = progress.computeIfAbsent(label, key -> new ConcurrentHashMap<>());
 		Instant oldest = Instant.now().minus(PROGRESS_TTL);
 		if (onlyIfUnknown) {

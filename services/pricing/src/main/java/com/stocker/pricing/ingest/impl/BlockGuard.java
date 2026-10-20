@@ -29,6 +29,18 @@ final class BlockGuard {
 		throw new PlaywrightException(reason + " (blocked or rate limited) at " + url);
 	}
 
+	/**
+	 * Any other error status (404, 500, 502, 504 ...) is a failed page: it is not a block (the breaker is not told),
+	 * not a good page (the breaker is not told either) and not a clean zero-product category (the PlaywrightException
+	 * is caught by the scraper, which records the page as failed - never in zeroResultCategoryUrls).
+	 */
+	static void failIfHttpError(Response response, String url) {
+		int status = response == null ? 200 : response.status();
+		if (status >= 400) {
+			throw new PlaywrightException("HTTP " + status + " (page failed) at " + url);
+		}
+	}
+
 	/** Call when a page shows no products: a bot-check page is a block, an ordinary empty page is not. */
 	static void failIfChallenge(Page page, String url, CrawlBrake brake) {
 		String title = safe(page::title);

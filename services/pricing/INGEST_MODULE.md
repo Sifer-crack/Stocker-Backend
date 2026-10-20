@@ -75,10 +75,14 @@ on a search miss (`app.pricing.match.on-demand-ingest=false`). See `NORMALIZE_MO
 **Circuit breaker.** `CrawlBreaker` keeps a per-chain state (in memory). The scrapers report every response through
 `ChainScraperConfig.crawlBrake` (`CrawlBrake`): `BlockGuard` turns HTTP 429/403/503 and captcha pages (no tiles +
 `BlockDetector.looksLikeChallenge`) into `onBlocked` plus a `PlaywrightException` (page failed: not visited, not zero-result,
-not retried), any other page into `onSuccess`. `Retry-After` is read from `Response.headers()` (`BlockDetector.parseRetryAfter`).
+not retried). Any OTHER status of 400 or more (404, 500, 502, 504 ...) is also a failed page (`BlockGuard.failIfHttpError`):
+the breaker hears neither `onBlocked` nor `onSuccess`, and the page is not recorded as a zero-result category (so it can never
+be quarantined as "empty"). Only a page with at least one product tile calls `onSuccess`; a 200 page with zero tiles tells the
+breaker nothing. `Retry-After` is read from `Response.headers()` (`BlockDetector.parseRetryAfter`).
 After `breaker-blocked-threshold` (3) blocked pages in a row the scraper loop stops and the chain stays closed to every
 caller for `breaker-cooldown` (PT6H), doubling per consecutive trip to `breaker-max-cooldown` (PT24H); a longer Retry-After
-wins. `DailyPageBudget.reserve` returns 0 while open, so the cron, the startup run and `OnDemandRefreshService` (which reports
+wins. The doubling history is cleared only after `breaker-successes-to-reset` (default 3) good pages in a row, so one lucky page
+between blocks does not restart the cool-down at 6 h. `CrawlBreaker.openUntil` is read-only (log lines cannot close the breaker). `DailyPageBudget.reserve` returns 0 while open, so the cron, the startup run and `OnDemandRefreshService` (which reports
 the chain as `skipped`; `IngestScheduler.isChainBlocked`) share one gate. Details: `docs/features/price-engine-reliability.md`.
 
 ### Parallel chains (`app.ingest.parallel-chains`)
@@ -158,6 +162,33 @@ than before.
   segment contains a staple keyword (`staple-category-keywords.txt` + the sitemap-keyword column of `common-products.txt`),
   at most `max-discovered-pages-per-chain` (40), best match first. They are crawled unverified; `CategoryHealth` quarantines
   a page after 2 zero runs. Off with `app.ingest.staple-discovery-enabled=false`.
+
+## Reliability hardening (final 2b, 2026-10-20)
+
+- **Default off everywhere.** `application.yml` now has `app.ingest.enabled: ${STOCKER_INGEST_ENABLED:false}` (it was `true`, so a
+  bare `bootRun` or jar started Playwright and scraped); `IngestProperties`, `docker-compose.yml` and `.env.example` were already off.
+- **Budget is charged for requests really sent.** `CrawlBrake.onPageRequested()` (called by `TemplatedPageLoader` before each
+  navigation) is counted by the scheduler. After a scrape the unrequested part of the up-front reservation goes back; a first page
+  that timed out, failed or was blocked stays charged. If `scrape()` throws (browser died at `newContext`, ...) the same refund runs
+  in a `finally`, so a broken browser no longer burns the chain's whole day with zero loads.
+- **Dead browsers are replaced.** `PerChainBrowsers.forChain` starts a new browser when `!browser.isConnected()`; in sequential
+  mode `SelfHealingSharedBrowser` does the same for the shared bean (the replacement has its own Playwright driver and is closed
+  with the pool).
+- **Lost DB connection while storing.** In `IngestScheduler`'s row-by-row fallback a connection error (`TransientDbFailure`) ends the
+  loop: the remaining rows of the batch are counted as failed without trying them (each could wait ~30 s for a connection). A category
+  with rows that were not stored is not marked in `lastCrawled` and is not judged by `CategoryHealth`, so it comes round again first.
+- **One bad chain never stops the run.** The sequential `runAll` wraps each chain in try/catch like the parallel mode.
+- **URL allow-list.** `ChainDomains`: a configured, catalogued or sitemap-discovered category URL is only crawled when it is `https`
+  and its host is the chain's own domain (`newworld.co.nz`, `paknsave.co.nz`, `woolworths.co.nz`) or a subdomain; others are
+  logged at WARN and dropped (sitemap URLs are filtered in `IngestSchedulerConfig.stapleDiscovery`, everything in the Spring-built
+  scheduler via `restrictToChainDomains()`). A bare `new IngestScheduler(...)` in a unit test does not apply the rule.
+- **On-demand refresh limits.** `app.pricing.on-demand.max-pages-per-category` (env `STOCKER_PRICING_ON_DEMAND_MAX_PAGES_PER_CATEGORY`,
+  default 2) caps the pages one on-demand permit may load, and `app.pricing.on-demand.keep-daily-budget-share`
+  (`STOCKER_PRICING_ON_DEMAND_KEEP_BUDGET_SHARE`, default 0.3) is the share of the chain's daily budget on-demand refreshes can
+  never touch (also for their extra pages). Wired into the scheduler by `IngestSchedulerConfig` (`limitOnDemand`); the scheduled
+  crawl ignores both.
+- **Thousands separators.** `Showing 1 - 50 of 1,234 products` (and the Woolworths `1 to 36 of 1,264 products`) is read: both the
+  in-page regex and `CategoryPagination.parse` accept commas and strip them.
 
 ## Wiring / scheduling
 
@@ -391,6 +422,11 @@ STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MIN_MILLIS=    # per-chain override (also PAK
 STOCKER_INGEST_BREAKER_BLOCKED_THRESHOLD=3   # consecutive 429/403/503/captcha responses that open a chain's breaker
 STOCKER_INGEST_BREAKER_COOLDOWN=PT6H         # first cool-down; doubles per consecutive trip
 STOCKER_INGEST_BREAKER_MAX_COOLDOWN=PT24H
+STOCKER_INGEST_BREAKER_SUCCESSES_TO_RESET=3  # good pages in a row that clear the doubling cool-down history
+STOCKER_PRICING_ON_DEMAND_MAX_PAGES_PER_CATEGORY=2   # pages one on-demand refresh may load for a category
+STOCKER_PRICING_ON_DEMAND_KEEP_BUDGET_SHARE=0.3      # share of the daily page budget on-demand refreshes never touch
+STOCKER_INGEST_MAX_CATEGORIES_PER_RUN=0      # 0 = every planned category
+STOCKER_INGEST_RECRAWL_FRESHNESS_HOURS=20
 STOCKER_INGEST_LEAN_PAGES=false              # request blocking (images / media / fonts / trackers); OFF by default, true = on
 STOCKER_INGEST_NEWWORLD_LEAN_ENABLED=true    # per-chain (also PAKNSAVE_, WOOLWORTHS_)
 STOCKER_INGEST_BLOCK_RESOURCE_TYPES=image,media,font
@@ -440,6 +476,19 @@ STOCKER_INGEST_LOG_REQUESTS=false            # true = per page: request hosts x 
   there for Firefox's runtime libs is a starting hypothesis, not a confirmed
   fit for that image's exact Debian release. `docker build` is the first real
   test of this.
+
+## Known limitations
+
+One line each; none is fixed yet.
+
+- `price_records` grows on every crawl even when a price did not change (no retention or skip-unchanged logic).
+- The ingested promo flag is always false, so the promo / discount fields are not meaningful for crawled prices.
+- The default store id is blank, so prices come from the store the site picks from the server's IP geolocation.
+- `NormalizedProductSnapshot` reloads the whole table every 15 s, which keeps the Neon compute awake.
+- `ChainProductService` reads 7 days of `price_records` on every request.
+- `ItemPriceStore.replace` is not atomic (a failure between the delete and the insert can leave an item without prices).
+- A category page that answers 404 is a failed page, not an empty one, so it is never quarantined and costs one page every run
+  until it is removed from the configuration or the category map.
 
 ## Day-1 checklist
 

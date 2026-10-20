@@ -110,9 +110,10 @@ carried on through its whole list. Two changes, for all three chains (New World,
   "access denied", ...). After `STOCKER_INGEST_BREAKER_BLOCKED_THRESHOLD` (default **3**) in a row:
   the chain's current run stops at once (no further page load, none retried in the run) and the breaker opens for
   `STOCKER_INGEST_BREAKER_COOLDOWN` (default **PT6H**). Each consecutive trip doubles it (6 h, 12 h, 24 h) up to
-  `STOCKER_INGEST_BREAKER_MAX_COOLDOWN` (default **PT24H**). A good page resets the consecutive count and the trip history.
-  After a cool-down the chain is half-open: one blocked response opens it again straight away (next, longer cool-down), one
-  good page clears it. A `Retry-After` header on the blocked response (seconds or HTTP date) is honoured when it is longer
+  `STOCKER_INGEST_BREAKER_MAX_COOLDOWN` (default **PT24H**). A good page (HTTP below 400 with at least one product tile) resets the
+  consecutive count; the trip history (the doubling) is cleared only after `STOCKER_INGEST_BREAKER_SUCCESSES_TO_RESET` (default
+  **3**) good pages in a row. After a cool-down the chain is half-open: one blocked response opens it again straight away (next,
+  longer cool-down). A `Retry-After` header on the blocked response (seconds or HTTP date) is honoured when it is longer
   than the cool-down, bounded by the maximum. One WARN is logged when the breaker opens and one when it closes.
 - **One gate.** The cron run, the startup run (`STOCKER_INGEST_RUN_ON_STARTUP`) and on-demand refreshes all reserve pages
   from `DailyPageBudget`, which now grants nothing for a chain whose breaker is open; the scrapers also ask the breaker
@@ -121,7 +122,24 @@ carried on through its whole list. Two changes, for all three chains (New World,
   slot, and that chain shows as `skipped` (the same state as cooldown / hourly cap / refresh off). If the breaker opens
   while a refresh is due, that chain also ends as `skipped`. Stored prices are served as before (`stale: true`).
 - **Blocked is not empty.** A blocked page is neither visited nor a zero-result page, so `CategoryHealth` never
-  quarantines a category because of a block.
+  quarantines a category because of a block. The same holds for every other HTTP status of 400 or more (500, 502, 504, 404 ...):
+  a failed page, no `onSuccess`, no zero-result record.
+
+## Final hardening (2026-10-20, branch feature/final-2b)
+
+Details and the reasons are in `services/pricing/INGEST_MODULE.md` ("Reliability hardening"). In short:
+
+- The crawl is off unless `STOCKER_INGEST_ENABLED=true`, in `application.yml` too (it defaulted to on there).
+- The daily page budget counts page requests that were really sent: a scrape that throws gives back what it never requested, a
+  failed first page stays charged.
+- A dead Firefox is replaced on the next use instead of failing every later scrape.
+- A lost database connection ends the row-by-row save at once; a category whose rows were not stored is retried first next run.
+- Crawled URLs must be https on the chain's own domain.
+- On-demand refreshes load at most 2 pages of a category (`STOCKER_PRICING_ON_DEMAND_MAX_PAGES_PER_CATEGORY`) and never use the
+  last 30% of the day's budget (`STOCKER_PRICING_ON_DEMAND_KEEP_BUDGET_SHARE`), which is kept for the scheduled crawl.
+- Search terms are capped at 100 characters; the per-term refresh progress map holds at most 1000 entries; the search persist
+  queue holds at most 1000 pending stores (the oldest is dropped, with a WARN).
+- `Showing 1 - 50 of 1,234 products` (thousands separators) is read correctly.
 
 ## Crawl all three chains at once (crawl-only profile)
 
@@ -216,6 +234,7 @@ fixture in `src/test/resources/ingest/` and the `ChainPageTemplateTest` / `Templ
 
 ## Limits to know
 
+- Known, not fixed (one line each in `services/pricing/INGEST_MODULE.md` "Known limitations"): `price_records` grows on every crawl even for unchanged prices; the ingested promo flag is always false; the default store id is blank (IP-geolocated store); the normalised-product snapshot reloads every 15 s; `ChainProductService` reads 7 days of rows per request; `ItemPriceStore.replace` is not atomic.
 - The catalog map plus the configured pages come to about 153 pages per Foodstuffs chain and 137 for Woolworths (first pages
   only), before any sitemap-discovered staple pages (up to 40 per chain). With the cap of 140 and 20 pages held back for the
   further pages of multi-page categories (`extra-pages-reserve-per-run`), a run plans 120 first pages: the common-product and

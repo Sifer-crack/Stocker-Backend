@@ -18,6 +18,29 @@ class CategoryPaginationTest {
 	}
 
 	@Test
+	void thousandsSeparatorsInTheCountsAreRead() {
+		var p = CategoryPagination.parse("Showing 1 - 50 of 1,234 products").orElseThrow();
+		assertThat(p.total()).isEqualTo(1234);
+		assertThat(p.to()).isEqualTo(50);
+		assertThat(p.hasMore()).isTrue();
+		var last = CategoryPagination.parse("Showing 1,201 - 1,234 of 1,234 products").orElseThrow();
+		assertThat(last.from()).isEqualTo(1201);
+		assertThat(last.hasMore()).isFalse();
+	}
+
+	@Test
+	void woolworthsCountsWithThousandsSeparatorsAreRead() {
+		var p = CategoryPagination.parse("1 to 36 of 1,264 products").orElseThrow();
+		assertThat(p.total()).isEqualTo(1264);
+	}
+
+	@Test
+	void theBrowserRegexMatchesACountWithAThousandsSeparatorToo() {
+		assertThat(java.util.regex.Pattern.compile(CategoryPagination.SHOWING_SOURCE, java.util.regex.Pattern.CASE_INSENSITIVE)
+				.matcher("Showing 1 - 50 of 1,234 products").find()).isTrue();
+	}
+
+	@Test
 	void aSinglePageCategoryHasNoMore() {
 		var p = CategoryPagination.parse("Showing 1 - 33 of 33 products").orElseThrow();
 		assertThat(p.hasMore()).isFalse();

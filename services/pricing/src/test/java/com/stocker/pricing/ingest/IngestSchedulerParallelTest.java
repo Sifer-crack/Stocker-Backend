@@ -29,8 +29,14 @@ class IngestSchedulerParallelTest {
 	private final List<ManagedBrowser> started = new CopyOnWriteArrayList<>();
 	private final List<ManagedBrowser> closedBrowsers = new CopyOnWriteArrayList<>();
 
-	private ManagedBrowser newManaged() {
+	private static Browser connectedBrowser() {
 		Browser browser = mock(Browser.class);
+		org.mockito.Mockito.when(browser.isConnected()).thenReturn(true);
+		return browser;
+	}
+
+	private ManagedBrowser newManaged() {
+		Browser browser = connectedBrowser();
 		ManagedBrowser managed = new ManagedBrowser() {
 			@Override
 			public Browser browser() {
@@ -255,7 +261,7 @@ class IngestSchedulerParallelTest {
 			int n = closed.size() + started.size();
 			ManagedBrowser m = new ManagedBrowser() {
 				public Browser browser() {
-					return mock(Browser.class);
+					return connectedBrowser();
 				}
 
 				public void close() {
