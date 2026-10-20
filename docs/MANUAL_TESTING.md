@@ -8,7 +8,8 @@ Postgres anywhere) and walks through every Sprint 2 feature. Scripts live in `sc
 - Docker with Compose v2. If Docker Desktop is not running, the scripts automatically use the `default` context
   (`docker --context default ...`). The first start builds 8 images (JDK 25, Gradle) and uses a lot of memory and
   disk: close heavy programs first and do not run other builds in parallel.
-- Free ports: 8080-8087, 9092, 9094.
+- Free ports: 8080-8087, 9092, 9094. Only the gateway (8080) is reachable from other machines; every other published port is bound to 127.0.0.1.
+- Memory and cores: the stack is capped at 8 GiB RAM and 6 cores (see "Resource limits" below). Check free memory before starting; do not run other builds in parallel.
 - A root `.env` (gitignored; copy `.env.example`). Variables, by name only:
 
 | Variable | Required | Meaning |
@@ -19,7 +20,7 @@ Postgres anywhere) and walks through every Sprint 2 feature. Scripts live in `sc
 | `STOCKER_JWT_SECRET` | yes | At least 32 bytes; gateway and identity share it |
 | `STOCKER_CORS_ALLOWED_ORIGINS` | no | Default `http://localhost:5173` |
 | `STOCKER_AUTH_COOKIE_SECURE` | no | Keep `false` on plain http |
-| `STOCKER_INTERNAL_TOKEN` | no | Shopping-to-gateway push secret (dev default if empty) |
+| `STOCKER_INTERNAL_TOKEN` | yes | Shopping-to-gateway push secret; the gateway refuses to start without it, and both sides must use the same value |
 | `STOCKER_NOTIFICATIONS_SCAN_INTERVAL` / `..._SCAN_INITIAL_DELAY` | no | `PT30S` / `PT10S` for testing (production `PT15M`) |
 | `STOCKER_FETCH_PROVIDER`, `STOCKER_SPREAD_API_KEY` | no | Live price provider for `/api/pricing/search` only |
 | `STOCKER_INGEST_ENABLED`, `STOCKER_INGEST_DRY_RUN` | no | Supermarket crawl, **OFF** by default (section 5) |
@@ -51,11 +52,11 @@ Everything a user does goes through `http://localhost:8080`. `/api/identity/regi
 
 | Service | Database | Change on first start | Reversible? |
 |---|---|---|---|
-| inventory | `neondb` | Flyway history table `flyway_schema_history_inventory`, baseline at V1, then V2: adds columns `expiration_date` and `notify_days_before` to `pantry_items` (additive, `IF NOT EXISTS`) | Yes: `ALTER TABLE pantry_items DROP COLUMN expiration_date, DROP COLUMN notify_days_before;` and drop the history table. Existing rows are untouched. |
+| inventory | `neondb` | Flyway history table `flyway_schema_history_inventory`, baseline at V1, then V2: adds columns `expiration_date` and `notify_days_before` to `pantry_items` (additive, `IF NOT EXISTS`); then V3: `product_id` becomes nullable and the nullable columns `name`, `category`, `unit` are added (free-text pantry items) | Yes. V3: `ALTER TABLE pantry_items DROP COLUMN name, DROP COLUMN category, DROP COLUMN unit;` and, only after deleting every free-text row (`DELETE FROM pantry_items WHERE product_id IS NULL;`, otherwise it fails), `ALTER TABLE pantry_items ALTER COLUMN product_id SET NOT NULL;`. V2: `ALTER TABLE pantry_items DROP COLUMN expiration_date, DROP COLUMN notify_days_before;` and drop the history table. Existing rows are untouched. |
 | pricing | `neondb` | Flyway V5 creates `normalized_products` and backfills it from `price_records` (`STOCKER_NORMALIZE_BACKFILL`, default on; database work only). Earlier versions (V1-V4) are already applied. | Yes: drop `normalized_products` (derived data; `price_records` is never modified) and remove the V5 row from pricing's Flyway history. |
 | identity, catalog | `neondb` | Flyway disabled in compose (`SPRING_FLYWAY_ENABLED=false`): tables are managed in Neon by hand. No schema change. | n/a |
 | shopping | `shopping` (new) | Flyway V1-V4 (outbox, shopping list items, favorite stores) | Drop the database |
-| notifications | `notifications` (new) | Flyway V1 (`expiration_notifications`) | Drop the database |
+| notifications | `notifications` (new) | Flyway V1 (`expiration_notifications`) and V2 (item name, category and unit columns, so free-text items can be notified) | Drop the database |
 
 Data the tests create in `neondb`: a throwaway user per smoke run (`manual-test-<timestamp>@example.test`; there
 is no API to delete a user), plus pantry items and products that the script deletes again. Manual testing creates
@@ -72,20 +73,31 @@ curl -s -X POST $B/api/identity/register -H 'Content-Type: application/json' \
 TOKEN=$(curl -s -X POST $B/api/identity/login -H 'Content-Type: application/json' \
   -d '{"email":"me@example.test","password":"a-long-password"}' | python3 -c 'import json,sys;print(json.load(sys.stdin)["accessToken"])')
 AUTH="Authorization: Bearer $TOKEN"
-USER_ID=$(curl -s -H "$AUTH" $B/api/identity/me | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])')
 ```
-The same steps work from the frontend UI. `smoke.sh` automates most of them.
+You never send a user id: the gateway takes it from the token and sets `X-User-Id` for inventory, notifications and shopping
+(any `userId` parameter is ignored). Refresh tokens are not accepted as Bearer tokens, and the access token lives 15 minutes:
+log in again (or call `POST $B/api/identity/refresh` with the cookie) when you get 401. The same steps work from the frontend UI.
+`smoke.sh` automates most of them.
 
 ### 4.1 Expiry notifications (8 acceptance tests)
 
-Create a product (`curl -X POST -H "$AUTH" "$B/api/products?productName=Yoghurt"` returns `productId`). Notifications
-use Pacific/Auckland dates.
+Add pantry items as free text, so no catalog product is needed (catalog writes return 403 through the gateway for ordinary
+users; to use a catalog product, create one directly against the catalog service on `127.0.0.1:8082`, or pick an existing one with
+`GET $B/api/products`). Notifications use Pacific/Auckland dates.
+
+```bash
+# free-text pantry item through the gateway: Authorization only, no user id and no X-User-Id (the gateway sets it)
+curl -s -X POST $B/api/pantry-items -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"name":"Nana'"'"'s jam","category":"preserves","unit":"jar","quantity":2,"expirationDate":"<today+2>","notifyDaysBefore":3}'
+# the same with a catalog product: {"productId":"<uuid>","quantity":1,...}; either productId or name is required
+# calling inventory directly on 127.0.0.1:8087 instead: add -H "X-User-Id: <your user uuid>" yourself
+```
 
 | # | Acceptance test | Steps | Expected |
 |---|---|---|---|
-| 1 | Expiry date saved | `POST $B/api/pantry-items?userId=$USER_ID&productId=<id>&quantity=1&expirationDate=<today+2>&notifyDaysBefore=3` | Response and `GET /api/pantry-items?userId=$USER_ID` show `expirationDate` |
+| 1 | Expiry date saved | `POST $B/api/pantry-items` with the free-text body above (or the query form `?productId=<id>&quantity=1&expirationDate=<today+2>&notifyDaysBefore=3`) | Response and `GET $B/api/pantry-items` show `expirationDate` |
 | 2 | Threshold saved | Same call | `notifyDaysBefore` is 3 (default 3 if omitted; 0 = only on the day) |
-| 3 | Notified inside threshold | Wait for the scan (up to ~40 s), `GET $B/api/notifications` | One notification, `status` `NEW`, for that pantry item |
+| 3 | Notified inside threshold | Wait for the scan (up to ~40 s), `GET $B/api/notifications` | One notification, `status` `NEW`, for that pantry item; for a free-text item it carries `itemName`, `category` and `unit` |
 | 4 | Not notified outside threshold | Add another item with expiry `<today+30>` and threshold 3 | No notification for it, even after several scans |
 | 5 | Acknowledge | `POST $B/api/notifications/<id>/acknowledge` | `status` `ACKNOWLEDGED`, `acknowledgedAt` set |
 | 6 | No duplicate | Wait for 2+ more scans | Still exactly one notification for the item (also after acknowledging) |
@@ -148,7 +160,31 @@ click and collect 3.50.
 - To crawl: set `STOCKER_INGEST_ENABLED=true` (scheduled crawl 03:00 Auckland) and `STOCKER_INGEST_DRY_RUN=false`
   (store the rows; default is scrape-and-log only), then restart pricing. **Standing rule: any live supermarket
   request needs the owner's explicit approval first** (one paragraph, 5-10 sentences, with the reason). Keep it to
-  the absolute minimum (rate limits).
+  the absolute minimum (rate limits). When on, the crawl pauses 20-40 s between page loads of a chain, loads at most 140
+  pages per chain per Auckland day, stops a chain for 6 h (doubling to 24 h) after 3 blocked responses in a row, and is
+  slow: a full run of the three chains one after another takes roughly 3.5-4 h (see `docs/features/price-engine-reliability.md`).
+  Lean page loads are off by default (`STOCKER_INGEST_LEAN_PAGES`).
+
+## Resource limits
+
+- `docker-compose.limits.yml` caps the whole stack at 8 GiB RAM and 6 CPU cores (every container pinned to cores 0-5, memory
+  limits per service, pricing 2304 MiB because it also runs headless Firefox). `scripts/manual-test/common.sh` adds it to every
+  `docker compose` call automatically, so `stack-up.sh`, `stack-down.sh` and `logs.sh` use it without further flags.
+- `STACK_LIMITS=off scripts/manual-test/stack-up.sh` runs without the caps; use it on a machine with fewer than 6 cores (the
+  `cpuset: "0-5"` pin would otherwise fail).
+- `stack-up.sh` builds the eight images one at a time (`COMPOSE_PARALLEL_LIMIT=1`; `BUILD_ALL_AT_ONCE=1` skips that) and, if it exists,
+  uses a BuildKit builder named `stocker-limited` capped at 4 GiB and cores 0-5. Create it once:
+  `docker buildx create --name stocker-limited --driver docker-container --driver-opt memory=4g --driver-opt cpuset-cpus=0-5 --driver-opt default-load=true`.
+- `docker-compose.crawl.yml` is for a crawl-only run: it crawls the three chains at the same time (one Firefox each) and gives
+  pricing 4608 MiB and a 768 MiB `/dev/shm`. Use it only with every other service stopped, after `docker-compose.limits.yml`, and only
+  with the owner's approval of the crawl:
+
+  ```bash
+  docker compose -f docker-compose.yml -f docker-compose.limits.yml -f docker-compose.crawl.yml up -d --build kafka kafka-init pricing
+  ```
+
+  with `STOCKER_INGEST_ENABLED=true STOCKER_INGEST_DRY_RUN=false` (and `STOCKER_INGEST_RUN_ON_STARTUP=true` to start at once) in `.env`.
+  Kafka plus this pricing come to about 5.5 GiB; do not start the other services on top of it.
 
 ## 6. Troubleshooting
 
@@ -160,22 +196,21 @@ click and collect 3.50.
 - Kafka: `docker --context default compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list`
   should show stocker.household.events.v1, stocker.catalog.events.v1, stocker.promotions.events.v1,
   stocker.shopping.events.v1, stocker.pricing.events.v1, stocker.pricing.refresh-requests.v1 (created by `kafka-init`).
-- HTTP 401 from the gateway: missing/expired token (access tokens last 15 minutes: log in again), or the gateway and
-  identity have different `STOCKER_JWT_SECRET`. 403: forbidden. Compose passes the same variable to both.
+- HTTP 401 from the gateway: missing/expired token (access tokens last 15 minutes: log in again), a refresh token used as a
+  Bearer token (only access tokens are accepted), or the gateway and identity have different `STOCKER_JWT_SECRET`. 403: forbidden. Compose passes the same variable to both.
 - Browser CORS errors: the page origin must be in `STOCKER_CORS_ALLOWED_ORIGINS` (default `http://localhost:5173`),
   then recreate gateway and identity.
 - Frontend (`../Stocker-Frontend`): `cp .env.example .env`; the variable is `VITE_API_BASE_URL=http://localhost:8080`
   (read in `src/lib/apiConfig.ts`; in a container it is `API_BASE_URL`). Then `npm run dev` (http://localhost:5173).
-  The frontend's Pantry and Dashboard pages still call inventory `:8087` and catalog `:8082` directly.
+  Pantry and Dashboard must call the gateway (`/api/pantry-items`, `/api/products`); a direct call to inventory `:8087` without
+  `X-User-Id` is 401.
 
 ## 7. Known limitations
 
 - Notifications are poll-only: the page must call `GET /api/notifications`; there is no push. Latency is up to one scan interval.
-- Inventory trusts the `userId` request parameter and ignores `X-User-Id`: any signed-in user can read another user's pantry.
-- Inventory's `CatalogClient` is currently unused (its `/products/search?name=&unit=` call does not match catalog's API); only the base URL is now configurable.
-- Pantry/Dashboard in the frontend bypass the gateway; the gateway's pantry route needs `userId` in the query string.
+- Inventory is scoped by the gateway's `X-User-Id`; a `userId` parameter is ignored and another user's item is 404. Its port is bound to 127.0.0.1, so do not publish it further.
 - No delete API for users, shopping items or notifications: test data stays in Neon.
-- `notifications` and `analytics` Kafka handling is stubbed; shopping's outbox publisher is a stub.
+- `analytics` Kafka handling is stubbed (notifications' Kafka listener is unused); shopping's outbox publisher is a stub.
 - The shopping list's SSE stream (`GET /api/updates/shopping`) is relayed by the gateway, but the frontend does not use it yet.
 - Catalog writes are blocked at the gateway. `SecurityConfig` denies every non-`GET` `/api/products/**` (create, delete and import are service-to-service; identity issues no admin role yet), so a signed-in caller gets 403 and an anonymous caller 401. The product seed in `smoke.sh` and the "Create a product" step in section 4.1 therefore FAIL through the gateway — seed products against the catalog service directly (`http://localhost:8082`) instead, or treat those two smoke checks as expected failures. The frontend is unaffected: it only reads `/api/products`.
 - Region/service-area list is a placeholder (auckland, wellington, christchurch) pending sign-off; fees do not model express delivery, surcharges or Club+.
