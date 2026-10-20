@@ -115,6 +115,19 @@ than before.
 - **Woolworths.** The scraper loads only the first page of each category. The probe loaded `biscuits-cookies` once: 36 tiles,
   no "Showing" text and no pagination element in the DOM (it may be infinite scroll or rendered later). Not guessed; a
   further look (scrolling) needs the owner's approval.
+  **Re-checked live on 2026-10-20 (one approved page load, `WoolworthsLiveProbeTest`):** HTTP 200, no bot check, "1 to 36 of
+  264 products", 44 `div[class^='product-tile_imgAndTextArea_']` tiles and also 44 description links and 44 price spans, so
+  every tile of a fully rendered page carries name, price and link and the old selectors still parse (hash suffixes changed,
+  prefixes did not). Changes found: product links are `/shop/product-details/<stockcode>/<slug>` (with a hyphen; the code is
+  still the second-to-last segment) and images come from `assets.woolworths.com.au`. The crawl's "no name (stockcode=null)"
+  cards were therefore tiles read before hydration (wrapper present, content not yet): the loader now waits for tiles that
+  show a name (max 15 s, then up to 3 scrolls) and a page with tiles but no product is logged as ONE summary WARN
+  (`WOOLWORTHS: N of M cards unusable at <url> (fields missing: name x, code y, price z); template selectors: ...`) and,
+  when none is usable, as zero-result (CategoryHealth) plus a "template stale or tiles not hydrated" WARN. A page that is
+  blocked (403/429/captcha) never reaches this: it fails earlier as a blocked page.
+  **How to re-check:** `STOCKER_PROBE_WOOLWORTHS_LIVE=true ./gradlew :services:pricing:test --tests '*WoolworthsLiveProbeTest'`
+  loads ONE page (ask the owner first) and writes tile excerpts to `services/pricing/build/woolworths-probe/`; compare with
+  `src/test/resources/ingest/woolworths-real-cards.html` and adjust `ChainPageTemplate.woolworths()`.
 - **Order and cap.** `DailyPageBudget` default 140 pages per chain per Auckland day (`app.ingest.max-pages-per-chain-per-day`).
   `CrawlPlanner` orders a run: the catalogue's category pages, configured pages that match a staple keyword and
   sitemap-discovered staple pages first; the other configured pages after them as a window that moves on each day. Pages
@@ -259,8 +272,8 @@ Added 2026-10-20; the full description, defaults and log guide are in `docs/feat
 - Tests: `ChainPageTemplateTest`, `LeanPageRouterTest`, `PageCountMonitorTest`, `IngestLeanPropertiesTest` (no browser) and
   `TemplatePageBrowserTest` (headless Firefox on localhost fixtures, incl. the probe captures in
   `src/test/resources/ingest/probe/`; those are text-only probes, so the browser test rebuilds a page from their tile count,
-  visible text and pagination markup). Woolworths has no real captured fixture, only `woolworths-milk.html`, written from the
-  selectors of the reference scraper.
+  visible text and pagination markup). Woolworths: `woolworths-milk.html` was written from the reference scraper's
+  selectors; `woolworths-real-cards.html` holds 3 tiles captured live on 2026-10-20.
 - Does not reduce the number of page loads; correctness of blocking on the real sites is proven only by the first real crawl.
 
 ## Configuration

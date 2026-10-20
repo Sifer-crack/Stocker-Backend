@@ -326,6 +326,74 @@ class TemplatePageBrowserTest {
 				&& l.contains("product-price_value_") && l.contains(url("/milk")));
 	}
 
+	private static final String SHELL = "<div class=\"product-tile_imgAndTextArea__LeaM_\"></div>";
+
+	@Test
+	void woolworthsRealCapturedTilesParse() {
+		FILES.put("/biscuits", "woolworths-real-cards.html");
+
+		ScrapeResult result = new WoolworthsNzChainScraper(LEAN, "http://127.0.0.1")
+				.scrape(browser, config(List.of(url("/biscuits"))));
+
+		assertThat(result.getProducts()).extracting(p -> p.getNativeProductCode()).hasSize(3).doesNotContainNull();
+		assertThat(result.getProducts().get(0).getNativeProductCode()).isEqualTo("317455");
+		assertThat(result.getProducts().get(0).getName()).isEqualTo("Oreo Creme Filled Biscuits Original Minis 10 Pack - 204g");
+		assertThat(result.getProducts().get(0).getPrice().toPlainString()).isEqualTo("4.99");
+		assertThat(result.getProducts().get(0).getImageUrl()).contains("317455.jpg");
+		assertThat(result.getZeroResultCategoryUrls()).isEmpty();
+		assertThat(logs(Level.WARN)).isEmpty();
+	}
+
+	@Test
+	void woolworthsEmptyShellTilesGiveOneSummaryWarnPerPage() {
+		DYNAMIC.put("/biscuits", read("woolworths-real-cards.html").replace("</div></body>", SHELL + SHELL + "</div></body>"));
+
+		ScrapeResult result = new WoolworthsNzChainScraper(LEAN, "http://127.0.0.1")
+				.scrape(browser, config(List.of(url("/biscuits"))));
+
+		assertThat(result.getProducts()).hasSize(3);
+		assertThat(result.getZeroResultCategoryUrls()).isEmpty();
+		assertThat(logs(Level.WARN)).hasSize(1).first().satisfies(l -> assertThat(l)
+				.startsWith("WOOLWORTHS: 2 of 5 cards unusable at " + url("/biscuits"))
+				.contains("name 2, code 2, price 2").contains("template selectors:").contains("product-tile_description_"));
+	}
+
+	@Test
+	void woolworthsTilesWithoutAnyProductCountAsZeroResultAndWarnTemplateStale() {
+		DYNAMIC.put("/biscuits", "<html><body>" + SHELL + SHELL + SHELL + "</body></html>");
+
+		ScrapeResult result = new WoolworthsNzChainScraper(LEAN, "http://127.0.0.1")
+				.scrape(browser, config(List.of(url("/biscuits"))));
+
+		assertThat(result.getProducts()).isEmpty();
+		assertThat(result.getZeroResultCategoryUrls()).containsExactly(url("/biscuits"));
+		assertThat(logs(Level.WARN)).hasSize(3);
+		assertThat(logs(Level.WARN)).anyMatch(l -> l.contains("3 of 3 cards unusable"));
+		assertThat(logs(Level.WARN)).anyMatch(l -> l.startsWith("WOOLWORTHS: page template field 'name'")
+				&& l.contains("also missing: 'code'"));
+		assertThat(logs(Level.WARN)).anyMatch(l -> l.contains("template stale or tiles not hydrated"));
+	}
+
+	@Test
+	void woolworthsWaitsForTilesToHydrate() {
+		String real = read("woolworths-real-cards.html");
+		String filled = real.substring(real.indexOf("<div class=\"grid\">") + "<div class=\"grid\">".length(),
+				real.indexOf("</div></body>"));
+		String script = "<script>setTimeout(function(){document.getElementById('g').innerHTML=" + toJsString(filled)
+				+ ";},2000);</script>";
+		DYNAMIC.put("/biscuits", "<html><body><div id=\"g\">" + SHELL + SHELL + SHELL + "</div>" + script + "</body></html>");
+
+		ScrapeResult result = new WoolworthsNzChainScraper(LEAN, "http://127.0.0.1")
+				.scrape(browser, config(List.of(url("/biscuits"))));
+
+		assertThat(result.getProducts()).hasSize(3);
+		assertThat(logs(Level.WARN)).isEmpty();
+	}
+
+	private static String toJsString(String html) {
+		return "\"" + html.replace("\\", "\\\\").replace("\"", "\\\"").replace("\r", "").replace("\n", "\\n") + "\"";
+	}
+
 	// ---------------------------------------------------------------- probe pages (real captures, text only)
 
 	private record Probe(String url, int tiles, String showing, String navMarkup, String bodyText) {

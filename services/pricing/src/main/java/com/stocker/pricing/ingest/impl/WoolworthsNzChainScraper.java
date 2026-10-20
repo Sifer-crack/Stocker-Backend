@@ -114,8 +114,20 @@ public class WoolworthsNzChainScraper implements ChainScraper {
 								categoryUrl, template.cardSelector());
 						continue;
 					}
-					for (ProductCardFields fields : cards) {
-						WoolworthsProductCardExtractor.parse(fields, config.getStoreId()).ifPresent(products::add);
+					WoolworthsProductCardExtractor.PageParse parsed = WoolworthsProductCardExtractor.parseAll(cards,
+							config.getStoreId());
+					products.addAll(parsed.products());
+					String summary = parsed.summary(categoryUrl, template.describeSelectors());
+					if (summary != null) {
+						log.warn(summary);
+					}
+					if (parsed.templateStale()) {
+						// The page itself loaded fine (BlockGuard passed) yet no tile gave a product: count it like a
+						// zero-result page for CategoryHealth.
+						zeroResultCategoryUrls.add(categoryUrl);
+						log.warn("WOOLWORTHS: template stale or tiles not hydrated at {}: {} tiles found, 0 usable products "
+								+ "(check ChainPageTemplate.woolworths() against the live page, see INGEST_MODULE.md)",
+								categoryUrl, cards.size());
 					}
 				} catch (PlaywrightException e) {
 					String warning = "Failed to scrape " + categoryUrl + ": " + e.getMessage();

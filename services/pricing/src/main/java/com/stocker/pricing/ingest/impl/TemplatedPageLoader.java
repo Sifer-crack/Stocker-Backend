@@ -100,16 +100,72 @@ final class TemplatedPageLoader {
 		return template.cardSelector();
 	}
 
+	/** True when the page has tiles and (for {@code spec.name} != null) every tile already shows its name. */
+	static final String TILES_READY_SCRIPT = """
+			(spec) => {
+			  const cards = Array.from(document.querySelectorAll(spec.card));
+			  if (cards.length === 0) return false;
+			  if (!spec.name) return true;
+			  const named = cards.filter(c => { const el = c.querySelector(spec.name); return el && el.textContent.trim() !== ''; });
+			  return spec.all ? named.length === cards.length : named.length > 0;
+			}
+			""";
+
+	private static final int HYDRATION_WAIT_MILLIS = 15000;
+	private static final int SCROLL_STEPS = 3;
+
 	/**
 	 * The product grid renders client-side after the "load" event, so reading immediately can see zero tiles on a valid
-	 * page. Wait briefly for the first tile; a timeout is a legitimate "zero products" outcome, not an error.
+	 * page. Wait briefly for the first tile; a timeout is a legitimate "zero products" outcome, not an error. When the
+	 * template says tile wrappers exist before their content (Woolworths), also wait until tiles show a name, then
+	 * scroll (at most 3 times, once) to hydrate lazily rendered rows.
 	 */
 	private void waitForProductCards(Page page) {
 		try {
 			page.waitForSelector(template.cardSelector(), new Page.WaitForSelectorOptions().setTimeout(5000));
 		} catch (PlaywrightException e) {
-			// No tiles appeared in time - the caller's empty-list handling takes over.
+			return;      // No tiles appeared in time - the caller's empty-list handling takes over.
 		}
+		if (!template.waitForNamedTiles()) {
+			return;
+		}
+		try {
+			waitForNamedTiles(page);
+		} catch (RuntimeException e) {
+			log.debug("{}: hydration wait ended early: {}", chain, e.toString());
+		}
+	}
+
+	private void waitForNamedTiles(Page page) {
+		String nameSelector = template.fields().get(ChainPageTemplate.NAME).selector();
+		try {
+			page.waitForFunction(TILES_READY_SCRIPT, readySpec(nameSelector, false),
+					new Page.WaitForFunctionOptions().setTimeout(HYDRATION_WAIT_MILLIS));
+		} catch (PlaywrightException e) {
+			log.debug("{}: no tile showed a name within {} ms", chain, HYDRATION_WAIT_MILLIS);
+			return;
+		}
+		for (int i = 0; i < SCROLL_STEPS; i++) {
+			try {
+				if (Boolean.TRUE.equals(page.evaluate(TILES_READY_SCRIPT, readySpec(nameSelector, true)))) {
+					return;
+				}
+				page.mouse().wheel(0, 1500);
+				page.waitForFunction(TILES_READY_SCRIPT, readySpec(nameSelector, true),
+						new Page.WaitForFunctionOptions().setTimeout(2500));
+				return;
+			} catch (PlaywrightException e) {
+				// still some unnamed tiles after this scroll: scroll again, then read what there is
+			}
+		}
+	}
+
+	private Map<String, Object> readySpec(String nameSelector, boolean all) {
+		Map<String, Object> spec = new HashMap<>();
+		spec.put("card", template.cardSelector());
+		spec.put("name", nameSelector);
+		spec.put("all", all);
+		return spec;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -139,16 +195,27 @@ final class TemplatedPageLoader {
 		if (cards.isEmpty()) {
 			return;      // the scraper reports the zero-result page itself
 		}
+		List<ChainPageTemplate.MandatoryField> missing = new ArrayList<>();
 		for (ChainPageTemplate.MandatoryField field : template.mandatory()) {
 			boolean seen = cards.stream().anyMatch(c -> {
 				String v = field.value().apply(c);
 				return v != null && !v.isBlank();
 			});
 			if (!seen) {
-				log.warn("{}: page template field '{}' ({}) found nothing on any of {} product tiles at {} - "
-						+ "the site layout probably changed; adjust ChainPageTemplate", chain, field.name(),
-						field.selectorDescription(), cards.size(), url);
+				missing.add(field);
 			}
+		}
+		if (!missing.isEmpty()) {
+			// ONE line per page, however many fields are missing.
+			ChainPageTemplate.MandatoryField first = missing.get(0);
+			StringBuilder also = new StringBuilder();
+			for (ChainPageTemplate.MandatoryField other : missing.subList(1, missing.size())) {
+				also.append(also.length() == 0 ? "; also missing: " : ", ").append('\'').append(other.name()).append("' (")
+						.append(other.selectorDescription()).append(')');
+			}
+			log.warn("{}: page template field '{}' ({}) found nothing on any of {} product tiles at {} - "
+					+ "the site layout probably changed; adjust ChainPageTemplate{}", chain, first.name(),
+					first.selectorDescription(), cards.size(), url, also);
 		}
 		if (template.showingRegex() != null && showing == null) {
 			log.warn("{}: page template field 'showing' (\"Showing A - B of M products\") not found at {} "

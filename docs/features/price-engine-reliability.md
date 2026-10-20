@@ -227,3 +227,18 @@ After a catalog change (new keys, dish guard) rows already stored kept their old
 e.g. egg fried rice stayed filed under `eggs`. Pricing now re-derives key, pack size and unit price of every stored
 `normalized_products` row once per start (`app.normalize.rekey-on-startup`, env `STOCKER_NORMALIZE_REKEY`), writing only
 rows that changed. Database only; lookups pick the corrections up within about 15 s via the snapshot refresh.
+
+## Woolworths tiles read before they had content
+
+The live crawl logged hundreds of `Skipping Woolworths product card with no name (stockcode=null)` lines and stored no
+Woolworths products. A single approved live probe (2026-10-20, `biscuits-cookies`) showed a fully rendered page parses with
+the existing selectors (44 tiles, 44 names, 44 prices; only the product link path is now `/shop/product-details/`), so the
+empty cards were tiles read before the client-side render filled them.
+
+- The loader (`TemplatedPageLoader`) now waits, for templates with `waitForNamedTiles` (Woolworths), until a tile shows its
+  name (max 15 s), then scrolls up to 3 times until all tiles are named, before reading.
+- One WARN per page replaces one line per card: `WOOLWORTHS: N of M cards unusable at <url> (fields missing: name x, code y,
+  price z); template selectors: ...`. The per-card lines are DEBUG. The "page template field" check also logs one line per page.
+- A page that loaded fine (not 403/429/captcha) with tiles but no usable product counts as zero-result for `CategoryHealth`
+  and logs `template stale or tiles not hydrated`. Blocked pages are unaffected: they still fail and feed the circuit breaker.
+
