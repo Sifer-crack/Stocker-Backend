@@ -36,7 +36,10 @@ class FoodstuffsPaginationBrowserTest {
 	private static final Map<String, String> PAGES = Map.of(
 			"/shop/category/milk?pg=1", "foodstuffs-milk-pg1.html",
 			"/shop/category/milk?pg=2", "foodstuffs-milk-pg2.html",
-			"/shop/category/eggs?pg=1", "foodstuffs-eggs-single.html");
+			"/shop/category/eggs?pg=1", "foodstuffs-eggs-single.html",
+			"/shop/category/veg?pg=1", "foodstuffs-veg-pg1.html",
+			"/shop/category/veg?pg=2", "foodstuffs-veg-pg2-no-count.html",
+			"/shop/category/veg?pg=3", "foodstuffs-veg-pg3.html");
 	private static final List<String> requests = new CopyOnWriteArrayList<>();
 	private static volatile int statusForPg2 = 200;
 
@@ -108,6 +111,15 @@ class FoodstuffsPaginationBrowserTest {
 
 		assertThat(result.getProducts()).hasSize(5);
 		assertThat(requests).containsExactly("/shop/category/milk?pg=1", "/shop/category/milk?pg=2");
+		assertThat(result.getWarnings()).isEmpty();
+	}
+
+	@Test
+	void aMiddlePageWithoutTheCountLineIsStillWalkedAndTheLastPageIsReached() {
+		ScrapeResult result = scrape(List.of(url("/shop/category/veg?pg=1")), 8, new AtomicInteger(10));
+
+		assertThat(result.getProducts()).hasSize(5);
+		assertThat(requests).containsExactly("/shop/category/veg?pg=1", "/shop/category/veg?pg=2", "/shop/category/veg?pg=3");
 		assertThat(result.getWarnings()).isEmpty();
 	}
 

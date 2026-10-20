@@ -13,8 +13,10 @@ spring:
       maximum-pool-size: ${STOCKER_DB_POOL_SIZE:10}
       minimum-idle: 0
       idle-timeout: 120000
-      max-lifetime: 240000
+      max-lifetime: ${STOCKER_DB_MAX_LIFETIME_MS:240000}        # below Neon's idle cut-off (5 min)
+      keepalive-time: ${STOCKER_DB_KEEPALIVE_MS:120000}         # ping idle pooled connections every 2 min
       connection-timeout: 30000
+      validation-timeout: 5000                                  # connection test = JDBC isValid() (no connection-test-query)
       # pgjdbc folds a JDBC insert batch into one multi-row INSERT (one round trip per batch, not per row).
       data-source-properties:
         reWriteBatchedInserts: true
@@ -106,6 +108,8 @@ app:
     dry-run: ${STOCKER_INGEST_DRY_RUN:true}
     # Rows stored per transaction when a scraped category is persisted (batched: a fixed number of round trips).
     persist-batch-size: ${STOCKER_INGEST_PERSIST_BATCH_SIZE:500}
+    # Pauses (ms) before each retry of a chunk lost to a dropped DB connection; comma separated, one entry per retry.
+    persist-retry-backoff-millis: ${STOCKER_INGEST_PERSIST_RETRY_BACKOFF_MILLIS:2000,5000,10000}
     # Once a day at 03:00 Auckland time, covering every configured category, regardless of the container's timezone.
     cron: ${STOCKER_INGEST_CRON:0 0 3 * * *}
     cron-zone: ${STOCKER_INGEST_CRON_ZONE:Pacific/Auckland}
@@ -142,9 +146,9 @@ app:
     quarantine-after-zero-runs: ${STOCKER_INGEST_QUARANTINE_AFTER_ZERO_RUNS:2}
     quarantine-days: ${STOCKER_INGEST_QUARANTINE_DAYS:7}
     quarantine-site-wide-zero-share: ${STOCKER_INGEST_QUARANTINE_SITE_WIDE_ZERO_SHARE:0.5}
-    # Lean page loads (docs/features/price-engine-reliability.md): abort the requests a price page never needs. Kill switch
-    # STOCKER_INGEST_LEAN_PAGES=false restores full page loads. Request log: one line per page with hosts x resource types.
-    lean-pages: ${STOCKER_INGEST_LEAN_PAGES:true}
+    # Lean page loads (docs/features/price-engine-reliability.md): abort the requests a price page never needs. OFF by default
+    # (unproven on the real sites; blocking can look more like a bot). STOCKER_INGEST_LEAN_PAGES=true turns it on. Request log: one line per page with hosts x resource types.
+    lean-pages: ${STOCKER_INGEST_LEAN_PAGES:false}
     log-requests: ${STOCKER_INGEST_LOG_REQUESTS:false}
     lean:
       # Only passive types can be blocked: image, media, font, stylesheet (stylesheet stays OFF until a real crawl proves the tile

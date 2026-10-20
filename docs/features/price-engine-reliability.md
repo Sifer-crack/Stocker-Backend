@@ -69,6 +69,30 @@ about 20 minutes, Woolworths' 2,975 rows would take about 80, with the CPU idle.
   `ItemMatchService`), not by the scheduled ingest, so the crawl path never had a per-row publish and is unchanged.
 - On-demand/gRPC paths keep the single-row `recordObservation`. Data written is identical; no migration.
 
+### Connection drops while storing (2026-10-20, evening)
+
+On 2026-10-20 14:07 a Neon compute restart cut the live connections in the middle of a save (`HikariPool marked as broken`,
+SQLSTATE 08006) and `WOOLWORTHS: crawl failed`. Now:
+
+- A chunk that fails with a connection failure (SQLSTATE class 08, `EOFException`, "connection closed" / "marked as broken"
+  anywhere in the cause chain) is retried whole, up to 3 times, after 2 s, 5 s and 10 s
+  (`STOCKER_INGEST_PERSIST_RETRY_BACKOFF_MILLIS=2000,5000,10000`; one entry per retry). The chunk was one transaction, so it
+  was rolled back and re-sending is safe. Still failing -> the old row-by-row path. Other errors skip the retries.
+- A category whose save fails in any way is logged and counted; it never reaches the scraper's page loop, so the crawl goes on.
+- Hikari (application.yml, env overrides, no secrets): `max-lifetime` 240000 ms (`STOCKER_DB_MAX_LIFETIME_MS`, under Neon's
+  5-minute idle cut-off), `keepalive-time` 120000 ms (`STOCKER_DB_KEEPALIVE_MS`), `validation-timeout` 5000 ms; the default
+  JDBC `isValid()` tests connections (no `connection-test-query`). Unverified against a real Neon restart.
+
+## Foodstuffs price text and pagination fixes (2026-10-20, evening)
+
+- `Skipping Foodstuffs product card with unparsable price (rawPriceText=2..99)`: the PAK'nSAVE / New World dollars and cents
+  spans were joined with a dot, but some tiles' cents span already starts with `.`. See INGEST_MODULE.md; fixture
+  `foodstuffs-paknsave-doubled-dot.html`. Layouts with `meta[itemprop=price]` or plain `99` cents are unchanged.
+- `read 150 of 227 listed products (page 4 has no 'Showing A - B of M' line)`: the walk stopped after 3 of 5 pages. The loader
+  now waits (max 5 s) for the count line when tiles exist, and the walker continues on a later page without the line using the
+  last known total (see INGEST_MODULE.md); fixtures `foodstuffs-veg-pg{1,2-no-count,3}.html`.
+- Lean pages default to OFF (see above).
+
 ## Crawl pace and circuit breaker (2026-10-20)
 
 Why: on 2026-10-20 a crawl at 4-9 s between page loads drew about 30 HTTP 429 in a row from New World, and the crawler
@@ -139,8 +163,8 @@ daily cap and circuit breaker are unchanged), and it does not make a blocked/429
 
 | Env | Default | Meaning |
 |---|---|---|
-| `STOCKER_INGEST_LEAN_PAGES` | `true` | Kill switch. `false` = every request is made, exactly as before this change. |
-| `STOCKER_INGEST_{NEWWORLD,PAKNSAVE,WOOLWORTHS}_LEAN_ENABLED` | `true` | Switch one chain off (also needs the kill switch on). |
+| `STOCKER_INGEST_LEAN_PAGES` | `false` | Master switch. OFF by default since 2026-10-20 (blocking is unproven on the real sites and could look more bot-like); `true` turns request blocking on. `false` = every request is made. |
+| `STOCKER_INGEST_{NEWWORLD,PAKNSAVE,WOOLWORTHS}_LEAN_ENABLED` | `true` | Switch one chain off (only matters when `LEAN_PAGES=true`). |
 | `STOCKER_INGEST_BLOCK_RESOURCE_TYPES` | `image,media,font` | Types to abort (allowed: image, media, font, stylesheet, texttrack, manifest). |
 | `STOCKER_INGEST_BLOCK_HOST_PATTERNS` | list in `application.yml` | Comma list of host substrings. |
 | `STOCKER_INGEST_LOG_REQUESTS` | `false` | Request log (below). |
@@ -166,7 +190,7 @@ HTML goes to Java. Unit price and promo / multibuy badges are **not** read (no v
   (unchanged behaviour, now naming the selector).
 - WARN `tiles dropped from 179 to 120 (below 80%) at URL` - fewer than 80% of the tiles seen **earlier in this process** for
   the same URL (memory only; a restart forgets). Blocking something the grid needs shows up exactly like this. First check:
-  `STOCKER_INGEST_LEAN_PAGES=false` and compare.
+  `STOCKER_INGEST_LEAN_PAGES=false` (the default) and compare.
 - Expected reference counts from real data (tiles per page, not "claimed"): New World yoghurt **179**, cheese **183**, eggs
   **10**; PAK'nSAVE eggs **33**. A lean crawl that returns clearly fewer is broken, not "leaner".
 - `STOCKER_INGEST_LOG_REQUESTS=true` adds `NEWWORLD requests url=...: cdn.host [image 12 (all aborted), script 3]; ...` per

@@ -419,8 +419,13 @@ public class IngestScheduler {
 				return;
 			}
 			int before = saved;
-			if (persist(categoryUrl, products)) {
-				log.info("{}: stored {} rows from {} (run total {})", chainId, saved - before, categoryUrl, saved);
+			try {
+				if (persist(categoryUrl, products)) {
+					log.info("{}: stored {} rows from {} (run total {})", chainId, saved - before, categoryUrl, saved);
+				}
+			} catch (RuntimeException e) {
+				failures++;
+				log.error("{}: storing the rows of {} failed, the crawl carries on: {}", chainId, categoryUrl, e.toString());
 			}
 		}
 
@@ -461,13 +466,27 @@ public class IngestScheduler {
 			List<String> chunkCodes = List.copyOf(codes);
 			chunk.clear();
 			codes.clear();
-			try {
-				priceStatsService.saveAndRecordAll(records);
-				saved += records.size();
-				return true;
-			} catch (RuntimeException batchFailure) {
-				log.warn("{}: batch of {} rows from {} failed ({}), retrying row by row", chainId, records.size(), source,
-						batchFailure.toString());
+			List<Long> backoff = properties.getPersistRetryBackoffMillis();
+			int retry = 0;
+			while (true) {
+				try {
+					priceStatsService.saveAndRecordAll(records);
+					saved += records.size();
+					return true;
+				} catch (RuntimeException batchFailure) {
+					// A dropped connection (Neon compute restart) rolled the whole chunk back: the same rows are safe to
+					// send again once the pool has a fresh connection. Anything else goes straight to the row-by-row path.
+					if (TransientDbFailure.isTransient(batchFailure) && backoff != null && retry < backoff.size()
+							&& pause(backoff.get(retry))) {
+						retry++;
+						log.warn("{}: batch of {} rows from {} lost its database connection ({}), retry {} of {}", chainId,
+								records.size(), source, batchFailure.toString(), retry, backoff.size());
+						continue;
+					}
+					log.warn("{}: batch of {} rows from {} failed ({}), retrying row by row", chainId, records.size(), source,
+							batchFailure.toString());
+					break;
+				}
 			}
 			boolean ok = true;
 			for (int i = 0; i < records.size(); i++) {
@@ -484,6 +503,20 @@ public class IngestScheduler {
 				}
 			}
 			return ok;
+		}
+	}
+
+	/** Sleeps; false when interrupted (the interrupt flag is kept and retrying stops). */
+	private static boolean pause(long millis) {
+		if (millis <= 0) {
+			return true;
+		}
+		try {
+			Thread.sleep(millis);
+			return true;
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			return false;
 		}
 	}
 

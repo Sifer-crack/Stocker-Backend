@@ -112,6 +112,14 @@ than before.
   probe category needs 9-11, so it is read up to page 8 with a WARN). Each page after the first asks
   `ChainScraperConfig.extraPageGate`, which reserves one page from `DailyPageBudget`; an error, 403/429/503, empty page or
   refused budget stops that category and keeps what was read. A one-page category costs exactly one page.
+  If the count line is missing on a LATER page (seen live: `read 150 of 227 ... page 4 has no 'Showing A - B of M' line`, the
+  walk had stopped after 3 of 5 pages), the walker keeps the last known M and advances its position by the last known page
+  size, continuing while that estimate is below M; zero tiles, an error, a block, the page cap or the estimate reaching M end
+  it. `TemplatedPageLoader.waitForShowingLine` also waits (max 5 s, only when tiles exist) for the line to render before reading.
+- **Price text of split dollars / cents tiles.** Some PAK'nSAVE / New World layouts render the cents span as `.99`; joining it
+  as `dollars + "." + cents` gave `2..99` and the card was skipped ("unparsable price"). `ChainPageTemplate.priceText` now keeps
+  digits only before joining, and `FoodstuffsProductCardExtractor.parsePrice` also collapses a doubled separator (`2..99`,
+  `2. .99`, `$2..99`) and still reads `$2.99`, `$2.99/kg`, `2.99`. Cents-only values (`299`) are deliberately NOT guessed.
 - **Woolworths pagination.** Live probe 2026-10-20 (`WoolworthsPaginationLiveProbeTest`, two approved page loads of
   `pantry/biscuits-crackers/biscuits-cookies`): 36 listed products per page, the page prints `1 to 36 of 264 products`
   (`<div class="search-result-count_searchResultsCount__...">`), and `<nav aria-label="Pagination">` holds `Page 1 of 8`,
@@ -188,6 +196,15 @@ retried row by row; failures are logged and counted, never fatal. Hibernate JDBC
 inserts/updates) and pgjdbc `reWriteBatchedInserts` are enabled in `application.yml`. Resulting data is identical to
 the per-row path (same fold code); a 300-row batch costs 5 repository calls instead of 1,500. Details and measurements:
 `docs/features/price-engine-reliability.md` ("Batched persist").
+
+**Dropped database connections.** A Neon compute restart kills live connections (seen 2026-10-20 14:07: `HikariPool marked as
+broken`, SQLSTATE 08006, `WOOLWORTHS: crawl failed`). `IngestScheduler` now retries the SAME chunk up to three times
+(`app.ingest.persist-retry-backoff-millis`, env `STOCKER_INGEST_PERSIST_RETRY_BACKOFF_MILLIS`, default `2000,5000,10000`)
+when the failure is a connection failure (`TransientDbFailure`: SQLSTATE class 08, `EOFException`, "connection closed" /
+"marked as broken" in the cause chain), and only then falls back to row-by-row. Other errors skip the retries. A failure of a
+whole category save is logged and counted, never thrown into the scraper, so the rest of the crawl continues. Hikari:
+`max-lifetime` 240000 (env `STOCKER_DB_MAX_LIFETIME_MS`, below Neon's idle cut-off), `keepalive-time` 120000
+(`STOCKER_DB_KEEPALIVE_MS`), `validation-timeout` 5000; no `connection-test-query`, so Hikari uses JDBC `isValid()`.
 
 ## Sitemap category-URL cache
 
@@ -289,7 +306,10 @@ Added 2026-10-20; the full description, defaults and log guide are in `docs/feat
   products" regex and the pagination nav. `impl/TemplatedPageLoader` reads a page through it in one `page.evaluate`, checks that
   the mandatory fields (name, code, price) appear on at least one tile and logs `chain page url tiles claimed blocked-requests`.
   `impl/PageCountMonitor` warns when a URL's tile count falls below 80% of the last one seen in this process.
-- Env: `STOCKER_INGEST_LEAN_PAGES` (true), `STOCKER_INGEST_{NEWWORLD,PAKNSAVE,WOOLWORTHS}_LEAN_ENABLED` (true),
+- **Default OFF (2026-10-20 evening).** `STOCKER_INGEST_LEAN_PAGES` now defaults to `false` (application.yml, `IngestProperties`,
+  docker-compose.yml, `.env.example`): blocking images / trackers is unproven on the real sites and could make the crawl look
+  more like a bot. The feature and the switch stay; set `true` to try it.
+- Env: `STOCKER_INGEST_LEAN_PAGES` (false), `STOCKER_INGEST_{NEWWORLD,PAKNSAVE,WOOLWORTHS}_LEAN_ENABLED` (true),
   `STOCKER_INGEST_BLOCK_RESOURCE_TYPES` (image,media,font), `STOCKER_INGEST_BLOCK_HOST_PATTERNS`, `STOCKER_INGEST_LOG_REQUESTS`
   (false).
 - Tests: `ChainPageTemplateTest`, `LeanPageRouterTest`, `PageCountMonitorTest`, `IngestLeanPropertiesTest` (no browser) and
@@ -371,7 +391,7 @@ STOCKER_INGEST_NEWWORLD_PAGE_DELAY_MIN_MILLIS=    # per-chain override (also PAK
 STOCKER_INGEST_BREAKER_BLOCKED_THRESHOLD=3   # consecutive 429/403/503/captcha responses that open a chain's breaker
 STOCKER_INGEST_BREAKER_COOLDOWN=PT6H         # first cool-down; doubles per consecutive trip
 STOCKER_INGEST_BREAKER_MAX_COOLDOWN=PT24H
-STOCKER_INGEST_LEAN_PAGES=true               # kill switch for request blocking (images / media / fonts / trackers)
+STOCKER_INGEST_LEAN_PAGES=false              # request blocking (images / media / fonts / trackers); OFF by default, true = on
 STOCKER_INGEST_NEWWORLD_LEAN_ENABLED=true    # per-chain (also PAKNSAVE_, WOOLWORTHS_)
 STOCKER_INGEST_BLOCK_RESOURCE_TYPES=image,media,font
 STOCKER_INGEST_BLOCK_HOST_PATTERNS=...       # comma list of host substrings; default in application.yml

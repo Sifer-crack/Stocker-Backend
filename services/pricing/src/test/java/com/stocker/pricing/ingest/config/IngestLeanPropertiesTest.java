@@ -10,8 +10,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 class IngestLeanPropertiesTest {
 
 	@Test
+	void leanPagesAreOffByDefaultAndTheRetryBackoffDefaultsToThreeRetries() {
+		IngestProperties props = new IngestProperties();
+
+		assertThat(props.isLeanPages()).isFalse();
+		assertThat(props.leanOptions(ChainId.NEWWORLD).enabled()).isFalse();
+		assertThat(props.getPersistRetryBackoffMillis()).containsExactly(2000L, 5000L, 10000L);
+	}
+
+	@Test
 	void defaultsBlockImagesMediaFontsAndTrackersButNotStylesheets() {
-		LeanPageOptions options = new IngestProperties().leanOptions(ChainId.NEWWORLD);
+		IngestProperties on = new IngestProperties();
+		on.setLeanPages(true);
+		LeanPageOptions options = on.leanOptions(ChainId.NEWWORLD);
 
 		assertThat(options.enabled()).isTrue();
 		assertThat(options.blockResourceTypes()).containsExactlyInAnyOrder("image", "media", "font");
@@ -32,6 +43,7 @@ class IngestLeanPropertiesTest {
 	@Test
 	void oneChainCanBeSwitchedOffAndOverrideItsLists() {
 		IngestProperties props = new IngestProperties();
+		props.setLeanPages(true);
 		props.getPaknsave().getLean().setEnabled(false);
 		props.getWoolworths().getLean().setBlockResourceTypes(List.of("image"));
 		props.getWoolworths().getLean().setBlockHostPatterns(List.of("only-this"));

@@ -177,6 +177,12 @@ public record ChainPageTemplate(
 		String dollars = tile.get(PRICE_DOLLARS);
 		String cents = tile.get(PRICE_CENTS);
 		if (dollars != null && cents != null) {
+			// Some layouts render the cents span as ".99" (its own decimal point): keep digits only, join with ONE dot.
+			String d = dollars.replaceAll("\\D", "");
+			String c = cents.replaceAll("\\D", "");
+			if (!d.isEmpty() && !c.isEmpty()) {
+				return d + "." + c;
+			}
 			return dollars.trim() + "." + cents.trim();
 		}
 		return fields.containsKey(PRICE_TEXT) ? tile.get(PRICE_TEXT) : null;
