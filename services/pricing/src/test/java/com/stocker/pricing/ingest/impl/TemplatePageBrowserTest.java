@@ -300,6 +300,17 @@ class TemplatePageBrowserTest {
 	}
 
 	@Test
+	void aCentsSpanThatStartsWithItsOwnDotIsNotJoinedIntoADoubledSeparator() {
+		FILES.put("/butter", "foodstuffs-paknsave-doubled-dot.html");
+
+		ScrapeResult result = new FoodstuffsChainScraper(ChainId.PAKNSAVE, "http://127.0.0.1", LEAN)
+				.scrape(browser, config(List.of(url("/butter"))));
+
+		assertThat(result.getProducts()).extracting(p -> p.getPrice().toPlainString()).containsExactly("2.99", "4.19");
+		assertThat(logs(Level.WARN)).noneMatch(l -> l.contains("unparsable price"));
+	}
+
+	@Test
 	void woolworthsTemplateReadsNamePriceStockcodeAndImage() {
 		FILES.put("/milk", "woolworths-milk.html");
 

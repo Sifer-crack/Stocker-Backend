@@ -101,4 +101,21 @@ class ChainPageTemplateTest {
 		assertThat(fields).containsKeys("name", "code");
 		assertThat(fields.get("code")).isEqualTo(Map.of("selector", "", "attribute", "data-testid"));
 	}
+
+	@Test
+	void priceTextJoinsDollarsAndCentsEvenWhenTheCentsSpanStartsWithItsOwnDot() {
+		ChainPageTemplate nw = ChainPageTemplate.foodstuffs(ChainId.PAKNSAVE);
+		assertThat(nw.priceText(tile("2", ".99"))).isEqualTo("2.99");
+		assertThat(nw.priceText(tile("$2", " .99 "))).isEqualTo("2.99");
+		assertThat(nw.priceText(tile("2.", "99"))).isEqualTo("2.99");
+		assertThat(nw.priceText(tile(" 12 ", "5"))).isEqualTo("12.5");
+		assertThat(nw.priceText(tile("2", "99"))).isEqualTo("2.99");
+	}
+
+	private static Map<String, String> tile(String dollars, String cents) {
+		Map<String, String> tile = new HashMap<>();
+		tile.put(ChainPageTemplate.PRICE_DOLLARS, dollars);
+		tile.put(ChainPageTemplate.PRICE_CENTS, cents);
+		return tile;
+	}
 }

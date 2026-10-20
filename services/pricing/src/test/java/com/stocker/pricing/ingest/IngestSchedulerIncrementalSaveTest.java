@@ -59,6 +59,7 @@ class IngestSchedulerIncrementalSaveTest {
 		properties.setDryRun(false);
 		properties.setStapleDiscoveryEnabled(false);
 		properties.setMaxCategoriesPerRun(0);
+		properties.setPersistRetryBackoffMillis(List.of(0L, 0L, 0L));
 		properties.getNewworld().setEnabled(true);
 		properties.getNewworld().setCategoryUrls(List.of("c1", "c2", "c3"));
 	}
@@ -256,5 +257,57 @@ class IngestSchedulerIncrementalSaveTest {
 		scheduler(scraper).runAll();
 
 		assertThat(sizes).containsExactly(2, 2, 1);
+	}
+
+	@Test
+	void aChunkThatFailsOnADroppedConnectionTwiceIsRetriedAsAWholeAndThenStored() {
+		java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+		doAnswer(inv -> {
+			if (calls.incrementAndGet() <= 2) {
+				throw new RuntimeException("HikariPool marked as broken", new java.sql.SQLException("closed", "08006"));
+			}
+			List<PriceRecord> rows = inv.getArgument(0);
+			rows.forEach(r -> savedItemIds.add(r.getItemId()));
+			return null;
+		}).when(stats).saveAndRecordAll(anyList());
+		ChainScraper scraper = scraper(Map.of("c1", List.of(product("A"), product("B")), "c2", List.of(product("C")),
+				"c3", List.of()), true, (n, cfg) -> { });
+
+		scheduler(scraper).runAll();
+
+		assertThat(calls.get()).isEqualTo(4);           // 3 attempts for c1, 1 for c2
+		assertThat(savedItemIds).containsExactly("newworld:A", "newworld:B", "newworld:C");
+		org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).save(any(PriceRecord.class));
+	}
+
+	@Test
+	void afterThreeRetriesTheChunkFallsBackRowByRowAndTheCrawlCarriesOn() {
+		java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+		doAnswer(inv -> {
+			calls.incrementAndGet();
+			throw new RuntimeException("io", new java.io.EOFException());
+		}).when(stats).saveAndRecordAll(anyList());
+		ChainScraper scraper = scraper(Map.of("c1", List.of(product("A")), "c2", List.of(product("B")),
+				"c3", List.of(product("C"))), true, (n, cfg) -> { });
+
+		scheduler(scraper).runAll();
+
+		assertThat(calls.get()).isEqualTo(12);          // 1 try + 3 retries, for each of the 3 categories
+		assertThat(savedItemIds).containsExactly("newworld:A", "newworld:B", "newworld:C");     // row-by-row path
+	}
+
+	@Test
+	void aNonConnectionFailureIsNotRetriedAsAChunk() {
+		java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+		doAnswer(inv -> {
+			calls.incrementAndGet();
+			throw new IllegalStateException("constraint");
+		}).when(stats).saveAndRecordAll(anyList());
+		ChainScraper scraper = scraper(Map.of("c1", List.of(product("A"))), true, (n, cfg) -> { });
+
+		scheduler(scraper).runAll();
+
+		assertThat(calls.get()).isEqualTo(1);
+		assertThat(savedItemIds).containsExactly("newworld:A");
 	}
 }

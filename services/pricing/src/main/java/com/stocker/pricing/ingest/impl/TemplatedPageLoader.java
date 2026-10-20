@@ -72,6 +72,7 @@ final class TemplatedPageLoader {
 		Response response = page.navigate(url);
 		BlockGuard.failIfBlocked(response, url, brake);
 		waitForProductCards(page);
+		waitForShowingLine(page);
 		Map<String, Object> raw = evaluate(page);
 		List<ProductCardFields> cards = toCards(raw);
 		if (cards.isEmpty()) {
@@ -133,6 +134,32 @@ final class TemplatedPageLoader {
 			waitForNamedTiles(page);
 		} catch (RuntimeException e) {
 			log.debug("{}: hydration wait ended early: {}", chain, e.toString());
+		}
+	}
+
+	/** True when the visible text already holds the chain's "Showing A - B of M" line. */
+	static final String SHOWING_READY_SCRIPT = """
+			(source) => new RegExp(source, 'i').test(document.body ? document.body.innerText : '')
+			""";
+
+	private static final int SHOWING_WAIT_MILLIS = 5000;
+
+	/**
+	 * The count line can render after the tiles, so reading straight away may miss it and end the category walk early.
+	 * Wait for it (bounded); a timeout just means the page has no such line and the caller carries on.
+	 */
+	private void waitForShowingLine(Page page) {
+		if (template.showingRegex() == null) {
+			return;
+		}
+		try {
+			if (page.querySelector(template.cardSelector()) == null) {
+				return;      // no tiles: nothing to count (a zero-result page is handled by the caller)
+			}
+			page.waitForFunction(SHOWING_READY_SCRIPT, template.showingRegex(),
+					new Page.WaitForFunctionOptions().setTimeout(SHOWING_WAIT_MILLIS));
+		} catch (PlaywrightException e) {
+			log.debug("{}: no count line within {} ms", chain, SHOWING_WAIT_MILLIS);
 		}
 	}
 

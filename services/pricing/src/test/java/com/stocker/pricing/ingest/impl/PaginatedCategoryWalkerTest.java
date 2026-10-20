@@ -145,6 +145,58 @@ class PaginatedCategoryWalkerTest {
 		assertThat(walk.warning()).isNull();
 	}
 
+	private static LoadedPage<Integer> noLine(int from, int to) {
+		return new LoadedPage<>(IntStream.rangeClosed(from, to).boxed().toList(), "no count here");
+	}
+
+	@Test
+	void aLaterPageWithoutTheCountLineIsStillWalkedUsingTheKnownTotal() {
+		var walk = walker(8).walk(BASE, loader(Map.of(
+				BASE, page(1, 50, 227),
+				"https://x/shop/category/milk?pg=2", page(51, 100, 227),
+				"https://x/shop/category/milk?pg=3", page(101, 150, 227),
+				"https://x/shop/category/milk?pg=4", noLine(151, 200),
+				"https://x/shop/category/milk?pg=5", page(201, 227, 227))));
+
+		assertThat(walk.pagesLoaded()).isEqualTo(5);
+		assertThat(walk.items()).hasSize(227);
+		assertThat(walk.warning()).isNull();
+	}
+
+	@Test
+	void severalConsecutiveLinelessPagesStopOnceTheEstimateReachesTheTotal() {
+		var walk = walker(8).walk(BASE, loader(Map.of(
+				BASE, page(1, 50, 120),
+				"https://x/shop/category/milk?pg=2", noLine(51, 100),
+				"https://x/shop/category/milk?pg=3", noLine(101, 120))));
+
+		assertThat(walk.pagesLoaded()).isEqualTo(3);
+		assertThat(walk.warning()).isNull();
+	}
+
+	@Test
+	void aLinelessPageWithoutTilesStopsTheWalk() {
+		var walk = walker(8).walk(BASE, loader(Map.of(
+				BASE, page(1, 50, 227),
+				"https://x/shop/category/milk?pg=2", new LoadedPage<>(List.of(), "no count here"))));
+
+		assertThat(walk.pagesLoaded()).isEqualTo(2);
+		assertThat(walk.items()).hasSize(50);
+		assertThat(walk.warning()).contains("no products");
+	}
+
+	@Test
+	void linelessPagesStillObeyThePageCap() {
+		var walk = walker(3).walk(BASE, loader(Map.of(
+				BASE, page(1, 50, 500),
+				"https://x/shop/category/milk?pg=2", noLine(51, 100),
+				"https://x/shop/category/milk?pg=3", noLine(101, 150),
+				"https://x/shop/category/milk?pg=4", noLine(151, 200))));
+
+		assertThat(walk.pagesLoaded()).isEqualTo(3);
+		assertThat(walk.warning()).contains("page cap");
+	}
+
 	private static LoadedPage<Integer> page(int firstTile, int lastTile, int total, int listedUpTo) {
 		return new LoadedPage<>(IntStream.rangeClosed(firstTile, lastTile).boxed().toList(),
 				"Showing " + (listedUpTo - 49) + " - " + listedUpTo + " of " + total + " products");

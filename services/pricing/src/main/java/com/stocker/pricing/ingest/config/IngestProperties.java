@@ -19,6 +19,11 @@ public class IngestProperties {
 	private boolean dryRun = true;
 	/** Rows stored per database transaction when a scraped category is persisted (one batch = a fixed number of round trips). */
 	private int persistBatchSize = 500;
+	/**
+	 * Pauses (ms) before each retry of a chunk whose save failed on a dropped database connection (serverless Postgres
+	 * restarts its compute): one entry = one retry, so the default retries three times, after 2 s, 5 s and 10 s.
+	 */
+	private List<Long> persistRetryBackoffMillis = List.of(2000L, 5000L, 10000L);
 	private String cron = "0 0 3 * * *";
 	private String cronZone = "Pacific/Auckland";
 	private boolean runOnStartup = false;
@@ -66,8 +71,8 @@ public class IngestProperties {
 	private int quarantineDays = 7;
 	/** A run (>= 4 pages) with a larger zero share than this is treated as a site-wide problem and ignored. */
 	private double quarantineSiteWideZeroShare = 0.5;
-	/** Kill switch for lean page loads (request blocking). false = every request is allowed, as before. */
-	private boolean leanPages = true;
+	/** Lean page loads (request blocking). OFF by default: unproven on the real sites. false = every request is allowed. */
+	private boolean leanPages = false;
 	/** Log, per page, the request hosts with resource-type counts and which were aborted (tuning aid). */
 	private boolean logRequests = false;
 	/** Shared lean-page defaults; a chain can replace either list under {@code app.ingest.<chain>.lean}. */

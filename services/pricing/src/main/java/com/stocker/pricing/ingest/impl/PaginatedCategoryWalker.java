@@ -11,7 +11,8 @@ import java.util.function.BooleanSupplier;
  * Walks every page of one category: loads page 1, reads "Showing A - B of M products" (Woolworths: "A to B of M
  * products") and follows {@code ?pg=2,3,...} (Woolworths {@code ?page=2,3,...}) until all M products are collected or a stop condition hits. Knows nothing about browsers:
  * the caller supplies a {@link Loader}. A single-page category costs exactly one load. Page 1 errors propagate;
- * an error, empty page or refused budget on a later page ends the walk with what is already collected.
+ * an error, empty page or refused budget on a later page ends the walk with what is already collected. A later page without
+ * the count line keeps the last known total.
  */
 final class PaginatedCategoryWalker<T> {
 
@@ -60,10 +61,15 @@ final class PaginatedCategoryWalker<T> {
 		}
 		int total = info.get().total();
 		int reached = info.get().to();
+		int pageSize = Math.max(1, info.get().to() - info.get().from() + 1);
+		boolean more = true;
 		String stop = null;
 		// The page's own "Showing A - B of M" decides, never the tile count: the live grid carries about a third
 		// more tiles than listed products (promoted / repeated tiles), so counting tiles would stop the walk early.
-		while (info.isPresent() && info.get().hasMore()) {
+		// A later page whose count line is missing (not rendered in time) does not end the walk: the total stays the
+		// last known M and "reached" advances by the last known page size; zero tiles, an error, a block, the page cap
+		// or the estimate reaching M end it.
+		while (more) {
 			if (pages >= maxPages) {
 				stop = "page cap of " + maxPages + " reached";
 				break;
@@ -91,12 +97,16 @@ final class PaginatedCategoryWalker<T> {
 			}
 			items.addAll(next.items());
 			info = CategoryPagination.parse(next.text());
-			reached = info.map(CategoryPagination::to).orElse(reached);
-			if (info.isEmpty()) {
-				stop = "page " + pages + " has no 'Showing A - B of M' line";
+			if (info.isPresent()) {
+				reached = info.get().to();
+				total = info.get().total();
+				pageSize = Math.max(1, info.get().to() - info.get().from() + 1);
+			} else {
+				reached += pageSize;
 			}
+			more = reached < total;
 		}
-		String warning = stop != null && (info.isEmpty() || info.get().hasMore())
+		String warning = stop != null && more
 				? url + ": read " + reached + " of " + total + " listed products ("
 						+ stop + ")"
 				: null;
