@@ -41,6 +41,13 @@ public class ChainScraperConfig {
 	 */
 	private CrawlBrake crawlBrake;
 
+	/** Called after each category with the products read from it (incremental save). Null = nobody listens. */
+	private CategoryResultSink categoryResultSink;
+
+	public CategoryResultSink getCategoryResultSink() {
+		return categoryResultSink == null ? CategoryResultSink.NOOP : categoryResultSink;
+	}
+
 	public CrawlBrake getCrawlBrake() {
 		return crawlBrake == null ? CrawlBrake.NONE : crawlBrake;
 	}

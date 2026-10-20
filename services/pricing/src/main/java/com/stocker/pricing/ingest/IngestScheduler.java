@@ -5,6 +5,7 @@ import com.stocker.pricing.cancel.CancellationToken;
 import com.stocker.pricing.fetch.model.RawProduct;
 import com.stocker.pricing.ingest.config.IngestProperties;
 import com.stocker.pricing.ingest.config.IngestProperties.ChainConfig;
+import com.stocker.pricing.ingest.model.CategoryResultSink;
 import com.stocker.pricing.ingest.model.ChainScraperConfig;
 import com.stocker.pricing.ingest.model.ScrapeException;
 import com.stocker.pricing.ingest.model.ScrapeResult;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -319,6 +321,7 @@ public class IngestScheduler {
 			categoryUrls = categoryUrls.subList(0, granted);
 		}
 		AtomicInteger extraPages = new AtomicInteger();
+		IncrementalSave save = new IncrementalSave(chainId);
 		ChainScraperConfig config = ChainScraperConfig.builder()
 				.storeId(chainConfig.getStoreId())
 				.storeName(chainConfig.getStoreName())
@@ -329,6 +332,7 @@ public class IngestScheduler {
 				.pageDelayMaxMillis(properties.pageDelayMaxMillis(chainId))
 				.crawlBrake(breaker.forChain(chainId))
 				.cancellation(cancellation)
+				.categoryResultSink(save)
 				.extraPageGate(() -> {
 					boolean allowed = pageBudget.reserve(chainId, 1) == 1;
 					if (allowed) {
@@ -348,8 +352,9 @@ public class IngestScheduler {
 		try {
 			result = scraper.scrape(browsers.forChain(chainId), config);
 		} catch (ScrapeException e) {
-			log.error("{}: scrape failed, skipping this run", chainId, e);
-			return 0;
+			log.error("{}: scrape failed, skipping this run ({} row(s) of finished categories were already stored)",
+					chainId, save.saved);
+			return save.saved;
 		} finally {
 			browserLock.unlock();
 		}
@@ -372,28 +377,80 @@ public class IngestScheduler {
 			log.warn("{}: {} warning(s) during scrape: {}", chainId, result.getWarnings().size(), result.getWarnings());
 		}
 
-		List<RawProduct> deduped = dedupeByNativeProductCode(result.getProducts());
-		log.info("{}: scraped {} products ({} after de-dupe) from {} categor{}", chainId, result.getProducts().size(),
-				deduped.size(), result.getCategoriesVisited().size(), result.getCategoriesVisited().size() == 1 ? "y" : "ies");
+		log.info("{}: scraped {} products from {} categor{}", chainId, result.getProducts().size(),
+				result.getCategoriesVisited().size(), result.getCategoriesVisited().size() == 1 ? "y" : "ies");
 
 		if (properties.isDryRun()) {
 			log.info("{}: dry-run enabled, not persisting", chainId);
 			return 0;
 		}
 
-		int saved = 0;
-		for (RawProduct product : deduped) {
-			try {
-				PriceRecord record = RawProductPriceRecordMapper.toPriceRecord(product);
-				priceRecordRepository.save(record);
-				priceStatsService.recordObservation(record);
-				saved++;
-			} catch (IllegalArgumentException e) {
-				log.warn("{}: skipping product, could not derive itemId: {}", chainId, e.getMessage());
+		if (save.categoryCalls == 0) {
+			// The scraper never reported a category (older scraper): store the whole run now, as before.
+			save.persist("end of run", result.getProducts());
+		}
+		log.info("{}: persisted {} price records ({} after de-dupe, {} categor{} stored, {} failed)", chainId, save.saved,
+				save.seen.size(), save.categoryCalls, save.categoryCalls == 1 ? "y" : "ies", save.failures);
+		return save.saved;
+	}
+
+	/**
+	 * The scheduler's {@link CategoryResultSink}: stores each category's rows as soon as the scraper reports it, so a
+	 * crash, restart or breaker trip later in the run loses nothing already scraped. Same path as ever (price_records
+	 * append plus {@link PriceStatsService#recordObservation}), de-duplicated by native product code across the whole run.
+	 * One run, one scraper thread: not shared between threads.
+	 */
+	private final class IncrementalSave implements CategoryResultSink {
+
+		private final ChainId chainId;
+		private final Set<String> seen = new HashSet<>();
+		private int saved;
+		private int failures;
+		private int categoryCalls;
+
+		IncrementalSave(ChainId chainId) {
+			this.chainId = chainId;
+		}
+
+		@Override
+		public void onCategory(String categoryUrl, List<RawProduct> products) {
+			categoryCalls++;
+			if (properties.isDryRun()) {
+				return;
+			}
+			int before = saved;
+			if (persist(categoryUrl, products)) {
+				log.info("{}: stored {} rows from {} (run total {})", chainId, saved - before, categoryUrl, saved);
 			}
 		}
-		log.info("{}: persisted {} price records", chainId, saved);
-		return saved;
+
+		/** Stores the products not yet stored in this run; a failure is logged and counted, never thrown. */
+		boolean persist(String source, List<RawProduct> products) {
+			try {
+				for (RawProduct product : products) {
+					if (!seen.add(product.getNativeProductCode())) {
+						continue;       // same product in two categories: stored once
+					}
+					try {
+						PriceRecord record = RawProductPriceRecordMapper.toPriceRecord(product);
+						priceRecordRepository.save(record);
+						priceStatsService.recordObservation(record);
+						saved++;
+					} catch (IllegalArgumentException e) {
+						log.warn("{}: skipping product, could not derive itemId: {}", chainId, e.getMessage());
+					} catch (RuntimeException e) {
+						seen.remove(product.getNativeProductCode());     // not stored: a later category may carry it again
+						throw e;
+					}
+				}
+				return true;
+			} catch (RuntimeException e) {
+				failures++;
+				log.error("{}: storing the rows of {} failed ({} failure(s) so far), the crawl carries on: {}", chainId,
+						source, failures, e.toString());
+				return false;
+			}
+		}
 	}
 
 	/** Auckland day number, so each day takes a different window of a list longer than the daily budget. */
@@ -420,13 +477,5 @@ public class IngestScheduler {
 			case PAKNSAVE -> properties.getPaknsave();
 			case WOOLWORTHS -> properties.getWoolworths();
 		};
-	}
-
-	private List<RawProduct> dedupeByNativeProductCode(List<RawProduct> products) {
-		Map<String, RawProduct> byCode = new LinkedHashMap<>();
-		for (RawProduct product : products) {
-			byCode.putIfAbsent(product.getNativeProductCode(), product);
-		}
-		return List.copyOf(byCode.values());
 	}
 }

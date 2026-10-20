@@ -25,6 +25,23 @@ no-op Kafka listener in the price-events consumer group; compose scraped live si
 
 The next daily crawl picks the page up. Use `unmatched_search_terms` to find what shoppers search for that is missing.
 
+## Incremental save per category (2026-10-20)
+
+Why: the scheduled/startup crawl used to store a chain's rows only when its whole run ended, so a restart, crash, OOM
+or breaker trip mid-run lost everything scraped so far and users saw no new data for up to an hour.
+
+- Each scraper reports a finished category (all its pages) to a `CategoryResultSink` carried in `ChainScraperConfig`
+  (default no-op). `IngestScheduler` stores that category's rows at once through the unchanged path (`price_records`
+  append + `PriceStatsService.recordObservation`), de-duplicated by native product code across the run.
+- Log line: `CHAIN: stored N rows from <url> (run total M)`; the run-end line logs totals, categories stored and failures.
+- A storing failure in one category is logged and counted; the remaining categories are still crawled. Rows already
+  stored stay when a later category throws or trips the breaker.
+- `CategoryHealth`, `DailyPageBudget` and breaker accounting are unchanged. Dry-run still stores nothing. Persisted
+  data format unchanged. Works per chain thread in `parallel-chains` mode.
+- A scraper that never calls the sink still has its products stored at the end of the run (current behaviour).
+  Woolworths needs the one-line `config.getCategoryResultSink().onCategory(...)` after each category in its scraper
+  (not part of this change) to benefit.
+
 ## Crawl pace and circuit breaker (2026-10-20)
 
 Why: on 2026-10-20 a crawl at 4-9 s between page loads drew about 30 HTTP 429 in a row from New World, and the crawler

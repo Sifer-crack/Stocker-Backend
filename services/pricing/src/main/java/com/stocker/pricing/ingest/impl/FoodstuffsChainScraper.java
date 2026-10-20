@@ -123,9 +123,12 @@ public class FoodstuffsChainScraper implements ChainScraper {
 								chainId, categoryUrl, template.cardSelector());
 						continue;
 					}
+					List<RawProduct> categoryProducts = new ArrayList<>();
 					for (ProductCardFields fields : walk.items()) {
-						FoodstuffsProductCardExtractor.parse(fields, chainId, config.getStoreId()).ifPresent(products::add);
+						FoodstuffsProductCardExtractor.parse(fields, chainId, config.getStoreId()).ifPresent(categoryProducts::add);
 					}
+					products.addAll(categoryProducts);
+					config.getCategoryResultSink().onCategory(categoryUrl, List.copyOf(categoryProducts));
 					if (walk.extraPages() > 0) {
 						log.info("{}: {} had {} product(s) over {} pages", chainId, categoryUrl, walk.items().size(),
 								walk.pagesLoaded());
