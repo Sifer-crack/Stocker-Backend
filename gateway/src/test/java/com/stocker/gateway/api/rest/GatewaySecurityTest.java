@@ -70,16 +70,64 @@ class GatewaySecurityTest {
 			});
 	}
 
+	@Test
+	void accessTokenIsAccepted() {
+		webTestClient.get().uri("/api/identity/healthz")
+			.header("Authorization", "Bearer " + token("user-1", "access"))
+			.exchange()
+			.expectStatus().value(status -> {
+				if (status == 401 || status == 403) {
+					throw new AssertionError("expected an access token to pass, got " + status);
+				}
+			});
+	}
+
+	@Test
+	void refreshTokenIsRejectedAsBearer() {
+		webTestClient.get().uri("/api/identity/healthz")
+			.header("Authorization", "Bearer " + token("user-1", "refresh"))
+			.exchange()
+			.expectStatus().isUnauthorized();
+	}
+
+	@Test
+	void tokenWithoutATypeClaimIsRejected() {
+		webTestClient.get().uri("/api/identity/healthz")
+			.header("Authorization", "Bearer " + token("user-1", null))
+			.exchange()
+			.expectStatus().isUnauthorized();
+	}
+
+	@Test
+	void catalogMutationsAreNotReachableThroughTheGateway() {
+		String access = token("user-1", "access");
+		webTestClient.delete().uri("/api/products/5ddcf122-267b-426e-bae5-82daeff1161e")
+			.header("Authorization", "Bearer " + access).exchange().expectStatus().isForbidden();
+		webTestClient.post().uri("/api/products/grouping/import")
+			.header("Authorization", "Bearer " + access).exchange().expectStatus().isForbidden();
+		webTestClient.post().uri("/api/products?name=X&unit=1")
+			.header("Authorization", "Bearer " + access).exchange().expectStatus().isForbidden();
+		webTestClient.delete().uri("/api/products/5ddcf122-267b-426e-bae5-82daeff1161e")
+			.exchange().expectStatus().isUnauthorized();
+	}
+
 	private String realHs256Token(String subject) {
+		return token(subject, "access");
+	}
+
+	private String token(String subject, String type) {
 		byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
 		NimbusJwtEncoder encoder = new NimbusJwtEncoder(
 			new ImmutableSecret<>(new SecretKeySpec(keyBytes, "HmacSHA256")));
-		JwtClaimsSet claims = JwtClaimsSet.builder()
+		JwtClaimsSet.Builder builder = JwtClaimsSet.builder()
 			.issuer("stocker-test")
 			.subject(subject)
 			.issuedAt(Instant.now())
-			.expiresAt(Instant.now().plusSeconds(300))
-			.build();
+			.expiresAt(Instant.now().plusSeconds(300));
+		if (type != null) {
+			builder.claim("type", type);
+		}
+		JwtClaimsSet claims = builder.build();
 		return encoder.encode(JwtEncoderParameters.from(
 			JwsHeader.with(MacAlgorithm.HS256).build(),
 			claims)).getTokenValue();

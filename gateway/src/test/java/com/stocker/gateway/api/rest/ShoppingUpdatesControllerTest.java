@@ -109,7 +109,7 @@ class ShoppingUpdatesControllerTest {
 				new ImmutableSecret<>(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256")));
 		JwtClaimsSet claims = JwtClaimsSet.builder()
 				.issuer("stocker-test").subject(subject)
-				.issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(300)).build();
+				.claim("type", "access").issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(300)).build();
 		return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
 	}
 }
