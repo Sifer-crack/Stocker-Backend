@@ -3,6 +3,8 @@
 Paste everything below the line into a Claude Code session opened in `Stocker-Frontend`
 (React 19 + Vite 8 + TypeScript 6 SPA). Written against backend branch `integration/sprint2-manual-test`
 (all Sprint 2 features merged); every endpoint, header and JSON field below was checked against that code.
+Updated for the final backend contract: user-scoped pantry (no `userId`), free-text pantry items, price search v2 with
+`status` / `refresh` / suggestions, 15-minute access tokens that the frontend must refresh, and the 140 pages/day crawl cap.
 
 ---
 
@@ -37,8 +39,9 @@ Gaps to close: (1) gateway-only pantry/catalog calls, (2) token refresh, (3) ful
 - Base URL: `API_BASE` from `src/lib/apiConfig.ts` (default `http://localhost:8080`). Never hardcode another URL.
   Never call `:8081-:8087` (identity, catalog, shopping, pricing, notifications, analytics, inventory) directly.
 - Dev server origin must be `http://localhost:5173` (the gateway's CORS default `STOCKER_CORS_ALLOWED_ORIGINS`
-  = `http://localhost:3000,http://localhost:5173`). A different origin needs a backend env change, not a frontend one.
-  CORS allows credentials, methods GET/POST/PUT/PATCH/DELETE/OPTIONS and all headers.
+  = `http://localhost:5173`). A different origin needs a backend env change, not a frontend one.
+  CORS allows credentials, methods GET/POST/PUT/PATCH/DELETE/OPTIONS and only the request headers `Authorization`,
+  `Content-Type`, `Accept` and `X-Requested-With`: do not send custom headers (and never `X-User-Id`).
 - Exceptions: `src/lib/nutrition.ts` (external NZ food-composition API) is intentionally not the gateway.
 
 ### 1.2 How auth works
@@ -49,7 +52,8 @@ Gaps to close: (1) gateway-only pantry/catalog calls, (2) token refresh, (3) ful
    `{"accessToken":"<jwt>","tokenType":"Bearer","expiresIn":900}` and a `Set-Cookie: refreshToken=...; HttpOnly;
    SameSite=Lax; Path=/; Max-Age=604800` (Secure is off in dev). Wrong credentials -> **401** `{"error":"invalid credentials"}`.
 3. `POST /api/identity/refresh` (no body, cookie only, so `credentials: 'include'`) -> same body as login and a
-   rotated cookie. No/invalid cookie -> **401** `{"error":"invalid credentials"}`.
+   rotated cookie. No/invalid cookie -> **401** `{"error":"invalid credentials"}`. The refresh token (the cookie, 7 days) is
+   **only** for this endpoint: if it is sent as a Bearer token the gateway answers 401, because only `type:"access"` tokens are accepted.
 4. `POST /api/identity/logout` -> **204**, clears the cookie.
 5. Every other call: `Authorization: Bearer <accessToken>` (HS256 JWT, subject = user UUID, claims `email`,
    `type:"access"`, lifetime **900 s = 15 min**). Keep the token in memory only (current behaviour).
@@ -58,7 +62,8 @@ Gaps to close: (1) gateway-only pantry/catalog calls, (2) token refresh, (3) ful
    shopping, favorites or notifications: the backend derives it. Unauthenticated gateway answers: **401**
    `{"error":"unauthorized"}`; **403** `{"error":"forbidden"}`.
 7. Public (no JWT): `GET /healthz`, actuator health/info, the 4 identity POSTs above, and `GET /api/products/**`
-   (catalog reads). `POST/DELETE /api/products` need a JWT.
+   (catalog reads). Every other method on `/api/products/**` (create, delete, import) is denied by the gateway for everyone
+   (401 without a token, 403 with one): the frontend only reads the catalog.
 8. `GET /api/identity/me` -> `{"id","email","firstName","lastName","groceryBudget"}` (`groceryBudget` may be null;
    `firstName`/`lastName` may be null). `PATCH /api/identity/me` `{"groceryBudget": number|null}` (>= 0).
    `UserContext` already loads this.
@@ -67,7 +72,8 @@ Gaps to close: (1) gateway-only pantry/catalog calls, (2) token refresh, (3) ful
    (`error` first, then `message`) and fall back to `Request failed with status N`.
 
 ### 1.3 Required fix: silent token refresh
-The access token lives 15 min and nothing refreshes it today, so after 15 min every call, the notification poll and the
+Refreshing the token is the frontend's job: the backend never extends a session by itself. The access token lives 15 min (900 s)
+and nothing refreshes it today, so after 15 min every call, the notification poll and the
 SSE stream get 401 and stay broken until reload. Implement in `AuthContext`/`authFetch`:
 - Schedule `POST /api/identity/refresh` at about `expiresIn - 60` s after each login/refresh (store `expiresIn`;
   `AuthContext` currently discards it).
@@ -80,8 +86,8 @@ SSE stream get 401 and stay broken until reload. Implement in `AuthContext`/`aut
 
 | Today (direct) | Gateway path | Auth |
 |---|---|---|
-| `GET http://localhost:8087/pantry-items?userId=` | `GET /api/pantry-items?userId=<uuid>` | JWT |
-| `POST http://localhost:8087/pantry-items?...` | `POST /api/pantry-items?userId=&productId=&quantity=[&expirationDate=&notifyDaysBefore=]` | JWT |
+| `GET http://localhost:8087/pantry-items?userId=` | `GET /api/pantry-items` (no `userId`) | JWT |
+| `POST http://localhost:8087/pantry-items?...` | `POST /api/pantry-items` with a JSON body (below), or the older query form `?productId=&quantity=[&expirationDate=&notifyDaysBefore=]` | JWT |
 | `PUT .../pantry-items/{id}?quantity=` | `PUT /api/pantry-items/{id}?quantity=` | JWT |
 | `PUT .../pantry-items/{id}/expiry?...` | `PUT /api/pantry-items/{id}/expiry?[expirationDate=&notifyDaysBefore=]` | JWT |
 | `DELETE .../pantry-items/{id}` | `DELETE /api/pantry-items/{id}` | JWT |
@@ -90,10 +96,16 @@ SSE stream get 401 and stay broken until reload. Implement in `AuthContext`/`aut
 
 The gateway route does `StripPrefix=1` (`/api/pantry-items/x` -> inventory `/pantry-items/x`), so query strings pass through unchanged.
 
-**Backend limitation to show in code comments:** inventory takes `userId` as a **request parameter** and ignores
-`X-User-Id`. Get the id from `GET /api/identity/me` (`useUser().user.id`, already done in `Pantry.tsx`). Consequences
-(not for you to fix, but never rely on them): any logged-in user could pass another user's id, and `PUT`/`DELETE`
-by item id are not ownership-checked. The frontend must only ever send the current user's id.
+**No user id is sent.** Inventory reads the caller from the `X-User-Id` header that the gateway sets from the verified JWT.
+A `userId` query parameter or body field is accepted for old clients but **ignored**: remove it from every pantry call
+(`Pantry.tsx` no longer needs `useUser()` for this). Another user's item id and an unknown id both answer **404**
+`{"message":"Pantry item not found"}`.
+
+**Pantry POST body** (JSON, `Content-Type: application/json`; every field optional in the body, the service validates):
+`{ "productId"?: uuid, "name"?: string, "category"?: string, "unit"?: string, "quantity": int >= 1, "expirationDate"?: "yyyy-mm-dd",
+"notifyDaysBefore"?: int >= 0 }`. **Either `productId` (catalog product) or `name` (free text) is required**; the catalog is not needed
+for a free-text item. Name up to 255 characters, category 100, unit 50, quantity up to 100000. Missing both -> 400
+`{"message":"Either productId or name is required"}`. The same `productId` again merges into the existing row; free-text items are always new rows.
 
 ### 1.5 Conventions to keep (from CLAUDE.md / AGENTS.md)
 - `import type` for types; no enums or parameter properties (`erasableSyntaxOnly`); strict unused checks.
@@ -123,8 +135,8 @@ notification (list + badge) when the item is inside its window; I can acknowledg
 
 | Action | Request | Success | Errors |
 |---|---|---|---|
-| Add pantry item with expiry | `POST /api/pantry-items?userId=&productId=&quantity=&expirationDate=2026-10-26&notifyDaysBefore=3` (no body) | **200** pantry item JSON | 400 `{"message"}` |
-| Set / clear expiry | `PUT /api/pantry-items/{id}/expiry?expirationDate=2026-10-21&notifyDaysBefore=1` (omit both = clear) | **200** pantry item JSON | 400 `{"message":"Pantry item not found"}` (unknown id is a 400, not 404) |
+| Add pantry item with expiry | `POST /api/pantry-items` body `{"productId" or "name", "quantity":1, "expirationDate":"2026-10-26", "notifyDaysBefore":3}` (the query form `?productId=&quantity=&expirationDate=&notifyDaysBefore=` also works; no `userId`) | **200** pantry item JSON | 400 `{"message"}`, 401 `{"message"}` without the gateway header |
+| Set / clear expiry | `PUT /api/pantry-items/{id}/expiry?expirationDate=2026-10-21&notifyDaysBefore=1` (omit both = clear) | **200** pantry item JSON | 404 `{"message":"Pantry item not found"}` (unknown or someone else's id) |
 | List notifications | `GET /api/notifications` | **200** array, newest first | 401 |
 | Acknowledge | `POST /api/notifications/{id}/acknowledge` (no body) | **200** the notification, `status:"ACKNOWLEDGED"` | 404 `{"message": "..."}` (unknown or someone else's) |
 
@@ -145,29 +157,40 @@ Details verified in code:
   "pantry_item_id": "0b6f...-uuid",
   "user_id": "550e...-uuid",
   "product_id": "9a1c...-uuid",
+  "name": "Anchor Milk 2L",
+  "category": null,
+  "unit": null,
   "quantity": 2,
   "expirationDate": "2026-10-26",
   "notifyDaysBefore": 3
 }
 ```
-`pantry_item_id`, `user_id`, `product_id` are **snake_case**; `quantity`, `expirationDate`, `notifyDaysBefore` are
-camelCase. `expirationDate` / `notifyDaysBefore` are `null` (or absent; treat both the same) when not set.
+`pantry_item_id`, `user_id`, `product_id` are **snake_case**; `name`, `category`, `unit`, `quantity`, `expirationDate`,
+`notifyDaysBefore` are camelCase. **`product_id`, `name`, `category` and `unit` can be `null`** (a free-text item has no
+`product_id`; a catalog item may have no stored name or category), so show `name` when present and fall back to a
+`GET /api/products/{product_id}` lookup only when `product_id` is set. `expirationDate` / `notifyDaysBefore` are `null`
+(or absent; treat both the same) when not set.
 
 **Notification JSON (`NotificationResponse`):**
 ```json
 {
   "id": "uuid",
   "pantryItemId": "uuid",
-  "productId": "uuid",
+  "productId": "uuid or null",
+  "itemName": "Nana's jam",
+  "category": "preserves",
+  "unit": "jar",
   "expirationDate": "2026-10-21",
   "status": "NEW",
   "createdAt": "2026-10-19T01:00:00Z",
   "acknowledgedAt": null
 }
 ```
-`status` is `"NEW" | "ACKNOWLEDGED"` (upper case). `acknowledgedAt` is null until acknowledged. There is **no product
-name and no message text**: resolve the name with `GET /api/products/{productId}` -> `{"productId","productName",
-"groceryType","sellingWeightKg","sellingVolumeL"}` (`NotificationsContext` already does; keep a cache). The list contains
+`status` is `"NEW" | "ACKNOWLEDGED"` (upper case). `acknowledgedAt` is null until acknowledged. **Notifications now carry
+`itemName`, `category` and `unit`** (notifications Flyway V2; the values are copied from the pantry item when the notification is
+created), and `productId` is `null` for a free-text item. Show `itemName` directly; only fall back to
+`GET /api/products/{productId}` -> `{"productId","productName","groceryType","sellingWeightKg","sellingVolumeL"}` (keep a cache) when
+`itemName` is null and `productId` is set. There is still no message text. The list contains
 acknowledged rows too (history), so the badge counts `status === 'NEW'` only. Acknowledging twice is safe.
 
 ### 2.3 Polling guidance
@@ -303,7 +326,7 @@ item. Always pass the shopping item's id as `itemId`.
 - `matches`: at most one per chain, cheapest first, `matchType:"exact"`. `alternatives`: similar products, show
   separately. **Empty `matches` and `alternatives` = nothing stored yet, HTTP 200, not an error**: say "no prices found
   yet" and retry later (the existing `matchPolling.ts`: 3 retries at 3/6/12 s when empty).
-- `stale:true` = some stored prices are older than the freshness threshold and a refresh may be running; show the
+- `stale:true` = some stored prices are older than the freshness threshold (26 h) and a refresh may be running; show the
   prices with an "updating" note and ask again shortly (existing: 2 retries at 8/16 s). Do not poll faster: every
   re-ask can trigger a supermarket page refresh and the owner has a strict rule to minimise supermarket requests.
 - `brand`, `productUrl` (always null today), `unitPrice` (null when pack size unknown) and `packSize` are nullable.
@@ -376,7 +399,7 @@ Semantics (verified in `ShoppingListComparisonService`, `SavingsCalculatorServic
 The owner found that /match "alternatives" were the same product at another chain, that "Milk 2L" and "Milk" gave the same
 list, and that cancelling a search kept the server busy. The backend now offers (additive, /match still works):
 
-- `GET /api/pricing/products?term=&itemId=[&category=][&limit=]` -> `{query, matchMethod, stale, products[], alternatives[]}`.
+- `GET /api/pricing/products?term=&itemId=[&category=][&limit=]` (limit default 10, max 30) -> `{query, matchMethod, status, stale, refresh, products[], alternatives[]}`.
   One `Product` per distinct product with `prices` keyed by **lower-case chain id** (`newworld`, `paknsave`, `woolworths`),
   `unit`/`unitPrice` for comparing sizes, `cheapestChainId`, `productKey`. `alternatives` are genuinely different products
   (other brand, size or variant), never the same product at another chain. The exact JSON, nullability and rules are in
@@ -384,13 +407,33 @@ list, and that cancelling a search kept the server busy. The backend now offers 
 - Size and grade qualifiers are part of the TERM (`2L`, `500g`, `12 pack`, `dozen`, `size 7`); do not add parameters. With a qualifier
   only that size is a match; without one all sizes are listed, best unit price first.
 - `PUT /api/pricing/items/{itemId}/product` with `{"productKey": "..."}` when the user picks a different product (from
-  `products` or `alternatives`): that product's per-chain prices are stored for compare. Known limitation: compare can still show an
-  earlier product's price for a chain whose earlier price is newer or that does not carry the chosen product (see the doc).
+  `products` or `alternatives`): it **REPLACES** whatever was stored under `itemId`, so compare prices exactly the chosen product ->
+  200 `{itemId, productKey, chains[]}`; an unknown key is **404** `{"error": ...}` (re-run the search and pick again).
+- `matchMethod` is `canonical` (a common product), `lexical` (word overlap) or `generic-fallback` (nothing matched the exact words; the
+  `alternatives` are products of the same TYPE, never `products`, with `status: "alternatives-only"`: label them "similar products",
+  not "your product", and keep `query.size` visible: "no 2.5L; here is what exists").
+- **Render by `status`, not by "the lists are empty":**
+  | `status` | UI |
+  |---|---|
+  | `found` | show `products` (prices may still be updating, see `refresh`) |
+  | `alternatives-only` | `products` is empty: "No exact match - similar products:" and the `alternatives` |
+  | `refreshing` | spinner; ask the same request again every 2-3 s, at most about 10 times, then show a "still looking" note |
+  | `not-found` | final: "Nothing found at any supermarket"; stop asking |
+  `refresh` is a map of lower-case chain id -> `pending` | `done` | `failed` | `skipped` (an empty `{}` means no refresh is known); it
+  can drive small per-chain chips. Re-asking is cheap and safe: it starts no new supermarket request while a page is pending or cooling down.
+- **Search-bar suggestions:** `GET /api/pricing/suggest?q=<typed text>&limit=8` (JWT; limit default 8, max 20; debounce about 150-200 ms and
+  abort the previous request) -> `{ "q": "...", "suggestions": [ { "text", "canonicalKey" (null for a specific product), "chainCount" 1-3,
+  "chains" [lower-case ids], "sampleSize" (null possible), "productCount" } ] }`. Use it instead of `GET /api/products/search` for the
+  shopping-list box (the catalog has niche products the supermarkets do not stock); an empty `q` returns the most widely stocked products;
+  an empty `suggestions` list is normal. When the shopper picks one, call `/api/pricing/products?term=<text>&itemId=<id>`. Contract:
+  `docs/features/price-search-v2.md`.
 - UI: show one card per product with a price row per chain (cheapest highlighted, unit price shown), a separate "Alternatives" section,
   a "stale" hint when `stale` is true, and an empty state meaning "nothing stored yet" (not an error).
 - **Cancellation:** when the user types a new search or leaves the page, ABORT the previous request (`AbortController`). The server then
   stops work for it (including queued supermarket page loads). Do this for search, compare and store-product requests.
-- Data note: prices exist only for items already crawled. Carton eggs and Tim Tams will show nothing until the daily crawl has run.
+- Data note: prices exist only for items already crawled, and the crawl is off by default (the owner turns it on, and a full day is at most
+  140 pages per chain, paced 20-40 s). With no crawled data every search ends `not-found`; that is expected, not an error. Prices older than 26 h
+  are flagged `stale`.
 
 ## 5. Feature (d): Fulfilment costs UI
 
@@ -486,10 +529,22 @@ export interface CompareShoppingListResult {
 export interface PantryApiItem {
   pantry_item_id: string // snake_case
   user_id: string // snake_case
-  product_id: string // snake_case
+  product_id: string | null // snake_case; null for a free-text item
+  name: string | null
+  category: string | null
+  unit: string | null
   quantity: number
   expirationDate: string | null // yyyy-mm-dd
   notifyDaysBefore: number | null // null = backend default of 3 days
+}
+export interface AddPantryItemBody {
+  productId?: string // either productId or name is required; no userId is needed (ignored by the backend)
+  name?: string
+  category?: string
+  unit?: string
+  quantity: number
+  expirationDate?: string // yyyy-mm-dd
+  notifyDaysBefore?: number // only with a date
 }
 export interface ProductApiItem {
   productId: string
@@ -503,7 +558,10 @@ export interface ProductApiItem {
 export interface ExpiryNotification {
   id: string
   pantryItemId: string
-  productId: string
+  productId: string | null // null for a free-text pantry item
+  itemName: string | null
+  category: string | null
+  unit: string | null
   expirationDate: string // yyyy-mm-dd, no time zone
   status: 'NEW' | 'ACKNOWLEDGED'
   createdAt: string
@@ -518,9 +576,8 @@ export interface ExpiryNotification {
 Use the existing `authFetch(url, token, init)` (adds Bearer, `credentials:'include'`), `requestJson` /
 `requestNoContent` in `src/pricing/api.ts`, and `readErrorMessage`. Changes:
 - `readErrorMessage`: also accept `{ "message": string }` (inventory/notifications).
-- New `src/lib/pantryApi.ts`: `listPantry(userId, token)`, `addPantryItem({userId, productId, quantity,
-  expirationDate?, notifyDaysBefore?}, token)` (build `URLSearchParams`; skip empty values; only send
-  `notifyDaysBefore` when a date is set), `updatePantryQuantity(id, quantity, token)`, `setPantryExpiry(id,
+- New `src/lib/pantryApi.ts`: `listPantry(token)`, `addPantryItem({productId? | name?, category?, unit?, quantity,
+  expirationDate?, notifyDaysBefore?}, token)` (JSON body; no user id; only send `notifyDaysBefore` when a date is set), `updatePantryQuantity(id, quantity, token)`, `setPantryExpiry(id,
   expirationDate|null, notifyDaysBefore|null, token)`, `deletePantryItem(id, token)` (`requestNoContent`-style, the 200
   has no body), `searchProducts(query, token)`, `getProduct(id, token)`. Use `API_BASE`.
 - `compareShoppingList` params gain `allowedMethods?: FulfilmentMethod[]`; body includes it only when non-empty;
@@ -533,7 +590,7 @@ Use the existing `authFetch(url, token, init)` (adds Bearer, `credentials:'inclu
 2. `readErrorMessage` accepts `{message}`; add `src/lib/pantryApi.ts`; unit-check by reading the types against 2.2.
 3. Move `Pantry.tsx` fully onto `/api/pantry-items` + `/api/products` via `authFetch`; show 400 messages. Grep
    `localhost:80` in `src/` must return nothing outside comments.
-4. Move `Dashboard.tsx` pantry summary onto `GET /api/pantry-items?userId=`.
+4. Move `Dashboard.tsx` pantry summary onto `GET /api/pantry-items`.
 5. Silent token refresh + retry-once on 401 (section 1.3); verify with `STOCKER_JWT_ACCESS_TTL=60` on the gateway/identity
    (backend env) that the list, polling and SSE survive several expiries.
 6. Fix the chain casing bug (section 6) and add `normChain`.
@@ -567,23 +624,24 @@ yourself; the owner must approve those first.
 
 ## 12. Known backend gaps / risks (tell the owner; do not work around silently)
 
-1. Inventory ignores `X-User-Id` and trusts the `userId` request param; item PUT/DELETE are not ownership-checked.
+1. (Fixed) Inventory is scoped by the gateway's `X-User-Id`; foreign item ids are 404. Do not send `userId`.
 2. Pantry JSON mixes snake_case (`pantry_item_id`, `user_id`, `product_id`) and camelCase fields.
-3. Inventory/notifications errors are `{"message"}`, everything else `{"error"}`; unknown pantry item is a 400, an
-   unknown notification a 404.
+3. Inventory/notifications errors are `{"message"}`, everything else `{"error"}`; an unknown or foreign pantry item and an
+   unknown notification are both 404.
 4. No push for notifications (poll only); the scan runs every 15 min so "on time" means within that interval.
-5. Notifications carry only `productId`; names need a catalog lookup per product.
+5. Notifications carry `itemName`, `category` and `unit`; `productId` is null for free-text items.
 6. `/match` returns UPPER-case chain ids, compare/shopping/favorites lower-case.
 7. Empty compare list returns the "outside service area" message (misleading text, same acceptance wording).
 8. Shopping items cannot be deleted or ticked server-side; push delivery is best effort (single gateway instance, no replay).
 9. A shopping item can stay `pending` for good (one 8 s attempt, then only Kafka backfill); price data depends on the
-   daily crawl (03:00 NZ, 80 page/chain/day cap), so some items have no prices.
-10. `stale` threshold: gateway docs say 12 h, the reliability doc says `stale-after` 26 h; trust the flag, not a number.
-11. Access token lifetime is 15 min and there is no server-side session refresh besides the cookie endpoint.
+   crawl (off by default; when on: 03:00 NZ, cap 140 pages per chain per day, 20-40 s between pages), so some items have no prices.
+10. `stale` threshold is 26 h (`app.pricing.on-demand.stale-after`); trust the flag, not a number.
+11. Access token lifetime is 15 min (refresh token 7 days) and there is no server-side session extension besides the cookie endpoint; the
+    frontend must call `POST /api/identity/refresh` and retry on 401. A refresh token sent as a Bearer token is rejected.
 12. Refresh cookie is `SameSite=Lax`, not `Secure`, scoped to the gateway host: it works for `localhost:5173` ->
     `localhost:8080`, not across different sites (e.g. a LAN IP page calling a different host).
-13. Two CORS layers exist in the gateway (`SecurityConfig` allows credentials; `CorsConfig` does not set it): if a
-    browser CORS error appears on credentialed calls, report it to the backend owner.
+13. CORS is configured in one place, the gateway's `SecurityConfig` (credentials allowed, headers Authorization / Content-Type / Accept /
+    X-Requested-With): if a browser CORS error appears on credentialed calls, report it to the backend owner.
 14. Fee tables are owner-supplied, estimates only; many real-world fees are not modelled (section 5.3).
 15. Non-identity validation failures from the identity service (e.g. short password) have not been inspected for their
     exact body shape: show `error` or `message` if present, else the generic status text.
