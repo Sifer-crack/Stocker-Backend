@@ -35,8 +35,8 @@ public class InternalNetworkFilter implements WebFilter {
 		if (!path.startsWith(PREFIX) && !path.equals("/internal")) {
 			return chain.filter(exchange);
 		}
-		boolean proxied = exchange.getRequest().getHeaders().containsKey("X-Forwarded-For")
-				|| exchange.getRequest().getHeaders().containsKey("Forwarded");
+		boolean proxied = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For") != null
+				|| exchange.getRequest().getHeaders().getFirst("Forwarded") != null;
 		if (!proxied && isInternal(exchange.getRequest().getRemoteAddress())) {
 			return chain.filter(exchange);
 		}
