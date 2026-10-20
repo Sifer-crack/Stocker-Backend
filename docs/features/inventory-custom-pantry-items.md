@@ -1,10 +1,10 @@
 # Inventory: free-text (custom) pantry items
 
 `POST /pantry-items` (gateway: `/api/pantry-items`) no longer needs a catalog product. Either `productId` or `name` is required.
-Accepts the original query params and/or a JSON body (body wins). The old form `?userId=&productId=&quantity=[&expirationDate=&notifyDaysBefore=]` is unchanged.
+Accepts the original query params and/or a JSON body (body wins). The old query form `?productId=&quantity=[&expirationDate=&notifyDaysBefore=]` still works. The user is always the gateway-verified `X-User-Id`; a `userId` parameter or body field is ignored.
 
 ```json
-{ "userId": "uuid", "productId": null, "name": "Nana's jam", "category": "preserves", "unit": "jar",
+{ "productId": null, "name": "Nana's jam", "category": "preserves", "unit": "jar",
   "quantity": 2, "expirationDate": "2026-11-01", "notifyDaysBefore": 5 }
 ```
 `quantity` >= 1 (required); `notifyDaysBefore` >= 0 and needs an `expirationDate`. Missing name and productId, or bad numbers -> 400 `{"message": "..."}`.
