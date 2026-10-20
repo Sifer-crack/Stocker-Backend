@@ -3,6 +3,7 @@ package com.stocker.inventory.application;
 import com.stocker.inventory.application.port.PantryItemRepository;
 import com.stocker.inventory.domain.PantryItem;
 
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -66,6 +67,68 @@ public class PantryItemService {
         );
         return pantryItemRepository.save(updated);
     }
+
+    @Transactional
+    public List<PantryItem> replacePantry(
+            UUID userId,
+            List<PantryItem> importedItems
+    ) {
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID is required");
+        }
+
+        if (importedItems == null) {
+            throw new IllegalArgumentException("Imported pantry items are required");
+        }
+
+        // validate everything before deleting existing items.
+        for (PantryItem item : importedItems) {
+            if (item == null) {
+                throw new IllegalArgumentException(
+                        "Imported pantry item cannot be null"
+                );
+            }
+
+            if (item.getProduct_id() == null) {
+                throw new IllegalArgumentException(
+                        "Product ID is required"
+                );
+            }
+
+            if (item.getQuantity() < 1) {
+                throw new IllegalArgumentException(
+                        "Quantity must be at least 1"
+                );
+            }
+        }
+
+        long distinctProducts = importedItems.stream()
+                .map(PantryItem::getProduct_id)
+                .distinct()
+                .count();
+
+        if (distinctProducts != importedItems.size()) {
+            throw new IllegalArgumentException(
+                    "Imported pantry contains duplicate products"
+            );
+        }
+
+        // remove the existing pantry for this user
+        pantryItemRepository.deleteByUserId(userId);
+
+        // create replacement items with fresh pantry item IDs
+        List<PantryItem> replacements = importedItems.stream()
+                .map(item -> new PantryItem(
+                        null,
+                        userId,
+                        item.getProduct_id(),
+                        item.getQuantity()
+                ))
+                .toList();
+
+        return pantryItemRepository.saveAll(replacements);
+    }
+
     public void deletePantryItem(UUID pantryItemId) {
         pantryItemRepository.deleteById(pantryItemId);
     }

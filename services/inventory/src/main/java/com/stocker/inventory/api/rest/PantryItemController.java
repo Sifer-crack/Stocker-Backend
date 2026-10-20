@@ -43,4 +43,22 @@ public class PantryItemController {
     public void deletePantryItem(@PathVariable UUID pantryItemId) {
         pantryItemService.deletePantryItem(pantryItemId);
     }
+
+    @PutMapping("/import")
+    public List<PantryItem> replacePantry(
+            @RequestParam UUID userId,
+            @RequestBody List<ImportPantryItemRequest> importedItems
+    ) {
+        List<PantryItem> pantryItems = importedItems.stream()
+                .map(item -> new PantryItem(
+                        null,
+                        userId,
+                        item.product_id(),
+                        item.quantity()
+                ))
+                .toList();
+
+        return pantryItemService.replacePantry(userId, pantryItems);
+
+    }
 }

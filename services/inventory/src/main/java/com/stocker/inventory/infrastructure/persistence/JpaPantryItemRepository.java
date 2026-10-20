@@ -56,6 +56,16 @@ public class JpaPantryItemRepository implements PantryItemRepository {
         repository.deleteById(pantryItemId);
     }
 
+    @Override
+    public void deleteByUserId(UUID userId) {
+        repository.deleteByUserId(userId);
+        repository.flush();
+    }
+    @Override
+    public List<PantryItem> saveAll(List<PantryItem> pantryItems) {
+        return pantryItems.stream().map(this::save).toList();
+    }
+
     // returns a new pantry item
     private PantryItem toDomain(PantryItemEntity entity) {
         return new PantryItem(
