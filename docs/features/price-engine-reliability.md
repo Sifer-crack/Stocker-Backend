@@ -42,6 +42,33 @@ or breaker trip mid-run lost everything scraped so far and users saw no new data
   Woolworths needs the one-line `config.getCategoryResultSink().onCategory(...)` after each category in its scraper
   (not part of this change) to benefit.
 
+## Batched persist (2026-10-20)
+
+Why: on the live crawl, storing was the bottleneck, not scraping. Neon (us-east-1) is about 190 ms away and the old path
+cost roughly 5 round trips per row (insert, stats read + write, normalized read + write): New World's 722 rows took
+about 20 minutes, Woolworths' 2,975 rows would take about 80, with the CPU idle.
+
+- `IngestScheduler` now stores each category in chunks of `app.ingest.persist-batch-size` (default 500, env
+  `STOCKER_INGEST_PERSIST_BATCH_SIZE`) through `PriceStatsService.saveAndRecordAll(List)`:
+  1. `PriceBatchWriter.saveAndRecord`: ONE transaction: one `findByItemIdIn` for all affected `price_stats` rows, the
+     observations folded in memory in list order (several observations of one product behave as if applied one by one;
+     same `PriceStatsWriter.apply` code as the single-row path), then `saveAll` for `price_records` and `price_stats`.
+  2. `NormalizedProductService.observeAll`: one read, in-memory fold with the same rules as `observe`, one `saveAll`.
+     Still a separate transaction after the stats one, still never fails the write (failure logged).
+- Hibernate sends the `saveAll` as JDBC batches: `spring.jpa.properties.hibernate.jdbc.batch_size` (default 50, env
+  `STOCKER_DB_BATCH_SIZE`), `order_inserts`, `order_updates`, and the pgjdbc `reWriteBatchedInserts=true` Hikari
+  data-source property (inserts become multi-row statements). Ids are application-generated UUIDs (no sequence
+  round trip), so nothing in the schema changes. The URL and credentials are untouched.
+- Failure: a chunk that throws rolls back as a whole (records and stats together), is logged, and is retried row by row
+  on the old path (`save` + `recordObservation`); only a row that fails there is lost: logged, counted in `failures`,
+  and forgotten by the de-dupe set so a later category may carry it again. The crawl always carries on.
+- Measured with the counting fakes in `PriceBatchWriterTest`: a 300-row batch costs 1,500 repository calls on the old
+  path and 5 on the new one (independent of the row count). At 190 ms per call that is about 285 s versus about 1 s
+  of round-trip time (plus the real write cost on the server).
+- `PriceRecordCaptured` Kafka events are published by the search/match paths (`PriceSearchService`,
+  `ItemMatchService`), not by the scheduled ingest, so the crawl path never had a per-row publish and is unchanged.
+- On-demand/gRPC paths keep the single-row `recordObservation`. Data written is identical; no migration.
+
 ## Crawl pace and circuit breaker (2026-10-20)
 
 Why: on 2026-10-20 a crawl at 4-9 s between page loads drew about 30 HTTP 429 in a row from New World, and the crawler

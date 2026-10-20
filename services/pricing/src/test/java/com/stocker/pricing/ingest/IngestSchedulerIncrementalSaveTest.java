@@ -2,6 +2,7 @@ package com.stocker.pricing.ingest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
@@ -46,6 +47,14 @@ class IngestSchedulerIncrementalSaveTest {
 			statsItemIds.add(((PriceRecord) inv.getArgument(0)).getItemId());
 			return null;
 		}).when(stats).recordObservation(any(PriceRecord.class));
+		doAnswer(inv -> {
+			List<PriceRecord> rows = inv.getArgument(0);
+			rows.forEach(r -> {
+				savedItemIds.add(r.getItemId());
+				statsItemIds.add(r.getItemId());
+			});
+			return null;
+		}).when(stats).saveAndRecordAll(anyList());
 		properties = new IngestProperties();
 		properties.setDryRun(false);
 		properties.setStapleDiscoveryEnabled(false);
@@ -152,6 +161,14 @@ class IngestSchedulerIncrementalSaveTest {
 	@Test
 	void aStoringFailureInOneCategoryDoesNotStopTheOthers() {
 		doAnswer(inv -> {
+			List<PriceRecord> rows = inv.getArgument(0);
+			if (rows.stream().anyMatch(r -> r.getItemId().equals("newworld:B"))) {
+				throw new IllegalStateException("db down");
+			}
+			rows.forEach(r -> savedItemIds.add(r.getItemId()));
+			return null;
+		}).when(stats).saveAndRecordAll(anyList());
+		doAnswer(inv -> {
 			PriceRecord r = inv.getArgument(0);
 			if (r.getItemId().equals("newworld:B")) {
 				throw new IllegalStateException("db down");
@@ -200,5 +217,44 @@ class IngestSchedulerIncrementalSaveTest {
 		scheduler.runAll();
 
 		assertThat(snapshots).containsExactly(List.of("newworld:A"), List.of("newworld:A", "newworld:B"));
+	}
+
+	@Test
+	void aFailedBatchIsRetriedRowByRowSoOnlyTheBadRowIsLost() {
+		doAnswer(inv -> {
+			throw new IllegalStateException("batch rolled back");
+		}).when(stats).saveAndRecordAll(anyList());
+		doAnswer(inv -> {
+			PriceRecord r = inv.getArgument(0);
+			if (r.getItemId().equals("newworld:B")) {
+				throw new IllegalStateException("bad row");
+			}
+			savedItemIds.add(r.getItemId());
+			return r;
+		}).when(repository).save(any(PriceRecord.class));
+		ChainScraper scraper = scraper(Map.of("c1", List.of(product("A"), product("B"), product("C"))), true,
+				(n, cfg) -> { });
+
+		scheduler(scraper).runAll();
+
+		assertThat(savedItemIds).containsExactly("newworld:A", "newworld:C");
+		assertThat(statsItemIds).containsExactly("newworld:A", "newworld:C");
+	}
+
+	@Test
+	void largeCategoriesAreStoredInChunksOfThePersistBatchSize() {
+		properties.setPersistBatchSize(2);
+		List<Integer> sizes = new CopyOnWriteArrayList<>();
+		doAnswer(inv -> {
+			List<PriceRecord> rows = inv.getArgument(0);
+			sizes.add(rows.size());
+			return null;
+		}).when(stats).saveAndRecordAll(anyList());
+		ChainScraper scraper = scraper(Map.of("c1", List.of(product("A"), product("B"), product("C"), product("D"),
+				product("E"))), true, (n, cfg) -> { });
+
+		scheduler(scraper).runAll();
+
+		assertThat(sizes).containsExactly(2, 2, 1);
 	}
 }

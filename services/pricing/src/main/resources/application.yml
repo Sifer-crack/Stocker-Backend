@@ -15,10 +15,20 @@ spring:
       idle-timeout: 120000
       max-lifetime: 240000
       connection-timeout: 30000
+      # pgjdbc folds a JDBC insert batch into one multi-row INSERT (one round trip per batch, not per row).
+      data-source-properties:
+        reWriteBatchedInserts: true
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+    properties:
+      hibernate:
+        # JDBC batching for the crawl's batch persist (ids are app-generated UUIDs, so inserts can be batched).
+        jdbc:
+          batch_size: ${STOCKER_DB_BATCH_SIZE:50}
+        order_inserts: true
+        order_updates: true
   # Neon recommends the DIRECT endpoint (same host without "-pooler") for migrations, because the pooled
   # endpoint does not support session-level features. V1-V4 did apply through the pooler here, so this is a
   # precaution: set STOCKER_DB_MIGRATE_URL to use it; when unset Flyway uses the application datasource.
@@ -94,6 +104,8 @@ app:
     # against it shows realistic counts with no zeroResultCategoryUrls/warnings.
     enabled: ${STOCKER_INGEST_ENABLED:true}
     dry-run: ${STOCKER_INGEST_DRY_RUN:true}
+    # Rows stored per transaction when a scraped category is persisted (batched: a fixed number of round trips).
+    persist-batch-size: ${STOCKER_INGEST_PERSIST_BATCH_SIZE:500}
     # Once a day at 03:00 Auckland time, covering every configured category, regardless of the container's timezone.
     cron: ${STOCKER_INGEST_CRON:0 0 3 * * *}
     cron-zone: ${STOCKER_INGEST_CRON_ZONE:Pacific/Auckland}

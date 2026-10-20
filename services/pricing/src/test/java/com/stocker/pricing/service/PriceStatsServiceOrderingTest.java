@@ -36,7 +36,7 @@ class PriceStatsServiceOrderingTest {
 	void setUp() {
 		writer = mock(PriceStatsWriter.class);
 		normalized = mock(NormalizedProductService.class);
-		service = new PriceStatsService(writer, normalized);
+		service = new PriceStatsService(writer, mock(PriceBatchWriter.class), normalized);
 	}
 
 	@Test

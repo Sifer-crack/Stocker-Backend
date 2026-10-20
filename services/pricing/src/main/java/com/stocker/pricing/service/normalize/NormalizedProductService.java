@@ -49,17 +49,68 @@ public class NormalizedProductService {
 	/** Rows stored under a caller's item id (a UUID, no colon) are copies of ingested rows and are skipped. */
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void observe(PriceRecord record) {
-		if (record.getItemId() == null || !record.getItemId().contains(":")) {
-			return;
-		}
-		String name = StoreProductText.name(record);
-		if (!StringUtils.hasText(name) || record.getPriceAmount() == null || record.getPriceAmount().signum() <= 0) {
+		String name = eligibleName(record);
+		if (name == null) {
 			return;
 		}
 		NormalizedProduct row = repository.findByItemIdAndStoreId(record.getItemId(), record.getStoreId())
 				.orElseGet(() -> NormalizedProduct.builder().itemId(record.getItemId()).storeId(record.getStoreId()).build());
-		if (row.getCapturedAt() != null && row.getCapturedAt().isAfter(record.getCapturedAt())) {
+		if (apply(row, record, name)) {
+			repository.save(row);
+		}
+	}
+
+	/**
+	 * {@link #observe} for a whole batch in a fixed number of round trips: one read of the existing rows, the records
+	 * folded in list order in memory (a later record of the same product sees the earlier one, exactly as sequential
+	 * calls would), one {@code saveAll}. Same rules per record, same resulting rows.
+	 */
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	public void observeAll(List<PriceRecord> records) {
+		java.util.Set<String> itemIds = new java.util.HashSet<>();
+		for (PriceRecord record : records) {
+			if (eligibleName(record) != null) {
+				itemIds.add(record.getItemId());
+			}
+		}
+		if (itemIds.isEmpty()) {
 			return;
+		}
+		java.util.Map<String, NormalizedProduct> rows = new java.util.LinkedHashMap<>();
+		for (NormalizedProduct existing : repository.findByItemIdIn(itemIds)) {
+			rows.put(existing.getItemId() + '\u0000' + existing.getStoreId(), existing);
+		}
+		java.util.Set<NormalizedProduct> touched = new java.util.LinkedHashSet<>();
+		for (PriceRecord record : records) {
+			String name = eligibleName(record);
+			if (name == null) {
+				continue;
+			}
+			NormalizedProduct row = rows.computeIfAbsent(record.getItemId() + '\u0000' + record.getStoreId(),
+					k -> NormalizedProduct.builder().itemId(record.getItemId()).storeId(record.getStoreId()).build());
+			if (apply(row, record, name)) {
+				touched.add(row);
+			}
+		}
+		repository.saveAll(touched);
+	}
+
+	/** The product name when the record is one {@link #observe} accepts (an ingested row with a name and a positive price), else null. */
+	private static String eligibleName(PriceRecord record) {
+		if (record.getItemId() == null || !record.getItemId().contains(":")) {
+			return null;
+		}
+		String name = StoreProductText.name(record);
+		if (!StringUtils.hasText(name) || record.getPriceAmount() == null || record.getPriceAmount().signum() <= 0) {
+			return null;
+		}
+		return name;
+	}
+
+	/** Copies the record into the row unless the row already holds a newer observation; true if the row changed. */
+	private boolean apply(NormalizedProduct row, PriceRecord record, String name) {
+		if (row.getCapturedAt() != null && row.getCapturedAt().isAfter(record.getCapturedAt())) {
+			return false;
 		}
 		Derived derived = derive(name, record.getPriceAmount());
 		row.setChainId(record.getChainId());
@@ -75,7 +126,7 @@ public class NormalizedProductService {
 		row.setPromoFlag(record.isPromoFlag());
 		row.setCapturedAt(record.getCapturedAt());
 		row.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
-		repository.save(row);
+		return true;
 	}
 
 	/** Normalises up to {@code limit} price_records rows that predate normalized_products; returns how many it read. */
