@@ -326,7 +326,7 @@ public class IngestScheduler {
 				.storeId(chainConfig.getStoreId())
 				.storeName(chainConfig.getStoreName())
 				.categoryUrls(categoryUrls)
-				.maxPagesPerCategory(properties.getMaxPagesPerCategory())
+				.maxPagesPerCategory(properties.maxPagesPerCategory(chainId))
 				.navigationTimeoutSeconds(properties.getNavigationTimeoutSeconds())
 				.pageDelayMinMillis(properties.pageDelayMinMillis(chainId))
 				.pageDelayMaxMillis(properties.pageDelayMaxMillis(chainId))

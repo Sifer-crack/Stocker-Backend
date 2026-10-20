@@ -95,6 +95,12 @@ public class IngestProperties {
 				logRequests);
 	}
 
+	/** Page cap for one category on this chain: its own setting, else the shared one. */
+	public int maxPagesPerCategory(ChainId chain) {
+		Integer own = chainConfig(chain).getMaxPagesPerCategory();
+		return own != null && own > 0 ? own : maxPagesPerCategory;
+	}
+
 	private ChainConfig chainConfig(ChainId chain) {
 		return switch (chain) {
 			case NEWWORLD -> newworld;
@@ -109,6 +115,8 @@ public class IngestProperties {
 		/** Per-chain page pause; null = use the shared app.ingest.page-delay-min/max-millis. */
 		private Long pageDelayMinMillis;
 		private Long pageDelayMaxMillis;
+		/** Per-chain page cap for one category; null / 0 = use app.ingest.max-pages-per-category. */
+		private Integer maxPagesPerCategory;
 		private boolean enabled = false;
 		private String storeId = "";
 		private String storeName = "";

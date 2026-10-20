@@ -290,6 +290,8 @@ app:
       enabled: ${STOCKER_INGEST_WOOLWORTHS_ENABLED:true}
       page-delay-min-millis: ${STOCKER_INGEST_WOOLWORTHS_PAGE_DELAY_MIN_MILLIS:}
       page-delay-max-millis: ${STOCKER_INGEST_WOOLWORTHS_PAGE_DELAY_MAX_MILLIS:}
+      # 36 listed products per page: 10 pages = 360 products (the shared cap of 8 would stop at 288).
+      max-pages-per-category: ${STOCKER_INGEST_WOOLWORTHS_MAX_PAGES_PER_CATEGORY:10}
       store-id: ${STOCKER_INGEST_WOOLWORTHS_STORE_ID:}
       store-name: ${STOCKER_INGEST_WOOLWORTHS_STORE_NAME:}
       category-urls:

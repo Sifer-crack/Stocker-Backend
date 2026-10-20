@@ -31,6 +31,8 @@ public record ChainPageTemplate(
 		String showingRegex,
 		/** CSS selector of the pagination nav; only used to make a missing "Showing" line easier to diagnose. */
 		String paginationNavSelector,
+		/** Query parameter that carries the page number in the chain's paging links ({@code pg} or {@code page}). */
+		String pageParam,
 		List<MandatoryField> mandatory,
 		/**
 		 * True when the tile wrappers can exist before their content does (client-side hydration): the loader then
@@ -85,7 +87,7 @@ public record ChainPageTemplate(
 		fields.put(IMAGE, FieldSpec.attr("[data-testid='product-image']", "src"));
 		fields.put(CODE, FieldSpec.attr("", "data-testid"));                          // "product-5000518-EA-000"
 		return new ChainPageTemplate(chain, "div[itemtype='https://schema.org/Product']", fields, FOODSTUFFS_CODE, 0,
-				CategoryPagination.SHOWING_SOURCE, "nav[aria-label='pagination']", List.of(
+				CategoryPagination.SHOWING_SOURCE, "nav[aria-label='pagination']", CategoryPagination.FOODSTUFFS_PAGE_PARAM, List.of(
 						new MandatoryField(NAME, "[data-testid='product-title']", ProductCardFields::rawName),
 						new MandatoryField(CODE, "card data-testid like product-<digits>-<unit>-<n>",
 								ProductCardFields::nativeProductCode),
@@ -95,7 +97,8 @@ public record ChainPageTemplate(
 	}
 
 	/**
-	 * Woolworths NZ. Class PREFIXES survive the hashed suffixes (Jason-nzd/countdown-scraper); re-verified against the live
+	 * Woolworths NZ: 36 listed products per page, paged with {@code ?page=N} and a "1 to 36 of 264 products" line (live
+	 * probe 2026-10-20, see INGEST_MODULE.md). Class PREFIXES survive the hashed suffixes (Jason-nzd/countdown-scraper); re-verified against the live
 	 * page on 2026-10-20 (see INGEST_MODULE.md): product links are now /shop/product-details/ (with a hyphen), which the
 	 * code segment logic does not depend on.
 	 */
@@ -106,7 +109,7 @@ public record ChainPageTemplate(
 		fields.put(IMAGE, FieldSpec.attr("a[class^='product-tile_productImageLink_'] img", "src"));
 		fields.put(CODE, FieldSpec.attr("a[class^='product-tile_productImageLink_']", "href"));  // .../<stockcode>/<slug>
 		return new ChainPageTemplate(ChainId.WOOLWORTHS, "div[class^='product-tile_imgAndTextArea_']", fields, null, 2,
-				null, null, List.of(
+				CategoryPagination.WOOLWORTHS_SOURCE, "nav[aria-label='Pagination' i]", CategoryPagination.WOOLWORTHS_PAGE_PARAM, List.of(
 						new MandatoryField(NAME, "a[class^='product-tile_description_']", ProductCardFields::rawName),
 						new MandatoryField(CODE, "a[class^='product-tile_productImageLink_'] href (stockcode segment)",
 								ProductCardFields::nativeProductCode),
@@ -127,7 +130,7 @@ public record ChainPageTemplate(
 		Map<String, FieldSpec> copy = new LinkedHashMap<>(fields);
 		copy.put(field, spec);
 		return new ChainPageTemplate(chain, cardSelector, copy, codePattern, codeSegmentFromEnd, showingRegex,
-				paginationNavSelector, mandatory, waitForNamedTiles);
+				paginationNavSelector, pageParam, mandatory, waitForNamedTiles);
 	}
 
 	/** The argument of the single {@code page.evaluate}: plain maps / lists / strings only. */
