@@ -6,6 +6,7 @@ import com.microsoft.playwright.Playwright;
 import com.stocker.pricing.ingest.ChainBrowsers;
 import com.stocker.pricing.ingest.ManagedBrowser;
 import com.stocker.pricing.ingest.PerChainBrowsers;
+import com.stocker.pricing.ingest.SelfHealingSharedBrowser;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,7 +42,7 @@ public class PlaywrightConfig {
 	@Bean
 	@ConditionalOnProperty(name = "app.ingest.parallel-chains", havingValue = "false", matchIfMissing = true)
 	public ChainBrowsers sharedChainBrowsers(Browser browser) {
-		return ChainBrowsers.shared(browser);
+		return new SelfHealingSharedBrowser(browser, PlaywrightConfig::launchOwned);
 	}
 
 	/**

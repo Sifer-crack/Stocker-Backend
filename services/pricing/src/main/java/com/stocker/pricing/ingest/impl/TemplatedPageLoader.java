@@ -69,16 +69,19 @@ final class TemplatedPageLoader {
 
 	PageRead load(Page page, String url, CrawlBrake brake) {
 		LeanPageRouter.PageStats stats = router.beginPage();
+		brake.onPageRequested();
 		Response response = page.navigate(url);
 		BlockGuard.failIfBlocked(response, url, brake);
+		BlockGuard.failIfHttpError(response, url);
 		waitForProductCards(page);
 		waitForShowingLine(page);
 		Map<String, Object> raw = evaluate(page);
 		List<ProductCardFields> cards = toCards(raw);
 		if (cards.isEmpty()) {
 			BlockGuard.failIfChallenge(page, url, brake);
+		} else {
+			brake.onSuccess();      // an empty page is not proof the chain is serving us normally
 		}
-		brake.onSuccess();
 		return report(url, raw, cards, stats);
 	}
 

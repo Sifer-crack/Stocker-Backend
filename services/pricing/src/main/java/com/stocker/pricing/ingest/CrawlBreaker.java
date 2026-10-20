@@ -16,7 +16,9 @@ import org.slf4j.LoggerFactory;
  * 429 / 403 / 503 or a captcha page) the chain opens: no page of it is loaded by any crawl until the cool-down is
  * over. The cool-down starts at {@code cooldown} and doubles on every consecutive trip up to {@code maxCooldown}; a
  * larger Retry-After from the response wins (still bounded by {@code maxCooldown}). After the cool-down the chain is
- * half-open: pages load again, one blocked response trips it straight back, one good page clears the history.
+ * half-open: pages load again, one blocked response trips it straight back, and {@code successesToReset} good pages
+ * IN A ROW (default 3) clear the trip history, so one lucky page between blocks does not restart the cool-downs at the
+ * shortest value.
  * In memory: a restart resets it. Logs one WARN when it opens and one when it closes.
  */
 public class CrawlBreaker {
@@ -26,6 +28,7 @@ public class CrawlBreaker {
 	private static final class State {
 		int consecutiveBlocked;
 		int trips;
+		int successes;      // good pages in a row since the last blocked response
 		Instant openUntil;
 		Duration retryAfter;
 	}
@@ -34,9 +37,19 @@ public class CrawlBreaker {
 	private final Supplier<Duration> cooldown;
 	private final Supplier<Duration> maxCooldown;
 	private final Clock clock;
+	private final IntSupplier successesToReset;
 	private final Map<ChainId, State> states = new EnumMap<>(ChainId.class);
 
+	public static final int DEFAULT_SUCCESSES_TO_RESET = 3;
+
 	public CrawlBreaker(IntSupplier threshold, Supplier<Duration> cooldown, Supplier<Duration> maxCooldown, Clock clock) {
+		this(threshold, cooldown, maxCooldown, clock, () -> DEFAULT_SUCCESSES_TO_RESET);
+	}
+
+	/** @param successesToReset consecutive good pages that clear the trip history (at least 1) */
+	public CrawlBreaker(IntSupplier threshold, Supplier<Duration> cooldown, Supplier<Duration> maxCooldown, Clock clock,
+			IntSupplier successesToReset) {
+		this.successesToReset = successesToReset;
 		this.threshold = threshold;
 		this.cooldown = cooldown;
 		this.maxCooldown = maxCooldown;
@@ -59,12 +72,20 @@ public class CrawlBreaker {
 		return false;
 	}
 
-	/** @return when the cool-down ends, or null when the breaker is closed */
+	/**
+	 * @return when the cool-down ends, or null when the breaker is closed (or its cool-down is over). Read-only: unlike
+	 *         {@link #isOpen} it never closes the breaker or logs, so a log line cannot change the state.
+	 */
 	public synchronized Instant openUntil(ChainId chain) {
-		return isOpen(chain) ? states.get(chain).openUntil : null;
+		State state = states.get(chain);
+		return state != null && state.openUntil != null && clock.instant().isBefore(state.openUntil) ? state.openUntil
+				: null;
 	}
 
-	/** A page was loaded normally: clears the consecutive count and the trip history. */
+	/**
+	 * A page was loaded normally: clears the consecutive-blocked count at once; the trip history (which doubles the
+	 * cool-down) is cleared only after {@code successesToReset} good pages in a row.
+	 */
 	public synchronized void recordSuccess(ChainId chain) {
 		if (isOpen(chain)) {
 			return;      // a late report from a page requested before the trip does not close it
@@ -72,8 +93,11 @@ public class CrawlBreaker {
 		State state = states.get(chain);
 		if (state != null) {
 			state.consecutiveBlocked = 0;
-			state.trips = 0;
 			state.retryAfter = null;
+			state.successes++;
+			if (state.successes >= Math.max(1, successesToReset.getAsInt())) {
+				state.trips = 0;
+			}
 		}
 	}
 
@@ -88,6 +112,7 @@ public class CrawlBreaker {
 			return false;
 		}
 		State state = states.computeIfAbsent(chain, c -> new State());
+		state.successes = 0;
 		state.consecutiveBlocked++;
 		if (retryAfter != null && (state.retryAfter == null || retryAfter.compareTo(state.retryAfter) > 0)) {
 			state.retryAfter = retryAfter;

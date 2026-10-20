@@ -33,6 +33,16 @@ public class PricingCacheProperties {
 		private Duration categoryCooldown = Duration.ofMinutes(30);
 		/** Hard cap on on-demand page loads per chain per hour (all products together). */
 		private int maxPageLoadsPerChainPerHour = 20;
+		/**
+		 * Most pages loaded for one category page by one on-demand refresh (1 = only the first page). A permit is one
+		 * page, so without this a single permit could walk a whole multi-page category (up to 8 pages).
+		 */
+		private int maxPagesPerCategory = 2;
+		/**
+		 * Share (0..1) of a chain's daily page budget that on-demand refreshes never use, so a busy day of lookups
+		 * cannot starve the scheduled crawl.
+		 */
+		private double keepDailyBudgetShare = 0.3;
 	}
 
 	/** In-memory copy of the normalised products that price lookups are answered from. */

@@ -51,14 +51,27 @@ public class DailyPageBudget {
 
 	/** @return how many of the {@code requested} pages may be loaded now (0 when the day's budget is used up) */
 	public synchronized int reserve(ChainId chain, int requested) {
+		return reserve(chain, requested, 0);
+	}
+
+	/**
+	 * As {@link #reserve(ChainId, int)}, but never dips into the last {@code keepFree} pages of the day: they stay for
+	 * the scheduled crawl. Returns 0 once no more than {@code keepFree} pages are left.
+	 */
+	public synchronized int reserve(ChainId chain, int requested, int keepFree) {
 		if (requested <= 0 || isBlocked(chain)) {
 			return 0;
 		}
-		int granted = Math.min(requested, remaining(chain));
+		int granted = Math.min(requested, Math.max(0, remaining(chain) - Math.max(0, keepFree)));
 		if (granted > 0) {
 			today(chain).used += granted;
 		}
 		return granted;
+	}
+
+	/** The day's cap for one chain. */
+	public int cap() {
+		return capPerChain.getAsInt();
 	}
 
 	public synchronized int remaining(ChainId chain) {

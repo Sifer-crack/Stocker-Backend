@@ -29,7 +29,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -118,11 +121,10 @@ public class ProductSearchService {
 	private final ItemPriceStore store;
 	private final NormalizedProductService normalizedService;
 	private final PricingCacheProperties properties;
-	private Executor persistExecutor = Executors.newSingleThreadExecutor(runnable -> {
-		Thread thread = new Thread(runnable, "search-persist");
-		thread.setDaemon(true);
-		return thread;
-	});
+	/** Pending background stores kept; beyond this the OLDEST waiting store is dropped (and logged). */
+	static final int PERSIST_QUEUE_CAPACITY = 1000;
+
+	private Executor persistExecutor = boundedPersistExecutor(PERSIST_QUEUE_CAPACITY, new AtomicLong());
 
 	public ProductSearchService(NormalizedProductSnapshot snapshot, CommonProductCatalog catalog,
 			OnDemandRefreshService refreshService, ItemPriceStore store, NormalizedProductService normalizedService,
@@ -133,6 +135,29 @@ public class ProductSearchService {
 		this.store = store;
 		this.normalizedService = normalizedService;
 		this.properties = properties;
+	}
+
+	/**
+	 * One daemon thread, a queue of at most {@code capacity} waiting stores. When the database is slow and the queue is
+	 * full the oldest waiting store is discarded (the newest search is the more useful one) and counted in
+	 * {@code dropped}, with a WARN. Dropping is safe: both stores are best-effort side effects of a search.
+	 */
+	static ThreadPoolExecutor boundedPersistExecutor(int capacity, AtomicLong dropped) {
+		return new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(capacity),
+				runnable -> {
+					Thread thread = new Thread(runnable, "search-persist");
+					thread.setDaemon(true);
+					return thread;
+				}, (task, executor) -> {
+					if (executor.isShutdown()) {
+						return;
+					}
+					long total = dropped.incrementAndGet();
+					log.warn("Search persist queue is full ({} waiting): dropping the oldest pending store ({} dropped so far)",
+							capacity, total);
+					executor.getQueue().poll();
+					executor.execute(task);
+				});
 	}
 
 	/** Test seam: the default stores on a daemon background thread. */

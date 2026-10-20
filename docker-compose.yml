@@ -164,6 +164,26 @@ services:
       # through docker-compose.crawl.yml with the other services stopped. Default false = one after another.
       STOCKER_INGEST_PARALLEL_CHAINS: ${STOCKER_INGEST_PARALLEL_CHAINS:-false}
       STOCKER_PRICING_ON_DEMAND_ENABLED: ${STOCKER_PRICING_ON_DEMAND_ENABLED:-true}
+      # On-demand refresh limits: pages per category and the share of the daily budget kept for the scheduled crawl.
+      STOCKER_PRICING_ON_DEMAND_MAX_PAGES_PER_CATEGORY: ${STOCKER_PRICING_ON_DEMAND_MAX_PAGES_PER_CATEGORY:-2}
+      STOCKER_PRICING_ON_DEMAND_KEEP_BUDGET_SHARE: ${STOCKER_PRICING_ON_DEMAND_KEEP_BUDGET_SHARE:-0.3}
+      # Tuning pass-through. Each default equals application.yml: an EMPTY value would not fall back to it (it would bind
+      # as an empty string / empty list), so the real default is spelled out here.
+      STOCKER_DB_MIGRATE_URL: ${STOCKER_DB_MIGRATE_URL:-${STOCKER_DB_URL}}
+      STOCKER_DB_MIGRATE_USER: ${STOCKER_DB_MIGRATE_USER:-${STOCKER_DB_USER}}
+      STOCKER_DB_MIGRATE_PASSWORD: ${STOCKER_DB_MIGRATE_PASSWORD:-${STOCKER_DB_PASSWORD}}
+      STOCKER_DB_POOL_SIZE: ${STOCKER_DB_POOL_SIZE:-10}
+      STOCKER_DB_BATCH_SIZE: ${STOCKER_DB_BATCH_SIZE:-50}
+      STOCKER_INGEST_PERSIST_BATCH_SIZE: ${STOCKER_INGEST_PERSIST_BATCH_SIZE:-500}
+      STOCKER_INGEST_CRON: "${STOCKER_INGEST_CRON:-0 0 3 * * *}"
+      STOCKER_INGEST_MAX_CATEGORIES_PER_RUN: ${STOCKER_INGEST_MAX_CATEGORIES_PER_RUN:-0}
+      STOCKER_INGEST_RECRAWL_FRESHNESS_HOURS: ${STOCKER_INGEST_RECRAWL_FRESHNESS_HOURS:-20}
+      STOCKER_INGEST_BREAKER_SUCCESSES_TO_RESET: ${STOCKER_INGEST_BREAKER_SUCCESSES_TO_RESET:-3}
+      STOCKER_INGEST_NEWWORLD_LEAN_ENABLED: ${STOCKER_INGEST_NEWWORLD_LEAN_ENABLED:-true}
+      STOCKER_INGEST_PAKNSAVE_LEAN_ENABLED: ${STOCKER_INGEST_PAKNSAVE_LEAN_ENABLED:-true}
+      STOCKER_INGEST_WOOLWORTHS_LEAN_ENABLED: ${STOCKER_INGEST_WOOLWORTHS_LEAN_ENABLED:-true}
+      STOCKER_INGEST_BLOCK_RESOURCE_TYPES: ${STOCKER_INGEST_BLOCK_RESOURCE_TYPES:-image,media,font}
+      STOCKER_INGEST_BLOCK_HOST_PATTERNS: ${STOCKER_INGEST_BLOCK_HOST_PATTERNS:-google-analytics,googletagmanager,googletagservices,googlesyndication,doubleclick,adservice.google,facebook.net,facebook.com,hotjar,segment.io,segment.com,optimizely,newrelic,nr-data.net,clarity.ms,bat.bing.com,criteo,taboola,outbrain,quantserve,scorecardresearch,fullstory,mouseflow,mixpanel,amplitude.com,snapchat,tiktok,ads-twitter,analytics.twitter,sentry.io,datadoghq,tealiumiq,adobedtm,demdex,omtrdc}
       # Crawl load limits (see docs/features/price-engine-reliability.md). 140 pages per chain per Auckland day is the
       # hard cap for the scheduled crawl and on-demand refresh together; extra pages of a multi-page category count too.
       STOCKER_INGEST_MAX_PAGES_PER_CHAIN_PER_DAY: ${STOCKER_INGEST_MAX_PAGES_PER_CHAIN_PER_DAY:-140}

@@ -44,6 +44,8 @@ public class IngestProperties {
 	private int breakerBlockedThreshold = 3;
 	/** First cool-down of an open breaker; doubles on each consecutive trip. */
 	private Duration breakerCooldown = Duration.ofHours(6);
+	/** Good pages in a row that clear a chain's trip history (the doubling cool-down starts over at breakerCooldown). */
+	private int breakerSuccessesToReset = 3;
 	/** Longest cool-down (also bounds a Retry-After header). */
 	private Duration breakerMaxCooldown = Duration.ofHours(24);
 	/**
