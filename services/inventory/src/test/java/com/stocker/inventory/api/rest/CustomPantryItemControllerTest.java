@@ -37,9 +37,10 @@ class CustomPantryItemControllerTest {
         when(service.addPantryItem(any(AddPantryItemCommand.class))).thenReturn(new PantryItem(UUID.randomUUID(),
                 userId, null, "Nana's jam", "preserves", "jar", 2, LocalDate.of(2026, 11, 1), 5));
 
-        mockMvc.perform(post("/pantry-items").contentType(MediaType.APPLICATION_JSON).content("""
+        mockMvc.perform(post("/pantry-items").header("X-User-Id", userId.toString())
+                .contentType(MediaType.APPLICATION_JSON).content("""
                 {"userId":"%s","name":"Nana's jam","category":"preserves","unit":"jar","quantity":2,
-                 "expirationDate":"2026-11-01","notifyDaysBefore":5}""".formatted(userId)))
+                 "expirationDate":"2026-11-01","notifyDaysBefore":5}""".formatted(UUID.randomUUID())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.name").value("Nana's jam"))
             .andExpect(jsonPath("$.unit").value("jar"))
@@ -48,6 +49,8 @@ class CustomPantryItemControllerTest {
         ArgumentCaptor<AddPantryItemCommand> c = ArgumentCaptor.forClass(AddPantryItemCommand.class);
         verify(service).addPantryItem(c.capture());
         assertThat(c.getValue().productId()).isNull();
+        // the userId field in the body is ignored: the verified header wins
+        assertThat(c.getValue().userId()).isEqualTo(userId);
         assertThat(c.getValue().notifyDaysBefore()).isEqualTo(5);
     }
 
@@ -55,7 +58,7 @@ class CustomPantryItemControllerTest {
     void queryParamsWithNameAndNoProductIdAlsoWork() throws Exception {
         when(service.addPantryItem(any(AddPantryItemCommand.class))).thenReturn(
                 new PantryItem(UUID.randomUUID(), userId, null, "Honey", null, null, 1, null, null));
-        mockMvc.perform(post("/pantry-items").param("userId", userId.toString()).param("name", "Honey")
+        mockMvc.perform(post("/pantry-items").header("X-User-Id", userId.toString()).param("name", "Honey")
                         .param("quantity", "1"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Honey"));
     }
@@ -64,7 +67,7 @@ class CustomPantryItemControllerTest {
     void missingProductAndNameIsABadRequest() throws Exception {
         when(service.addPantryItem(any(AddPantryItemCommand.class)))
                 .thenThrow(new IllegalArgumentException("Either productId or name is required"));
-        mockMvc.perform(post("/pantry-items").param("userId", userId.toString()).param("quantity", "1"))
+        mockMvc.perform(post("/pantry-items").header("X-User-Id", userId.toString()).param("quantity", "1"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("Either productId or name is required"));
     }

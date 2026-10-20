@@ -44,10 +44,10 @@ class PantryItemPostgresIT {
 		assertThat(service.findDueForNotification(LocalDate.now())).extracting(PantryItem::getPantry_item_id)
 				.contains(added.getPantry_item_id());
 
-		service.updateExpiry(added.getPantry_item_id(), null, null);
+		service.updateExpiry(userId, added.getPantry_item_id(), null, null);
 		assertThat(service.findDueForNotification(LocalDate.now())).extracting(PantryItem::getPantry_item_id)
 				.doesNotContain(added.getPantry_item_id());
-		assertThat(service.updatePantryItem(added.getPantry_item_id(), 5).getQuantity()).isEqualTo(5);
+		assertThat(service.updatePantryItem(userId, added.getPantry_item_id(), 5).getQuantity()).isEqualTo(5);
 	}
 
 	@Test
