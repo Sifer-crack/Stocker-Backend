@@ -137,11 +137,21 @@ runs each chain in turn:
 3. Log WARN if any category page returned zero product cards, or if any
    navigation warnings occurred — the loud-failure behaviour this module leans on
    given the still-unverified store-pin mechanisms (see below).
-4. De-dupe the batch by `nativeProductCode`.
+4. De-dupe by `nativeProductCode` across the whole run.
 5. Map via `RawProductPriceRecordMapper.toPriceRecord(RawProduct)` (an ingest-only
    overload — see below), skipping + logging any product with a blank native code.
 6. Persist via `PriceRecordRepository` **only if `app.ingest.dry-run=false`**
    (default `true`).
+
+**Incremental save (2026-10-20).** Steps 4-6 run after every category, not when the chain's run ends: the scraper
+calls `ChainScraperConfig.getCategoryResultSink().onCategory(url, products)` once a category (all its pages) is read,
+and the scheduler's sink stores that category's rows at once (same path: `price_records` save plus
+`PriceStatsService.recordObservation`; run-wide dedupe by native code). A restart, crash, OOM or breaker trip later
+in the run therefore loses only the category being read. Logged as `CHAIN: stored N rows from <url> (run total M)`.
+A storing failure in one category is logged and counted, and the crawl carries on. `CategoryHealth`, `DailyPageBudget`
+and breaker accounting are unchanged and still run at the end of the scrape. A scraper that never calls the sink
+(an older one, or Woolworths until its extractor branch adds the one-line call) is stored at the end of the run as
+before. The persisted data format is unchanged.
 
 ## Sitemap category-URL cache
 
