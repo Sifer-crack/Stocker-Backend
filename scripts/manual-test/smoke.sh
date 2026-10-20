@@ -90,21 +90,13 @@ TODAY_AKL="$(python3 -I -c 'import datetime,zoneinfo;print(datetime.datetime.now
 plus() { python3 -I -c 'import datetime,sys;print(datetime.date.fromisoformat(sys.argv[1])+datetime.timedelta(days=int(sys.argv[2])))' "$TODAY_AKL" "$1"; }
 
 LAST_ID=""
-make_product() { # name -> sets LAST_ID (empty on failure); records for cleanup
-  LAST_ID=""
-  call POST "/api/products?productName=ManualTest-$1-$STAMP"
-  if [[ "$STATUS" =~ ^(200|201)$ ]]; then LAST_ID="$(jget 'd["productId"]')"; fi
-  if [ -n "$LAST_ID" ]; then PRODUCT_IDS+=("$LAST_ID"); fi
-}
+# Free-text pantry items: no catalog entry is needed (catalog writes are blocked at the gateway for ordinary users).
+P_DUE="ManualTest-due-$STAMP"; P_FAR="ManualTest-far-$STAMP"; P_NONE="ManualTest-nodate-$STAMP"
+pass "free-text pantry item names prepared (no catalog write)"
 
-make_product due; P_DUE="$LAST_ID"
-make_product far; P_FAR="$LAST_ID"
-make_product nodate; P_NONE="$LAST_ID"
-if [ -n "$P_DUE" ] && [ -n "$P_FAR" ] && [ -n "$P_NONE" ]; then pass "catalog: 3 throwaway products created"; else fail "catalog: 3 throwaway products created" "POST /api/products failed"; fi
-
-add_pantry() { # product, query-suffix -> sets LAST_ID
+add_pantry() { # item name, query-suffix -> sets LAST_ID; the owner comes from the gateway's X-User-Id header
   LAST_ID=""
-  call POST "/api/pantry-items?userId=$USER_ID&productId=$1&quantity=1$2"
+  call POST "/api/pantry-items?name=$1&quantity=1$2"
   if [[ "$STATUS" =~ ^(200|201)$ ]]; then LAST_ID="$(jget 'd["pantry_item_id"]')"; fi
   if [ -n "$LAST_ID" ]; then PANTRY_IDS+=("$LAST_ID"); fi
 }
@@ -123,7 +115,7 @@ if [ -n "$P_FAR" ]; then add_pantry "$P_FAR" "&expirationDate=$FAR_DATE&notifyDa
 if [ -n "$P_NONE" ]; then add_pantry "$P_NONE" ""; I_NONE="$LAST_ID"; fi
 if [ -n "$I_FAR" ] && [ -n "$I_NONE" ]; then pass "pantry items outside threshold / without date added"; else fail "pantry items outside threshold / without date added"; fi
 
-call GET "/api/pantry-items?userId=$USER_ID"
+call GET /api/pantry-items
 expect_status "list pantry" 200 || true
 
 NOTIF_ID=""
