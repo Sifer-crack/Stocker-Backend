@@ -42,6 +42,11 @@ public class InMemoryPantryItemRepository implements PantryItemRepository {
     }
 
     @Override
+    public Optional<PantryItem> findByIdAndUserId(UUID pantryItemId, UUID userId) {
+        return Optional.ofNullable(items.get(pantryItemId)).filter(item -> item.getUser_id().equals(userId));
+    }
+
+    @Override
     public List<PantryItem> findAllWithExpirationDate() {
         return items.values().stream().filter(item -> item.getExpirationDate() != null).toList();
     }

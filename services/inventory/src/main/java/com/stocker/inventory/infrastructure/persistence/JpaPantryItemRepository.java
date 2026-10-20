@@ -57,6 +57,11 @@ public class JpaPantryItemRepository implements PantryItemRepository {
     }
 
     @Override
+    public Optional<PantryItem> findByIdAndUserId(UUID pantryItemId, UUID userId) {
+        return repository.findByPantryItemIdAndUserId(pantryItemId, userId).map(this::toDomain);
+    }
+
+    @Override
     public List<PantryItem> findAllWithExpirationDate() {
         return repository.findByExpirationDateIsNotNull().stream().map(this::toDomain).toList();
     }

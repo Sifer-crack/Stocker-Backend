@@ -21,7 +21,22 @@ public class PantryItemController {
         this.pantryItemService = pantryItemService;
     }
 
-    /** JSON body alternative to the query parameters; every field is optional here, the service validates. */
+    private static UUID requireUser(String header) {
+        if (header == null || header.isBlank()) {
+            throw new UnauthorizedException("Missing X-User-Id header");
+        }
+        try {
+            return UUID.fromString(header.trim());
+        } catch (IllegalArgumentException e) {
+            throw new UnauthorizedException("Invalid X-User-Id header");
+        }
+    }
+
+    /**
+     * JSON body alternative to the query parameters; every field is optional here, the service validates.
+     * {@code userId} is still accepted so older frontends keep working, but it is ignored: the caller is the
+     * user in the gateway-verified X-User-Id header.
+     */
     public record AddPantryItemRequest(UUID userId, UUID productId, String name, String category, String unit,
                                        Integer quantity, LocalDate expirationDate, Integer notifyDaysBefore) {
     }
@@ -32,8 +47,8 @@ public class PantryItemController {
      */
     @PostMapping
     public PantryItem addPantryItem(
+            @RequestHeader(value = "X-User-Id", required = false) String userHeader,
             @RequestBody(required = false) AddPantryItemRequest body,
-            @RequestParam(required = false) UUID userId,
             @RequestParam(required = false) UUID productId,
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String category,
@@ -44,10 +59,7 @@ public class PantryItemController {
 
         AddPantryItemRequest b = body != null ? body
                 : new AddPantryItemRequest(null, null, null, null, null, null, null, null);
-        UUID user = pick(b.userId(), userId);
-        if (user == null) {
-            throw new IllegalArgumentException("userId is required");
-        }
+        UUID user = requireUser(userHeader);
         if (quantity == null && b.quantity() == null) {
             throw new IllegalArgumentException("quantity is required");
         }
@@ -67,29 +79,32 @@ public class PantryItemController {
     }
 
     @GetMapping
-    public List<PantryItem> getPantry(@RequestParam UUID userId) {
-        return pantryItemService.getPantryItems(userId);
+    public List<PantryItem> getPantry(@RequestHeader(value = "X-User-Id", required = false) String userHeader) {
+        return pantryItemService.getPantryItems(requireUser(userHeader));
     }
 
     @PutMapping("/{pantryItemId}")
     public PantryItem updatePantryItem(
+            @RequestHeader(value = "X-User-Id", required = false) String userHeader,
             @PathVariable UUID pantryItemId,
             @RequestParam int quantity) {
 
-        return pantryItemService.updatePantryItem(pantryItemId, quantity);
+        return pantryItemService.updatePantryItem(requireUser(userHeader), pantryItemId, quantity);
     }
 
     @PutMapping("/{pantryItemId}/expiry")
     public PantryItem updateExpiry(
+            @RequestHeader(value = "X-User-Id", required = false) String userHeader,
             @PathVariable UUID pantryItemId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expirationDate,
             @RequestParam(required = false) Integer notifyDaysBefore) {
 
-        return pantryItemService.updateExpiry(pantryItemId, expirationDate, notifyDaysBefore);
+        return pantryItemService.updateExpiry(requireUser(userHeader), pantryItemId, expirationDate, notifyDaysBefore);
     }
 
     @DeleteMapping("/{pantryItemId}")
-    public void deletePantryItem(@PathVariable UUID pantryItemId) {
-        pantryItemService.deletePantryItem(pantryItemId);
+    public void deletePantryItem(@RequestHeader(value = "X-User-Id", required = false) String userHeader,
+                                 @PathVariable UUID pantryItemId) {
+        pantryItemService.deletePantryItem(requireUser(userHeader), pantryItemId);
     }
 }

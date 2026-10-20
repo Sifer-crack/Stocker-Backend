@@ -46,7 +46,7 @@ class PantryExpiryScenarioTest {
         PantryItem bread = service.addPantryItem(userId, UUID.randomUUID(), 1, TODAY.plusDays(6), 1);
         assertThat(service.findDueForNotification(TODAY)).isEmpty();
 
-        service.updateExpiry(bread.getPantry_item_id(), TODAY.plusDays(6), 7);
+        service.updateExpiry(userId, bread.getPantry_item_id(), TODAY.plusDays(6), 7);
 
         assertThat(service.findDueForNotification(TODAY)).hasSize(1);
     }
