@@ -69,6 +69,6 @@ app:
     compare-timeout: ${STOCKER_PRICING_COMPARE_TIMEOUT:PT8S}
   gateway:
     # Where comparison updates are pushed (gateway relays them to the frontend). The token is a
-    # shared secret with the gateway's internal endpoint; the default is for local dev only.
+    # shared secret with the gateway's internal endpoint; no default, it must be set.
     base-url: ${STOCKER_GATEWAY_URL:http://localhost:8080}
-    internal-token: ${STOCKER_INTERNAL_TOKEN:dev-only-internal-token-change-me}
+    internal-token: ${STOCKER_INTERNAL_TOKEN}

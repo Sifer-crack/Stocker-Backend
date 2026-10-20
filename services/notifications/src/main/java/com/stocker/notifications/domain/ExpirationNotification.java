@@ -25,11 +25,20 @@ public class ExpirationNotification {
 	@Column(name = "pantry_item_id", nullable = false)
 	private UUID pantryItemId;
 
-	@Column(name = "product_id", nullable = false)
+	@Column(name = "product_id")
 	private UUID productId;
 
 	@Column(name = "expiration_date", nullable = false)
 	private LocalDate expirationDate;
+
+	@Column(name = "item_name", length = 255)
+	private String itemName;
+
+	@Column(length = 100)
+	private String category;
+
+	@Column(length = 50)
+	private String unit;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
@@ -46,12 +55,21 @@ public class ExpirationNotification {
 
 	public static ExpirationNotification create(UUID userId, UUID pantryItemId, UUID productId,
 			LocalDate expirationDate, Instant now) {
+		return create(userId, pantryItemId, productId, expirationDate, now, null, null, null);
+	}
+
+	/** productId is null for free-text pantry items; itemName/category/unit come from inventory. */
+	public static ExpirationNotification create(UUID userId, UUID pantryItemId, UUID productId,
+			LocalDate expirationDate, Instant now, String itemName, String category, String unit) {
 		ExpirationNotification notification = new ExpirationNotification();
 		notification.id = UUID.randomUUID();
 		notification.userId = userId;
 		notification.pantryItemId = pantryItemId;
 		notification.productId = productId;
 		notification.expirationDate = expirationDate;
+		notification.itemName = itemName;
+		notification.category = category;
+		notification.unit = unit;
 		notification.status = NotificationStatus.NEW;
 		notification.createdAt = now;
 		return notification;
@@ -84,6 +102,18 @@ public class ExpirationNotification {
 
 	public UUID getProductId() {
 		return productId;
+	}
+
+	public String getItemName() {
+		return itemName;
+	}
+
+	public String getCategory() {
+		return category;
+	}
+
+	public String getUnit() {
+		return unit;
 	}
 
 	public LocalDate getExpirationDate() {

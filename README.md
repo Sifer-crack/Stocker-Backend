@@ -60,6 +60,9 @@ Defaults: DB `stocker`/`stocker`, Kafka at `localhost:9092`, gateway `http://loc
 Each service is configurable via env vars (`STOCKER_DB_URL`, `STOCKER_DB_USER`,
 `STOCKER_DB_PASSWORD`, `STOCKER_MONGO_URI`, `KAFKA_BOOTSTRAP_SERVERS`, `SERVER_PORT`).
 
+Secrets have no committed defaults: `STOCKER_JWT_SECRET` and `STOCKER_INTERNAL_TOKEN` must be set in `.env`
+(copy `.env.example`; generate each with `openssl rand -hex 32`). Compose refuses to start without them.
+
 ## Repository layout
 
 ```
