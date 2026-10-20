@@ -11,4 +11,6 @@ troubleshooting: [`docs/MANUAL_TESTING.md`](../../docs/MANUAL_TESTING.md).
 | `logs.sh <service>` | Last 200 log lines of a service (extra args go to `docker compose logs`, e.g. `-f`). |
 | `smoke.sh` | Automated end-to-end check through the gateway only (`http://localhost:8080`). Exits non-zero on failure. |
 
+Requirements: bash 4+ (the scripts use associative arrays; stock macOS bash 3.2 is too old), curl 7.55+ (`-H @file`), python3 (`smoke.sh` parses JSON with it), Docker with Compose v2.
+
 `STOCKER_ENV_FILE=/path/to/file` points the scripts at a different env file (default: `.env` in the repo root).

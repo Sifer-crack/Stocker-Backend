@@ -1,7 +1,9 @@
 # Testing
 
-Every feature ships with three layers of tests, written before the feature code. `./gradlew test` runs all
-of them offline (no network, no database, no Kafka), so it works the same on any machine.
+Every feature ships with three layers of tests, written before the feature code, plus tests that are gated behind an
+environment variable. `./gradlew test` is offline (no network, no database, no Kafka) because the gated tests are skipped,
+so it works the same on any machine. One caveat: pricing's `test` task injects the root `.env` into the test JVM, so a gate
+variable set in `.env` (for example `STOCKER_SPREAD_API_KEY`) switches that test on. Keep gate variables out of `.env`.
 
 | Layer | What it covers | Naming / tag | Style |
 |---|---|---|---|
@@ -9,6 +11,24 @@ of them offline (no network, no database, no Kafka), so it works the same on any
 | Service | 1-3 realistic scenarios of how a feature is used, with real services and in-memory fakes for ports | `*ScenarioTest`, `@Tag("service")` | No Spring context |
 | Feature integration | One per feature: the whole path across modules, with only the network edge stubbed | `*IntegrationTest`, `@Tag("feature-integration")` | JDK `HttpServer` stands in for the other service |
 | Database (gated) | Real Postgres + Flyway (a throwaway test fixture; the running system uses Neon) | `*IT` | `@EnabledIfEnvironmentVariable`, skipped by default |
+| Live (gated) | Real supermarket sites or the paid Spread provider: crawl verification and probes | `@Tag("integration")` | `@EnabledIfEnvironmentVariable`, skipped by default; each run is a live request and needs the owner's approval |
+
+`@Tag("service")` and `@Tag("feature-integration")` have their own Gradle tasks; `@Tag("integration")` is used by the live tests in
+`services/pricing/src/test/java/com/stocker/pricing/integration/` (some of those, such as `IngestPipelineIntegrationTest`, run offline against saved
+fixtures and local servers), and there is no separate Gradle task for it.
+
+### Gate variables
+
+| Variable | Switches on |
+|---|---|
+| `STOCKER_NOTIFICATIONS_DB_IT=true` | notifications `*PostgresIT` (needs `STOCKER_DB_URL/USER/PASSWORD` of a throwaway Postgres) |
+| `STOCKER_INVENTORY_DB_IT=true` | inventory `PantryItemPostgresIT` (same) |
+| `STOCKER_SHOPPING_DB_IT=true` | shopping `ShoppingItemPostgresIT` and the favorite-stores Postgres test (same; default datasource `localhost:5432/shopping`) |
+| `STOCKER_INGEST_{NEWWORLD,PAKNSAVE,WOOLWORTHS}_LIVE_VERIFY=true` | live Playwright verification of one chain (Playwright browsers needed: `./gradlew :services:pricing:installPlaywrightBrowsers`) |
+| `STOCKER_INGEST_MILK_LIVE_{VERIFY,PERSIST,TEST}=true` | live milk-category crawl tests (the persist one writes to the configured database) |
+| `STOCKER_PROBE_{EGGS,PAGINATION,WOOLWORTHS,WOOLWORTHS_PAGINATION}_LIVE=true` | one-off live probes of single category pages |
+| `STOCKER_SPREAD_API_KEY=<key>` | the Woolworths Spread provider test (paid third-party API) |
+| `STOCKER_COVERAGE_REPORT=<file>` | writes the common-product coverage report from the configured database (read-only) |
 
 ## Commands
 
@@ -18,6 +38,8 @@ of them offline (no network, no database, no Kafka), so it works the same on any
 ./gradlew serviceTest                            # only the service-scenario layer
 ./gradlew featureIntegrationTest                 # only the feature-integration layer
 STOCKER_NOTIFICATIONS_DB_IT=true ./gradlew :services:notifications:test --tests '*IT'   # needs a Postgres test fixture
+STOCKER_INVENTORY_DB_IT=true ./gradlew :services:inventory:test --tests '*IT'            # same for inventory (also STOCKER_DB_URL/USER/PASSWORD)
+STOCKER_SHOPPING_DB_IT=true ./gradlew :services:shopping:test --tests '*IT'              # same for shopping
 ```
 
 ## Conventions
