@@ -32,6 +32,8 @@ import com.stocker.pricing.service.SavingsCalculatorService.ChainSavings;
 import com.stocker.pricing.service.ShoppingListComparisonService;
 import com.stocker.pricing.service.ShoppingListComparisonService.ChainTotal;
 import com.stocker.pricing.service.ShoppingListComparisonService.ComparisonResult;
+import com.stocker.pricing.service.ShoppingListComparisonService.FulfilmentOption;
+import com.stocker.pricing.service.fulfilment.FulfilmentMethod;
 import com.stocker.pricing.service.ShoppingListComparisonService.RequestedItem;
 import com.stocker.pricing.service.match.ItemMatchService;
 import com.stocker.pricing.service.match.ItemMatchService.MatchResult;
@@ -41,6 +43,7 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -216,9 +219,22 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 				.map(item -> new RequestedItem(item.getItemId(), item.getQuantity()))
 				.toList();
 
+		Set<FulfilmentMethod> allowedMethods = EnumSet.noneOf(FulfilmentMethod.class);
+		try {
+			for (String name : request.getAllowedMethodsList()) {
+				allowedMethods.add(FulfilmentMethod.fromWireName(name));
+			}
+		} catch (IllegalArgumentException ex) {
+			log.warn("gRPC compareShoppingList rejected: {}", ex.getMessage());
+			responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(ex.getMessage()).asRuntimeException());
+			return;
+		}
+
 		ComparisonResult comparison;
 		try {
-			comparison = shoppingListComparisonService.compare(items, request.getRegion());
+			comparison = allowedMethods.isEmpty()
+					? shoppingListComparisonService.compare(items, request.getRegion())
+					: shoppingListComparisonService.compare(items, request.getRegion(), allowedMethods);
 		} catch (ServiceAreaException ex) {
 			log.warn("gRPC compareShoppingList rejected: {}", ex.getMessage());
 			responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(ex.getMessage()).asRuntimeException());
@@ -243,14 +259,25 @@ public class PriceRecordGrpcController extends PriceRecordServiceGrpc.PriceRecor
 	}
 
 	private static StoreTotal toStoreTotal(ChainTotal chainTotal, ChainSavings savings) {
-		return StoreTotal.newBuilder()
+		StoreTotal.Builder builder = StoreTotal.newBuilder()
 				.setChainId(chainTotal.chainId())
 				.setTotalAmount(chainTotal.totalAmount().doubleValue())
 				.setCurrency(chainTotal.currency() == null ? "" : chainTotal.currency())
 				.setItemsPriced(chainTotal.itemsPriced())
 				.addAllUnavailableItemIds(chainTotal.unavailableItemIds())
 				.setSavingsAmount(savings == null ? 0.0 : savings.savingsAmount().doubleValue())
-				.build();
+				.setTotalWithFulfilment(chainTotal.totalWithFulfilment().doubleValue());
+		if (chainTotal.bestOption() != null) {
+			builder.setBestMethod(chainTotal.bestOption().method().wireName())
+					.setFulfilmentCost(chainTotal.bestOption().cost().doubleValue());
+		}
+		for (FulfilmentOption option : chainTotal.fulfilmentOptions()) {
+			builder.addFulfilmentOptions(com.stocker.pricing.api.grpc.v1.FulfilmentOption.newBuilder()
+					.setMethod(option.method().wireName())
+					.setCost(option.cost().doubleValue())
+					.setTotalAmount(option.totalAmount().doubleValue()));
+		}
+		return builder.build();
 	}
 
 	private static PriceRecord toProto(com.stocker.pricing.model.PriceRecord record) {

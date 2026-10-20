@@ -68,7 +68,8 @@ public class PricingController {
 	public Mono<CompareShoppingListResultResponse> compare(@RequestBody CompareShoppingListRequestBody body) {
 		CompareShoppingListRequest.Builder request = CompareShoppingListRequest.newBuilder()
 				.setRegion(body.region() == null ? "" : body.region())
-				.setSelectedChainId(body.selectedChainId() == null ? "" : body.selectedChainId());
+				.setSelectedChainId(body.selectedChainId() == null ? "" : body.selectedChainId())
+				.addAllAllowedMethods(body.allowedMethods() == null ? List.of() : body.allowedMethods());
 		if (body.items() != null) {
 			body.items().forEach(item -> request.addItems(ShoppingListItem.newBuilder()
 					.setItemId(item.itemId())
@@ -184,11 +185,17 @@ public class PricingController {
 				storeTotal.getCurrency(),
 				storeTotal.getItemsPriced(),
 				storeTotal.getUnavailableItemIdsList(),
-				storeTotal.getSavingsAmount());
+				storeTotal.getSavingsAmount(),
+				storeTotal.getTotalWithFulfilment(),
+				storeTotal.getBestMethod().isEmpty() ? null : storeTotal.getBestMethod(),
+				storeTotal.getFulfilmentCost(),
+				storeTotal.getFulfilmentOptionsList().stream()
+						.map(o -> new FulfilmentOptionView(o.getMethod(), o.getCost(), o.getTotalAmount()))
+						.toList());
 	}
 
 	public record CompareShoppingListRequestBody(
-			List<ShoppingListItemBody> items, String region, String selectedChainId) {
+			List<ShoppingListItemBody> items, String region, String selectedChainId, List<String> allowedMethods) {
 	}
 
 	public record ShoppingListItemBody(String itemId, int quantity) {
@@ -199,7 +206,11 @@ public class PricingController {
 	}
 
 	public record StoreTotalView(String chainId, double totalAmount, String currency, int itemsPriced,
-			List<String> unavailableItemIds, double savingsAmount) {
+			List<String> unavailableItemIds, double savingsAmount, double totalWithFulfilment, String bestMethod,
+			double fulfilmentCost, List<FulfilmentOptionView> fulfilmentOptions) {
+	}
+
+	public record FulfilmentOptionView(String method, double cost, double totalAmount) {
 	}
 
 	private static SearchResultResponse toResponse(SearchResponse response) {
