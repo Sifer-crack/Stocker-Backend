@@ -96,6 +96,10 @@ scripts/manual-test/smoke.sh                # against the running stack, through
 
 ## 5. Known limitations
 
+- Not delivered, requested by the frontend on 2026-10-20: `PATCH /api/shopping/items/{id}` (rename, quantity, completed), `DELETE /api/shopping/items/{id}`
+  with a `shopping-item-removed` event on `/api/updates/shopping`, and a push stream `/api/updates/notifications` for expiry notifications. Until
+  they exist the frontend fakes rename and remove in the browser, keeps the ticked-off state in local storage, and polls `GET /api/notifications`
+  every 60 s. Unfinished work from the attempt is not merged anywhere.
 - `price_records` grows on every crawl: it is append-only and there is no retention policy (Neon storage is capped).
 - The crawled promo flag is always false: the crawler does not read promo badges, and crawled rows are built by `RawProductPriceRecordMapper`
   with `promoFlag(false)`. Promo information appears only through other paths.
