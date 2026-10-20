@@ -152,11 +152,11 @@ pending on-demand supermarket page loads (see `docs/features/price-engine-reliab
 Matching, size and grade parsing: branch `feature/search-relevance-match`. Cancellation: `feature/search-relevance-cancel`.
 Merged product model, `GET /api/pricing/products` and `PUT /api/pricing/items/{itemId}/product`: implemented on
 `feature/search-relevance-v2` (pricing `ProductSearch` gRPC service in `price_search.proto`, `service/search/ProductSearchService`;
-gateway `ProductSearchController`). Status, refresh progress, generic fallback and replace-on-select: `feature/search-coverage-v3`. Not pushed or merged yet. The frontend still uses `/match` (unchanged, deprecated).
+gateway `ProductSearchController`). Status, refresh progress, generic fallback and replace-on-select: `feature/search-coverage-v3`. Suggestions: `feature/search-suggest`. All of these are merged into the local branch `integration/sprint2-manual-test`; none is merged into `dev` yet and, as of the last check, only `feature/price-engine` exists on `origin`. The frontend still used `/match` (unchanged, deprecated) when this was written.
 
 Details the contract above leaves open:
 - `query.size` is the size label (`"2L"`, `"500g"`), `query.packCount` an integer (`12`), `query.grade` a string (`"7"`); `query.category` is the common
-  product's key (`"eggs"`, `"tim-tams"`) when the term is a common product, else the `category` hint, else null. `matchMethod` is `canonical` or `lexical`.
+  product's key (`"eggs"`, `"tim-tams"`) when the term is a common product, else the `category` hint, else null. `matchMethod` is `canonical` (a common product), `lexical` (word overlap over everything stored) or `generic-fallback` (only same-type products, always with `status: "alternatives-only"`, see above).
 - `productKey` = `<brand+name words>|size-<grade>|<quantity><unit>` (e.g. `anchor-blue-top-milk|2000ml`, `pams-free-range-eggs|size-7|12each`).
   Listings merge into one product on the SET of normalised words (order, plurals, "fresh" and the way a size is written do not matter) plus grade
   and pack size, so a key stays valid in another word order. An extra descriptive word one chain adds (e.g. "Biscuits") makes a different product.
