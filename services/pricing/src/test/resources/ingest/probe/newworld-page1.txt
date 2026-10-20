@@ -1,0 +1,1038 @@
+URL: https://www.newworld.co.nz/shop/category/pantry/chips-nuts--snacks?pg=1
+TILES: 68
+SHOWING: Showing 1 - 50 of 451 products
+
+PAGINATION MARKUP: [<nav role="navigation" aria-label="pagination"><ul class="_10vhnom0"><li aria-hidden="true"></li><li><a href="/shop/category/pantry/chips-nuts--snacks" aria-current="page" class="_10vhnom2 _10vhnom1 _10vhnom4" type="button"><span data-testid="visually-hidden" class="wf9qe80">page</span><p data-testid="pagination-number" class="">1</p></a></li><li aria-hidden="true"></li><li><a href="?pg=2" aria-current="false" class="_10vhnom2 _10vhnom1" type="button"><span data-testid="visually-hidden" class="wf9qe80">page</span><p data-testid="pagination-number" class="">2</p></a></li><li aria-hidden="true"></li><li><a href="?pg=3" aria-current="false" class="_10vhnom2 _10vhnom1" type="button"><span data-testid="visually-hidden" class="wf9qe80">page</span><p data-testid="pagination-number" class="">3</p></a></li><li aria-hidden="true"><span class="_10vhnom1">…</span></li><li><a href="?pg=10" aria-current="false" class="_10vhnom2 _10vhnom1" type="button"><span data-testid="visually-hidden" class="wf9qe80">page</span><p data-testid="pagination-number" class="">10</p></a></li><li><a href="?pg=2" class="_10vhnom3 _10vhnom2 _10vhnom1" type="button" data-testid="pagination-increment"><span data-testid="visually-hidden" class="wf9qe80">Next page</span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="_10vhnom5"><path d="M17 12 9 4 7 6l6 6-6 6 2 2z" fill-rule="evenodd" fill="currentColor"></path></svg></a></li></ul></nav>, <p data-testid="pagination-number" class="">1</p>, <p data-testid="pagination-number" class="">2</p>, <p data-testid="pagination-number" class="">3</p>, <p data-testid="pagination-number" class="">10</p>, <a href="?pg=2" class="_10vhnom3 _10vhnom2 _10vhnom1" type="button" data-testid="pagination-increment"><span data-testid="visually-hidden" class="wf9qe80">Next page</span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="_10vhnom5"><path d="M17 12 9 4 7 6l6 6-6 6 2 2z" fill-rule="evenodd" fill="currentColor"></path></svg></a>]
+
+BODY TEXT (first 6000 chars):
+Skip to main content
+
+New World Metro Queen St
+
+Collect from New World Metro Queen St
+
+Book a slot
+
+Log in
+
+ or 
+
+join
+
+Hi there,
+
+You’re currently shopping from New World Metro Queen St.
+Change store
+Start shopping
+Close
+Search
+
+$0.00
+
+0
+
+Groceries
+
+Specials
+
+Everyday Low Price
+
+Mailer
+
+Recipes
+
+Discover
+
+About Club+
+
+My Lists
+
+Ways to save
+
+Pantry
+
+Chips, Nuts & Snacks
+
+Chips, Nuts & Snacks
+
+Chips
+
+Corn Chips & Salsa
+
+Muesli & Snack Bars
+
+Nuts & Trail Mixes
+
+Popcorn
+
+Nutritional Bars & Snacks
+
+Meat Snacks
+
+Vege & Savoury Snacks
+
+Show more
+
+Top Picks
+
+Heartland Southern Salt Old Fashioned Wave Cut Potato Chips
+
+150g
+
+3
+
+19
+
+ea
+
+$2.13/100g
+
+ea
+Add
+
+Eta Ripple Cut Sour Cream & Chives Potato Chips
+
+150g
+
+2
+
+99
+
+ea
+
+$1.99/100g
+
+ea
+Add
+
+Calbee Harvest Snaps Original Salted Baked Pea Crisps Snackpack
+
+5 x 18g
+
+5
+
+59
+
+ea
+
+$6.21/100g
+
+ea
+Add
+
+Copper Kettle Sea Salt & Vinegar Potato Chips
+
+150g
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Pringles Sour Cream & Onion Potato Chips
+
+134g
+
+4
+
+89
+
+ea
+
+$3.65/100g
+
+ea
+Add
+
+Doritos Thai Sweet Chilli Corn Chips
+
+300g
+
+5.0 out of 5 stars. 2 reviews for Doritos Thai Sweet Chilli Corn Chips.
+
+5
+
+29
+
+ea
+
+$1.76/100g
+
+ea
+Add
+
+Mexicano Tasty Salsa Corn Chips
+
+170g
+
+3
+
+69
+
+ea
+
+$2.17/100g
+
+ea
+Add
+
+Doritos Nacho Cheese Corn Chips Party Bag Share Pack
+
+300g
+
+5
+
+29
+
+ea
+
+$1.76/100g
+
+ea
+Add
+
+Proper Crisps Cheeza-Peno Stone Ground White Corn Tortilla Chips
+
+150g
+
+6
+
+59
+
+ea
+
+$4.39/100g
+
+ea
+Add
+
+Bluebird Originals Chicken Potato Chips
+
+150g
+
+2.
+
+19
+
+$1.46/100g
+
+3
+
+09
+
+ea
+
+$2.06/100g
+
+ea
+Add
+
+Bluebird Originals Salt & Vinegar Potato Chips
+
+150g
+
+2.
+
+19
+
+$1.46/100g
+
+3
+
+09
+
+ea
+
+$2.06/100g
+
+ea
+Add
+
+Act II Butter Lovers Flavour Microwave Popcorn
+
+3pk
+
+4.
+
+49
+
+$1.76/100g
+
+Limit 12 assorted
+
+5
+
+29
+
+ea
+
+$2.07/100g
+
+ea
+Add
+
+Bluebird Delisio English Deli-Style Sea Salt Potato Chips
+
+140g
+
+2.
+
+89
+
+$2.06/100g
+
+Limit 12 assorted
+
+3
+
+89
+
+ea
+
+$2.78/100g
+
+ea
+Add
+
+Bluebird Twisties Cheese Corn Snacks
+
+120g
+
+3
+
+59
+
+ea
+
+$2.99/100g
+
+ea
+Add
+
+Tasti Dark Choc Almond Protein Bars
+
+5 x 40g
+
+6
+
+39
+
+ea
+
+$3.20/100g
+
+ea
+Add
+
+Sunbites Grain Waves Sour Cream & Chives
+
+140g
+
+3
+
+09
+
+ea
+
+$2.21/100g
+
+ea
+Add
+
+Doritos Cheese Supreme Corn Chips Party Bag Share Pack
+
+300g
+
+5
+
+29
+
+ea
+
+$1.76/100g
+
+ea
+Add
+
+Eta Ripple Cut Ready Salted Potato Chips
+
+150g
+
+2
+
+99
+
+ea
+
+$1.99/100g
+
+ea
+Add
+Categories
+Dietary
+Brands
+
+Specials only
+
+Sorted by:
+Relevance
+
+Copper Kettle Sea Salt Potato Chips
+
+150g
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Bluebird Originals Chicken Potato Chips
+
+150g
+
+2.
+
+19
+
+$1.46/100g
+
+3
+
+09
+
+ea
+
+$2.06/100g
+
+ea
+Add
+
+Bluebird Originals Ready Salted Potato Chips
+
+150g
+
+2.
+
+19
+
+$1.46/100g
+
+4.0 out of 5 stars. 3 reviews for Bluebird Originals Ready Salted Potato Chips.
+
+3
+
+09
+
+ea
+
+$2.06/100g
+
+ea
+Add
+
+Copper Kettle Honey Soy Chicken Potato Chips
+
+150g
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Eta Ripple Cut Chicken Potato Chips
+
+150g
+
+5.0 out of 5 stars. 1 review for Eta Ripple Cut Chicken Potato Chips.
+
+2
+
+99
+
+ea
+
+$1.99/100g
+
+ea
+Add
+
+Bluebird Originals Sour Cream & Chives Potato Chips
+
+150g
+
+2.
+
+19
+
+$1.46/100g
+
+3
+
+09
+
+ea
+
+$2.06/100g
+
+ea
+Add
+
+Bluebird Originals Salt & Vinegar Potato Chips
+
+150g
+
+2.
+
+19
+
+$1.46/100g
+
+3
+
+09
+
+ea
+
+$2.06/100g
+
+ea
+Add
+
+Eta Ripple Cut Ready Salted Potato Chips
+
+150g
+
+2
+
+99
+
+ea
+
+$1.99/100g
+
+ea
+Add
+
+Eta Ripple Cut Salt & Vinegar Potato Chips
+
+150g
+
+2
+
+99
+
+ea
+
+$1.99/100g
+
+ea
+Add
+
+Pams Roasted & Salted Cashews
+
+150g
+
+4
+
+39
+
+ea
+
+$2.93/100g
+
+ea
+Add
+
+Copper Kettle Wood Fired BBQ Potato Chips
+
+150g
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Bluebird Thinly Cut Ready Salted Potato Chips
+
+140g
+
+2.
+
+19
+
+$1.56/100g
+
+3
+
+09
+
+ea
+
+$2.21/100g
+
+ea
+Add
+
+Eta Ripple Cut Sour Cream & Chives Potato Chips
+
+150g
+
+2
+
+99
+
+ea
+
+$1.99/100g
+
+ea
+Add
+
+Pams Mixed Cassava Vege Crisps
+
+12pk
+
+3
+
+49
+
+ea
+
+$2.42/100g
+
+ea
+Add
+
+Copper Kettle Sea Salt & Vinegar Potato Chips
+
+150g
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Doritos Cheese Supreme Corn Chips Party Bag Share Pack
+
+300g
+
+5
+
+29
+
+ea
+
+$1.76/100g
+
+ea
+Add
+
+Tasti Milkies Choc Strawberry Snack Size Bars
+
+10 x 20g
+
+6
+
+49
+
+ea
+
+$3.25/100g
+
+ea
+Add
+
+Bluebird Thinly Cut Sour Cream & Chives Potato Chips
+
+140g
+
+2.
+
+19
+
+$1.56/100g
+
+3
+
+09
+
+ea
+
+$2.21/100g
+
+ea
+Add
+
+Pringles Sour Cream & Onion Potato Chips
+
+134g
+
+4
+
+89
+
+ea
+
+$3.65/100g
+
+ea
+Add
+
+Pringles Original Potato Chips
+
+134g
+
+4
+
+89
+
+ea
+
+$3.65/100g
+
+ea
+Add
+
+Proper Crisps Marlborough Sea Salt Potato Crisps
+
+150g
+
+5
+
+89
+
+ea
+
+$3.93/100g
+
+ea
+Add
+
+Heartland Southern Salt Old Fashioned Wave Cut Potato Chips
+
+150g
+
+3
+
+19
+
+ea
+
+$2.13/100g
+
+ea
+Add
+
+Snacka Changi Chips Vinegar & Salt Kettle Fried Potato Chips
+
+150g
+
+2 for
+
+
+6.
+
+00
+
+$2.00/100g
+
+See all
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Snacka Changi Chips Salted Kettle Fried Potato Chips
+
+150g
+
+2 for
+
+
+6.
+
+00
+
+$2.00/100g
+
+See all
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Heartland Salt & Vinegar Old Fashioned Wave Cut Potato Chips
+
+150g
+
+3.0 out of 5 stars. 1 review for Heartland Salt & Vinegar Old Fashioned Wave Cut Potato Chips.
+
+3
+
+19
+
+ea
+
+$2.13/100g
+
+ea
+Add
+
+Doritos Cheese Supreme Corn Chips
+
+170g
+
+2.
+
+89
+
+$1.70/100g
+
+Limit 12 assorted
+
+3
+
+89
+
+ea
+
+$2.29/100g
+
+ea
+Add
+
+Kettle Chip Company Sea Salt Potato Chips
+
+150g
+
+3.
+
+49
+
+$2.33/100g
+
+Limit 12 assorted
+
+4
+
+99
+
+ea
+
+$3.33/100g
+
+ea
+Add
+
+Bluebird Originals Green Onion Potato Chips
+
+150g
+
+2.
+
+19
+
+$1.46/100g
+
+3
+
+09
+
+ea
+
+$2.06/100g
+
+ea
+Add
+
+Pringles BBQ Potato Chips
+
+134g
+
+4
+
+89
+
+ea
+
+$3.65/100g
+
+ea
+Add
+
+Doritos Thai Sweet Chilli Corn Chips
+
+170g
+
+2.
+
+89
+
+$1.70/100g
+
+Limit 12 assorted
+
+3
+
+89
+
+ea
+
+$2.29/100g
+
+ea
+Add
+
+Heartland Sour Cream & Chives Old-Fashioned Wave Cut Chips
+
+150g
+
+3
+
+19
+
+ea
+
+$2.13/100g
+
+ea
+Add
+
+Kettle Chip Company Honey Soy Chicken Potato Chips
+
+150g
+
+3.
+
+49
+
+$2.33/100g
+
+Limit 12 assorted
+
+4
+
+99
+
+ea
+
+$3.33/100g
+
+ea
+Add
+
+Copper Kettle Vintage Cheddar & Red Onion Potato Chips
+
+150g
+
+5
+
+19
+
+ea
+
+$3.46/100g
+
+ea
+Add
+
+Bluebird Twisties Cheese Corn Snacks
+
+120g
+
+3
+
+59
+
+ea
+
+$2.99/100g
+
+ea
+Add
+
+Pringles Salt & Vinegar Potato Chips
+
+134g
+
+4
+
+89
+
+ea
+
+$3.65/100g
+
+ea
+Add
+
+Bluebird Burger Rings
+
+120g
+
+3
+
+59
+
+ea
+
+$2.99/100g
+
+ea
+Add
+
+Heartland Maple Bacon Old-Fashioned Wave Cut Chips
+
+150g
+
+3
+
+19
+
+ea
+
+$2.13/100

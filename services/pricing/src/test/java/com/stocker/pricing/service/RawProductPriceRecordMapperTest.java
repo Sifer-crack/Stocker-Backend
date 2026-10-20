@@ -38,7 +38,8 @@ class RawProductPriceRecordMapperTest {
 		assertEquals("NZD", record.getCurrency());
 		assertFalse(record.isPromoFlag());
 		assertEquals(fetchedAt, record.getCapturedAt());
-		assertEquals(Map.of("sku", "123"), record.getRawAttributes());
+		assertEquals(Map.of("sku", "123", "name", "Blue Milk 2L", "brand", "Anchor",
+				"storeUrl", "https://www.paknsave.co.nz/product/1"), record.getRawAttributes());
 		assertTrue(record.getCreatedAt() != null);
 	}
 
@@ -55,7 +56,7 @@ class RawProductPriceRecordMapperTest {
 		assertEquals("unknown", record.getChainId());
 		assertEquals(BigDecimal.ZERO, record.getPriceAmount());
 		assertEquals("NZD", record.getCurrency());
-		assertEquals(Map.of(), record.getRawAttributes());
+		assertEquals(Map.of("name", "Milk"), record.getRawAttributes());
 		assertTrue(record.getCapturedAt() != null);
 	}
 

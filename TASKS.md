@@ -2,7 +2,7 @@
 
 Outstanding work for the Stocker Backend, grouped by area.
 
-Last updated: 20/09/2026
+Last updated: 21/09/2026
 
 ## Repo-wide: Spring Boot 4 modular autoconfiguration gaps (fixed)
 
@@ -22,6 +22,58 @@ boot against a real database for the first time in this project's history:
   empty database — exactly the symptom `INGEST_MODULE.md`'s "Known Risks"
   section had already flagged (that database had simply never successfully
   booted this stack before).
+
+## Shopping list -> price comparison -> frontend (`services/shopping`, `services/pricing`, `gateway`)
+
+- [x] **End-to-end flow implemented.** Add item (`POST /api/shopping/items`, 201 + `pending`, never waits on pricing) ->
+  one deadline-bound gRPC `CompareItemPrices` call to pricing (no retry) -> comparison persisted (`available`) ->
+  shopping POSTs the full item state to the gateway's internal endpoint -> gateway relays it on the user's SSE stream
+  (`GET /api/updates/shopping`). If pricing is slow/down the item stays `pending` and shopping backfills from
+  `PriceRecordCaptured` events on `stocker.pricing.events.v1` through the same notify path. Details in each module's `AGENT.md`.
+  Verified with unit tests, a real-Postgres integration test (`ShoppingItemPostgresIT`) and a real run of the shopping
+  service with pricing down (201 in <0.5s, stays pending, one attempt, no retry).
+- [ ] **Not yet verified together:** the full stack (gateway + pricing + Kafka + shopping) has not been run end to end; the Kafka
+  consumer and the gateway push have only been tested in isolation, and pricing needs `STOCKER_SPREAD_API_KEY` (now passed through
+  compose) to return real prices. The frontend does not consume any of this yet (it needs a fetch-based SSE client and calls to `/api/shopping/items`).
+- [ ] Shopping has no list entity, edit/delete/check-off endpoints or household sharing; the gateway push is per-instance.
+- [x] `gateway/src/main/resources/application.yml`: the inventory route used to reuse `id: catalog` (duplicate route id); it is now `id: inventory`.
+- [ ] Pricing's "cheapest" for a keyword is the cheapest matching listing, not a guaranteed identical product (see the pending match task in `CLAUDE.md`).
+
+## Price match (`GET /api/pricing/match`) - done, ingest-based
+
+- [x] `MatchItem` RPC + gateway endpoint: per-chain best match + labelled alternatives from the ingest's own scraped data; chosen products stored under the caller's item id for `compare`. Verified live: ingest scraped 83 milk products across New World / PAK'nSave / Woolworths, `match` returned one product per chain, `compare` priced them.
+- [x] **Gateway identity-header bug fixed** (`JwtClaimForwardFilter` never ran after `StripPrefix`; identity headers were spoofable). Regression test added.
+- [ ] Historical: this item said only milk was configured for ingest. The crawl list is now the catalog map (`category-map.txt`) plus the configured pages (about 150 per chain), so Tim Tams, eggs and the staples are covered once a crawl has run (the crawl is off by default and needs the owner's approval). `productUrl` is still never populated.
+- [ ] Matching is word overlap; a semantic matcher would slot in behind `matchMethod`.
+- [ ] The compose pricing container: set `STOCKER_INGEST_DRY_RUN=false` in `.env` to persist scraped rows (default is dry-run).
+
+## Normalisation, common products and price map (`services/pricing`) - 2026-10-18
+
+- [x] Pack-size/name normaliser, ~180 NZ common products, `normalized_products` index + `common_product_price_map` view (V5), canonical `MatchItem` path with unit prices and pantry size hints, miss log, ingest rate limiting, Neon-ready config. See `services/pricing/NORMALIZE_MODULE.md`.
+- [x] Sitemap discovery done (6 requests, 2026-10-18): New World / PAK'nSave ok, Woolworths failed twice. Proposal: `services/pricing/scrape-plan-proposed.txt`.
+- [x] Approved 2026-10-18: the 62 categories are in `application.yml` for New World / PAK'nSave; the ingest now runs once a day at 03:00 Auckland time (superseded: the 20:00 run and the 12-pages-per-run window are gone; cap 140 pages per chain per day, paced 20-40 s, per-chain circuit breaker). Historical note from then: Woolworths was milk only: its `sitemaps/categories.xml` URL is known (user pasted the index) but its contents are not.
+- [ ] V5 has not been applied to Neon yet (applies on the next pricing start; take a Neon branch first if you want a dry run).
+- [ ] No pantry-wide endpoint yet: the frontend calls `GET /api/pricing/match?term=<product name>&weightKg=|volumeL=` per pantry product. Catalog's event publisher is still a stub, so pricing cannot learn about new pantry products from Kafka.
+- [ ] Lexical fallback still loads all ingested rows (`findIngestedSince`); move it onto `normalized_products` before many categories are scraped.
+- [ ] `price_records` retention policy (Neon 1 GiB branch cap); `STOCKER_DB_MIGRATE_URL` is not passed through `docker-compose.yml` yet.
+
+## Catalog: publish an event for every item added (`services/catalog`)
+
+- [ ] Implement `infrastructure/messaging/KafkaEventPublisher#publish` (currently a TODO stub) and call it from `application/CatalogEventService` whenever a product/item is added (`ProductService.createProduct`, `ProductImportService`), on `stocker.catalog.events.v1`. Define the payload (product id, name, grocery type, selling weight/volume), key by product id, keep delivery at-least-once with idempotent consumers, and register any change in `infra/kafka/topics.yml` and `kafka-init.sh`.
+- [ ] Then implement pricing's `application/PricingEventService` + `KafkaEventConsumer` for `stocker.catalog.events.v1` so a new pantry product is normalised and matched to the price map without the frontend asking first (database-only; no supermarket requests).
+
+## Freshness check before display (2026-10-18)
+
+- [x] `OnDemandRefreshService` + `category-map.txt` (78 products -> exact category page per chain, New World/PAK'nSave paths validated against their sitemaps, Woolworths against the user-supplied categories.xml); `stale` flag end to end; `CompareItemPrices` uses the same path. Unit tested with fakes only - no live request was made by the tests.
+- [ ] Woolworths scheduled categories (only milk is scheduled today; the on-demand path already knows ~55 Woolworths pages) - needs approval.
+- [x] Category map completed offline from the sitemaps: 191 of 195 common products now have an exact New World / PAK'nSave page (every path checked to exist on both chains) and all but kimchi/syrup/miso have a Woolworths page. No page: celery, ghee, cooking wine (and mochi is only approximate).
+
+## Any-item search (2026-10-18)
+
+- [x] Items outside the common list: scored against all stored products; chains with no/old match refresh the one category page `CategoryRouter` picks. Verified live with "sriracha hot sauce" and "jelly crystals" (New World + PAK'nSave).
+- [ ] **Needs the user:** save Woolworths' categories.xml contents (as pasted in chat) to `services/pricing/src/main/resources/woolworths-categories.txt`; until then only ~137 known Woolworths pages are routable, so most non-common items miss Woolworths.
+- [ ] Only page 1 of a category is read (24-50 products); items further down need pagination (`max-pages-per-category` is not wired yet).
+- [ ] Learn from demand: record which routed page answered which term and add busy pages to the scheduled runs.
 
 ## Price engine (`services/pricing`)
 

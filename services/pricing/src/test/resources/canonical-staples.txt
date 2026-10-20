@@ -1,0 +1,185 @@
+# Realistic NZ supermarket product names -> the canonical key they must get ("a/b" = either key is acceptable).
+# Fixture for CanonicalStaplesTest: obvious staples must never be left without a key.
+# --- dairy and eggs ---
+Anchor Blue Top Milk 2L|milk
+Meadow Fresh Original Standard Milk 1L|milk
+Pams Free Range Eggs Size 7 12 Pack|eggs
+Size 7 Eggs 30pk|eggs
+Farm Fresh Barn Eggs Size 6 12pk|eggs
+Mainland Salted Butter 500g|butter
+Anchor Unsalted Butter 250g|butter
+Pams Natural Unsweetened Yoghurt 1kg|yogurt
+Olivani Buttery Spread 500g|margarine
+Mainland Colby Cheese Block 1kg|cheese-block
+Mainland Tasty Cheese Block 1kg|cheese-block
+Anchor Edam Cheese Block 500g|cheese-block
+Perfect Italiano Parmesan Cheese 100g|cheese-parmesan
+Anchor Sour Cream 250g|sour-cream
+Fresh Hummus Original 200g|hummus
+Anchor Whipping Cream 300ml|cream
+Nestle Reduced Cream 250ml|cream-reduced
+Pams Long Life Cream 250ml|cream-uht
+Carnation Sweetened Condensed Milk 395g|milk-condensed
+Nestle Longlife Evaporated Milk 410g|milk-evaporated
+Anchor Full Cream Milk Powder 900g|milk-powder
+Pams UHT Long Life Milk 1L|milk-uht
+Chantal Organics Coconut Milk 400ml|milk-coconut
+# --- bakery ---
+Tip Top Ultragrain White Toast Bread 700g|bread
+Vogels Original Mixed Grain Bread 700g|bread
+Pams White Sandwich Bread 600g|bread
+Pams Pizza Bases 2 Pack|pizza-base
+Pams Breadcrumbs Crispy 200g|bread-crumbs
+# --- meat and fish ---
+Value Chicken Breast Fillets 1kg|chicken-breast
+Beef Mince 500g|beef-mince
+Pork Sausages 1kg|sausages-pork
+Beef Sausages 1kg|beef-sausages
+Streaky Bacon 250g|bacon
+Chicken Drumsticks 1kg|chicken-drumstick
+Fresh Snapper Fillets 400g|fish-fillet
+Sealord Hoki Fillets Frozen 1kg|fish-fillet
+Sealord Tuna in Springwater 185g|tuna-canned
+John West Pink Salmon 210g|salmon-canned
+Pams Luncheon Meat 340g|luncheon
+Hawkes Bay Corned Beef 340g|corned-beef
+Frozen Prawns Cooked 500g|prawns
+Sealord Sardines in Oil 120g|sardines-canned
+# --- fruit and vegetables ---
+Royal Gala Apples 1kg|apples
+Packham Pears 1kg|pears
+Bananas Loose 1kg|bananas
+Carrots 1kg|carrots
+Brown Onions 1kg|onions
+Agria Potatoes 2kg|potatoes
+Kumara Gold 1kg|kumara
+Cabbage Green Each|cabbage
+Pumpkin Whole Each|pumpkin
+Kale Bunch|kale
+Mixed Salad Leaves 120g|lettuce
+Hass Avocado Each|avocado
+Button Mushrooms 200g|mushrooms
+Red Capsicum Each|capsicum
+Spring Onions Bunch|spring-onion
+Courgette 500g|courgette
+Fresh Garlic Bulb|garlic
+Fresh Ginger 100g|ginger
+Lemons 1kg|lemons
+Truss Tomatoes 500g|tomatoes
+Beetroot Sliced 450g|beetroot-canned
+Frozen Peas 1kg|peas-frozen
+Frozen Mixed Vegetables 1kg|veg-frozen
+Frozen Mixed Berries 500g|fruit-frozen
+Frozen Sweetcorn Kernels 1kg|corn-frozen
+Wattie's Creamed Sweetcorn 420g|corn-canned
+Peaches Sliced in Juice 410g|fruit-canned
+Pineapple Slices in Juice 439g|fruit-canned
+Pears Halves in Juice 410g|fruit-canned
+Kalamata Olives 350g|olives
+Capers 100g|capers
+Pams Puff Pastry Sheets 5 Pack|pastry-frozen
+Tip Top Vanilla Ice Cream 2L|ice-cream
+# --- pantry ---
+Pams Jasmine Rice 1kg|rice-white
+Pams Long Grain White Rice 1kg|rice-white
+Edmonds Standard Plain Flour 1.5kg|flour
+Edmonds Self Raising Flour 1.5kg|flour
+Gluten Free Plain Flour 500g|flour-gluten-free
+Chelsea White Sugar 1.5kg|sugar
+Chelsea Raw Sugar 1.5kg|sugar-raw
+Chelsea Soft Brown Sugar 500g|sugar-brown
+Chelsea Icing Sugar 500g|sugar-icing
+Pams Pure Vegetable Oil 1L|oil-vegetable
+Bertolli Extra Virgin Olive Oil 500ml|oil-olive
+Pams Rice Bran Oil 1L|oil-vegetable
+Heinz Baked Beans in Tomato Sauce 420g|beans-baked
+Wattie's Spaghetti in Tomato Sauce 420g|spaghetti-canned
+Barilla Spaghetti No 5 500g|pasta
+Wattie's Diced Tomatoes in Juice 400g|tomatoes-canned
+Wattie's Crushed Tomatoes 400g|tomatoes-canned
+Mutti Passata 680g|tomatoes-canned
+Wattie's Tomato Sauce 560g|tomato-sauce
+Watties Tomato Paste 140g|tomato-paste
+Sanitarium Weet-Bix Original 1.12kg|weetbix
+Pams Wheat Biscuits 1.12kg|weetbix
+Kellogg's Corn Flakes 725g|cereal
+Sanitarium Rice Bubbles 500g|cereal
+Pams Rolled Oats 1kg|oats
+Sanitarium Peanut Butter Smooth 380g|peanut-butter
+Pams Strawberry Jam 500g|jam
+Pams Honey Creamed 500g|honey
+Massel Chicken Style Stock Powder 168g|stock
+Edmonds Baking Powder 100g|baking-powder
+Edmonds Baking Soda 200g|baking-soda
+Cadbury Bournville Cocoa 250g|cocoa
+Edmonds Cornflour 400g|corn-starch
+Edmonds Dried Yeast 50g|yeast
+Cream of Tartar 50g|cream-of-tartar
+Gelatine Powder 25g|gelatine
+Pams Polenta 500g|grains-other
+Quinoa White 500g|grains-other
+Couscous 500g|grains-other
+Bulgur Wheat 500g|grains-other
+Indomie Mi Goreng Fried Noodles 85g|noodles/instant-ramen
+Nissin Cup Noodles Seafood Flavour 74g|noodles/instant-ramen
+Nissin Chicken Flavour Cup Noodle Soup 60g|noodles/instant-ramen
+Maruchan Instant Lunch Beef Flavour Cup 64g|noodles/instant-ramen
+Nissin Wafu Udon Soup Cup 80g|noodles/instant-ramen
+Maruchan Ramen Noodle Soup Chicken 85g|noodles/instant-ramen
+Wattie's Chicken Soup 400g|soup
+Continental Cup A Soup Pumpkin 4 Pack|soup
+Garlic Powder 50g|garlic-powder
+Crushed Garlic 250g|garlic-crushed
+Ground Ginger 30g|ginger-ground
+Ground Coriander 30g|dried-herbs
+Bay Leaves 5g|dried-herbs
+Dried Rosemary 10g|dried-herbs
+Mixed Herbs 20g|dried-herbs
+Smoked Paprika 40g|paprika
+Cayenne Pepper 40g|chilli-powder
+Chilli Flakes 30g|chilli-powder
+Ground Cumin 40g|cumin
+Ground Cinnamon 30g|cinnamon
+Ground Nutmeg 30g|nutmeg
+Garam Masala 40g|garam-masala
+Madras Curry Powder 100g|masala-blend
+Ground Black Pepper 50g|pepper
+Cerebos Iodised Salt 750g|salt
+Apple Cider Vinegar 750ml|vinegar-apple-cider
+Balsamic Vinegar 250ml|vinegar-balsamic
+White Vinegar 750ml|vinegar
+Red Wine Vinegar 500ml|vinegar
+Rice Vinegar 250ml|vinegar
+Sesame Oil 150ml|oil-sesame
+Peanut Oil 1L|oil-peanut
+Gravox Beef Gravy Mix 200g|gravy
+Pams Lemon Juice 250ml|lemon-juice
+Barker's Apple Sauce 440g|apple-sauce
+Thai Red Curry Paste 400g|curry-paste
+Worcestershire Sauce 150ml|worcestershire
+Hoisin Sauce 250ml|asian-sauces
+Squid Brand Fish Sauce 200ml|asian-sauces
+Kikkoman Soy Sauce 600ml|soy-sauce
+Tabasco Pepper Sauce 60ml|hot-sauce
+Sriracha Hot Chilli Sauce 435ml|hot-sauce
+Pams Sweet Chilli Sauce 700ml|sauce-sweet-chilli
+Hellmann's Real Mayonnaise 445g|mayonnaise
+Masterfoods Dijon Mustard 175g|mustard
+Pams Ranch Salad Dressing 500ml|salad-dressing
+Gherkins Dill Pickles 350g|pickles
+Pams Maple Syrup 250ml|syrup
+Creamed Rice 425g|creamed-rice
+Pine Nuts 100g|mixed-nuts
+Pams Pretzels 250g|pretzels
+Sunbeam Dried Apricots 250g|dried-apricots
+Pams Raisins 500g|raisins
+Pams Almonds Whole 200g|almonds
+Cashew Nuts Roasted 200g|cashews
+Pams Popcorn Kernels 500g|popcorn
+Black Beans 420g|beans-canned
+Red Lentils 500g|beans-canned
+Chickpeas 400g|beans-canned
+Pams Kidney Beans 420g|beans-canned
+Lipton Black Tea Bags 100 Pack|tea
+Nescafe Gold Instant Coffee 100g|coffee
+Milo Malt Drink Powder 1kg|milo

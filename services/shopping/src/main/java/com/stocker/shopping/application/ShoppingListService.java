@@ -1,44 +1,31 @@
 package com.stocker.shopping.application;
 
-import com.stocker.shopping.infrastructure.persistence.ShoppingListEntity;
-import com.stocker.shopping.infrastructure.persistence.ShoppingListItemEntity;
+import com.stocker.shopping.domain.ShoppingListItem;
 import com.stocker.shopping.infrastructure.persistence.ShoppingListItemRepository;
-import com.stocker.shopping.infrastructure.persistence.ShoppingListRepository;
+import java.time.Clock;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.UUID;
-
 @Service
 public class ShoppingListService {
-    private final ShoppingListRepository listRepository;
     private final ShoppingListItemRepository itemRepository;
+    private final Clock clock;
 
-    public ShoppingListService(
-            ShoppingListRepository listRepository,
-            ShoppingListItemRepository itemRepository) {
-        this.listRepository = listRepository;
+    public ShoppingListService(ShoppingListItemRepository itemRepository, Clock clock) {
         this.itemRepository = itemRepository;
-    }
-
-    private ShoppingListEntity getOrCreateList(UUID userId) {
-        return listRepository
-                .findFirstByUserIdAndStatusOrderByCreatedAtDesc(userId, "ACTIVE")
-                .orElseGet(() -> listRepository.save(
-                        new ShoppingListEntity(userId, "Shopping List")
-                ));
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
-    public List<ShoppingListItemEntity> getItems(UUID userId) {
-        ShoppingListEntity list = getOrCreateList(userId);
-
-        return itemRepository.findByShoppingListId(list.getShoppingListId());
+    public List<ShoppingListItem> getItems(UUID userId) {
+        return itemRepository.findByUserIdOrderByCreatedAtDesc(userId.toString());
     }
 
     @Transactional
-    public ShoppingListItemEntity addItem(
+    public ShoppingListItem addItem(
             UUID userId,
             UUID productId,
             int quantity) {
@@ -46,28 +33,37 @@ public class ShoppingListService {
         if (quantity < 1) {
             throw new IllegalArgumentException("Quantity must be at least 1.");
         }
-        ShoppingListEntity list = getOrCreateList(userId);
+        String sku = productId.toString();
 
         return itemRepository
-                .findByShoppingListIdAndProductId(list.getShoppingListId(), productId)
+                .findByUserIdAndSku(userId.toString(), sku)
                 .map(existing -> {
-                    existing.setQuantity(existing.getQuantity() + quantity);
+                    existing.addQuantity(quantity, now());
 
                     return itemRepository.save(existing);
                 }).orElseGet(() -> itemRepository.save(
-                        new ShoppingListItemEntity(list.getShoppingListId(), productId, quantity)
+                        ShoppingListItem.create(
+                                userId.toString(),
+                                null,
+                                sku,
+                                sku,
+                                null,
+                                null,
+                                quantity,
+                                now())
                 ));
     }
 
     @Transactional
     public void removeItem(UUID userId, UUID itemId) {
-        ShoppingListEntity list = getOrCreateList(userId);
-
-        ShoppingListItemEntity item = itemRepository
-                .findByShoppingListItemIdAndShoppingListId(
-                        itemId, list.getShoppingListId())
+        ShoppingListItem item = itemRepository.findById(itemId)
+                .filter(existing -> existing.getUserId().equals(userId.toString()))
                 .orElseThrow(() ->
                         new IllegalArgumentException("Shopping List item not found."));
         itemRepository.delete(item);
+    }
+
+    private OffsetDateTime now() {
+        return OffsetDateTime.now(clock);
     }
 }

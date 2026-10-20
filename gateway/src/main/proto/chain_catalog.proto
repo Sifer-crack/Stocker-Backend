@@ -1,0 +1,39 @@
+// Read-only browse of the products stored for one supermarket chain (database only, never a live request).
+// A copy of this file lives in gateway/src/main/proto/ - edit pricing's, then update the gateway's.
+syntax = "proto3";
+
+package stocker.pricing.v1;
+
+option java_multiple_files = true;
+option java_package = "com.stocker.pricing.api.grpc.v1";
+option java_outer_classname = "ChainCatalogProto";
+
+import "google/protobuf/timestamp.proto";
+
+service ChainCatalog {
+  // INVALID_ARGUMENT when chain_id is not a known chain.
+  rpc ListProducts (ListChainProductsRequest) returns (ListChainProductsResponse);
+}
+
+message ListChainProductsRequest {
+  string chain_id = 1;
+  // Optional: keep only products whose name matches these words, best match first.
+  string query = 2;
+  // Optional: 0 means the default (50); capped at 200.
+  int32 limit = 3;
+}
+
+message ChainProduct {
+  string item_id = 1;
+  string name = 2;
+  string brand = 3;
+  double price_amount = 4;
+  string currency = 5;
+  bool promo_flag = 6;
+  string pack_size = 7;
+  google.protobuf.Timestamp captured_at = 8;
+}
+
+message ListChainProductsResponse {
+  repeated ChainProduct products = 1;
+}

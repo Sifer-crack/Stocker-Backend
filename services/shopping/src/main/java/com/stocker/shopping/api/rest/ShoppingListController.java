@@ -1,7 +1,7 @@
 package com.stocker.shopping.api.rest;
 
 import com.stocker.shopping.application.ShoppingListService;
-import com.stocker.shopping.infrastructure.persistence.ShoppingListItemEntity;
+import com.stocker.shopping.domain.ShoppingListItem;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -20,12 +20,12 @@ public class ShoppingListController {
     }
 
     @GetMapping
-    public List<ShoppingListItemEntity> getItems(@RequestParam UUID userId) {
+    public List<ShoppingListItem> getItems(@RequestParam UUID userId) {
         return shoppingListService.getItems(userId);
     }
 
     @PostMapping("/items")
-    public ShoppingListItemEntity addItem(
+    public ShoppingListItem addItem(
             @RequestParam UUID userId,
             @RequestParam UUID productId,
             @RequestParam(defaultValue = "1") int quantity) {

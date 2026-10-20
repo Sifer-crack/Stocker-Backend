@@ -5,6 +5,7 @@ import com.stocker.pricing.model.PriceRecord;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class RawProductPriceRecordMapper {
@@ -27,9 +28,33 @@ public final class RawProductPriceRecordMapper {
 				.currency(blankTo(product.getCurrency(), DEFAULT_CURRENCY))
 				.promoFlag(false)
 				.capturedAt(product.getFetchedAt() != null ? product.getFetchedAt() : OffsetDateTime.now(ZoneOffset.UTC))
-				.rawAttributes(product.getRawResponse() != null ? product.getRawResponse() : Map.of())
+				.rawAttributes(rawAttributes(product))
 				.createdAt(OffsetDateTime.now(ZoneOffset.UTC))
 				.build();
+	}
+
+	/**
+	 * The provider's raw payload plus the product's identifying fields, so a stored price can always
+	 * say WHICH product it is (ingest has no raw payload at all). Provider keys are never overwritten.
+	 */
+	static Map<String, Object> rawAttributes(RawProduct product) {
+		Map<String, Object> attributes = new LinkedHashMap<>();
+		if (product.getRawResponse() != null) {
+			attributes.putAll(product.getRawResponse());
+		}
+		putIfPresent(attributes, "name", product.getName());
+		putIfPresent(attributes, "brand", product.getBrand());
+		putIfPresent(attributes, "nativeProductCode", product.getNativeProductCode());
+		putIfPresent(attributes, "storeUrl", product.getStoreUrl());
+		putIfPresent(attributes, "imageUrl", product.getImageUrl());
+		putIfPresent(attributes, "category", product.getCategory());
+		return attributes;
+	}
+
+	private static void putIfPresent(Map<String, Object> attributes, String key, String value) {
+		if (value != null && !value.isBlank()) {
+			attributes.putIfAbsent(key, value);
+		}
 	}
 
 	/** For batch-ingested products with no caller-supplied itemId; derives one from the chain-native product code. */

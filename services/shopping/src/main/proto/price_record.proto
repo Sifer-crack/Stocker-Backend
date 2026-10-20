@@ -1,0 +1,202 @@
+// Duplicated from services/pricing/src/main/proto/price_record.proto.
+// There is no shared-proto/schema-registry mechanism in this repo yet, so each gRPC client
+// generates its own stub from its own copy of the .proto contract. Keep this file byte-for-byte
+// in sync with pricing's copy whenever the contract changes.
+syntax = "proto3";
+
+package stocker.pricing.v1;
+
+option java_multiple_files = true;
+option java_package = "com.stocker.pricing.api.grpc.v1";
+option java_outer_classname = "PriceRecordProto";
+
+import "google/protobuf/timestamp.proto";
+
+service PriceRecordService {
+  rpc Fetch (FetchRequest) returns (FetchResponse);
+  rpc Save (SaveRequest) returns (SaveResponse);
+  rpc Search (SearchRequest) returns (SearchResponse);
+  rpc CompareShoppingList (CompareShoppingListRequest) returns (CompareShoppingListResponse);
+  rpc CompareItemPrices (CompareItemPricesRequest) returns (CompareItemPricesResponse);
+  rpc MatchItem (MatchItemRequest) returns (MatchItemResponse);
+}
+
+message SearchRequest {
+  string search_term = 1;
+  string item_id = 2;
+  repeated string store_urls = 3;
+  string category = 4;
+}
+
+message SearchResponse {
+  repeated PriceRecord price_records = 1;
+}
+
+message FetchRequest {
+  string item_id = 1;
+  string store_id = 2;
+}
+
+message FetchResponse {
+  repeated PriceRecord price_records = 1;
+}
+
+message PriceRecord {
+  string id = 1;
+  string item_id = 2;
+  string store_id = 3;
+  string chain_id = 4;
+  string channel = 5;
+  double price_amount = 6;
+  string currency = 7;
+  bool promo_flag = 8;
+  google.protobuf.Timestamp captured_at = 9;
+  string raw_attributes = 10;
+  google.protobuf.Timestamp created_at = 11;
+}
+
+message SaveRequest {
+  PriceRecord price_record = 1;
+}
+
+message SaveResponse {
+  bool saved = 1;
+  string id = 2;
+}
+
+message ShoppingListItem {
+  string item_id = 1;
+  int32 quantity = 2;
+}
+
+message CompareShoppingListRequest {
+  repeated ShoppingListItem items = 1;
+  string region = 2;
+  // Optional. If blank, the server uses the computed cheapest chain as the baseline for
+  // StoreTotal.savings_amount, and echoes it back via effective_selected_chain_id.
+  string selected_chain_id = 3;
+  // Optional. Which ways of getting the shopping ("delivery", "click_and_collect") the user would use;
+  // empty = all. Each chain's best option is its cheapest allowed one (see docs/features/fulfilment-costs.md).
+  repeated string allowed_methods = 4;
+}
+
+// One way of getting the shopping from a chain, and what the whole list costs that way.
+message FulfilmentOption {
+  string method = 1;        // "delivery" | "click_and_collect"
+  double cost = 2;          // delivery fee or click-and-collect fee
+  double total_amount = 3;  // StoreTotal.total_amount + cost
+}
+
+message StoreTotal {
+  string chain_id = 1;
+  double total_amount = 2;
+  string currency = 3;
+  int32 items_priced = 4;
+  repeated string unavailable_item_ids = 5;
+  // Relative to CompareShoppingListResponse.effective_selected_chain_id.
+  double savings_amount = 6;
+  // total_amount (the items) plus the cost of the best allowed way of getting them; the recommendation and
+  // savings_amount use this. Equals total_amount when no fees apply.
+  double total_with_fulfilment = 7;
+  string best_method = 8;       // empty when the chain has no fee data (a chain with no allowed method is omitted from store_totals)
+  double fulfilment_cost = 9;   // cost of best_method
+  repeated FulfilmentOption fulfilment_options = 10;
+}
+
+message CompareShoppingListResponse {
+  // Sorted ascending by total_amount.
+  repeated StoreTotal store_totals = 1;
+  // Empty only if store_totals is empty (no chain carries any requested item).
+  string cheapest_chain_id = 2;
+  // Echoes the request's selected_chain_id, or the computed cheapest chain if it was blank.
+  string effective_selected_chain_id = 3;
+}
+
+message ComparisonItem {
+  // The caller's own id for the item (the shopping-list item id). Prices captured for this
+  // lookup are stored and published under it, so later PriceRecordCaptured events carry it.
+  string item_id = 1;
+  // Item name / SKU to look up across retailers.
+  string search_term = 2;
+  string category = 3;
+}
+
+message CompareItemPricesRequest {
+  repeated ComparisonItem items = 1;
+  // Optional user location. Blank = no service-area check. Non-blank must be a supported region,
+  // otherwise the RPC fails with INVALID_ARGUMENT (same convention as CompareShoppingList).
+  string region = 2;
+}
+
+message StorePrice {
+  string chain_id = 1;
+  // Branch / store identifier as captured for that chain.
+  string store_id = 2;
+  double price_amount = 3;
+  string currency = 4;
+  bool promo_flag = 5;
+  google.protobuf.Timestamp captured_at = 6;
+}
+
+message ItemPriceComparison {
+  string item_id = 1;
+  // False = no usable price yet (for example the live fetch was deferred to the async refresh).
+  // That is a normal outcome, not an error: matching PriceRecordCaptured events follow later.
+  bool found = 2;
+  // Unset when found = false.
+  StorePrice cheapest = 3;
+  // One entry per (chain, store) with a usable price, ascending by price_amount.
+  repeated StorePrice prices = 4;
+}
+
+message CompareItemPricesResponse {
+  // Same order as the request items.
+  repeated ItemPriceComparison comparisons = 1;
+}
+
+// Finds, per supermarket chain, the scraped product that matches a requested item, plus alternatives.
+message MatchItemRequest {
+  string search_term = 1;
+  // The caller's item id. The chosen (exact) products are stored under it so CompareShoppingList
+  // for this item prices exactly them. Alternatives are never stored under it.
+  string item_id = 2;
+  string category = 3;
+  // Optional pack size of the product being looked up (e.g. a pantry product's selling weight or
+  // volume). 0 = unknown. Used to prefer same-size store products.
+  double weight_kg = 4;
+  double volume_l = 5;
+}
+
+message ChainMatch {
+  // ChainId enum name: NEWWORLD | PAKNSAVE | WOOLWORTHS.
+  string chain_id = 1;
+  string store_id = 2;
+  string product_name = 3;
+  // Empty when unknown.
+  string brand = 4;
+  double price_amount = 5;
+  string currency = 6;
+  bool promo_flag = 7;
+  google.protobuf.Timestamp captured_at = 8;
+  // 0..1 similarity of the product name to the request.
+  double score = 9;
+  // Empty when unknown.
+  string product_url = 10;
+  // Price per kg / per L / per item for the matched pack. 0 when the pack size is unknown.
+  double unit_price = 11;
+  // Parsed pack size, e.g. "2L" or "500g". Empty when unknown.
+  string pack_size = 12;
+}
+
+message MatchItemResponse {
+  // "canonical" (matched through the common-products list) or "lexical" (word-overlap scoring).
+  // Reserved for a future "semantic" matcher.
+  string match_method = 1;
+  // At most one per chain. Empty = nothing found yet (an ingest run may have been started).
+  repeated ChainMatch chain_matches = 2;
+  // Other products from the same chains that share the request's words; at most a few per chain.
+  repeated ChainMatch alternatives = 3;
+  // True when some chain's prices are older than the freshness threshold (an on-demand refresh may
+  // still be running; ask again shortly).
+  bool stale = 4;
+}

@@ -12,4 +12,8 @@ public interface SpringDataPantryItemRepository extends JpaRepository<PantryItem
     Optional<PantryItemEntity> findByUserIdAndProductId(UUID userId, UUID productId);
 
     void deleteByUserId(UUID userId);
+
+    Optional<PantryItemEntity> findByPantryItemIdAndUserId(UUID pantryItemId, UUID userId);
+
+    List<PantryItemEntity> findByExpirationDateIsNotNull();
 }

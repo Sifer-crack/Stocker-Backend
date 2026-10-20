@@ -48,7 +48,7 @@ app:
 
 stocker:
   jwt:
-    secret: ${STOCKER_JWT_SECRET:dev-only-32-byte-minimum-secret-0123456789}
+    secret: ${STOCKER_JWT_SECRET}
     access-ttl-seconds: ${STOCKER_JWT_ACCESS_TTL:900}
     refresh-ttl-seconds: ${STOCKER_JWT_REFRESH_TTL:604800}
   oauth:
