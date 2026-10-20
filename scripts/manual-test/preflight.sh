@@ -21,7 +21,7 @@ else
 fi
 
 # 2. .env present, required variables defined and non-empty (values never printed)
-REQUIRED="STOCKER_DB_URL STOCKER_DB_USER STOCKER_DB_PASSWORD STOCKER_NOTIFICATIONS_DB_URL STOCKER_SHOPPING_DB_URL STOCKER_JWT_SECRET"
+REQUIRED="STOCKER_DB_URL STOCKER_DB_USER STOCKER_DB_PASSWORD STOCKER_NOTIFICATIONS_DB_URL STOCKER_SHOPPING_DB_URL STOCKER_JWT_SECRET STOCKER_INTERNAL_TOKEN"
 declare -A VAL=()
 if [ -f "$ENV_FILE" ]; then
   row PASS ".env exists in repo root"
@@ -33,7 +33,7 @@ if [ -f "$ENV_FILE" ]; then
     VAL["$key"]="$val"
   done < "$ENV_FILE"
   for v in $REQUIRED; do
-    if [ -n "${VAL[$v]:-}" ]; then row PASS "$v defined" "(non-empty)"; else row FAIL "$v defined" "missing or empty in .env"; fi
+    if [ -n "${VAL[$v]:-}" ]; then row PASS "$v defined" "(non-empty)"; else if [ "$v" = STOCKER_INTERNAL_TOKEN ]; then row FAIL "$v defined" "no default; set it in .env (generate: openssl rand -hex 32)"; else row FAIL "$v defined" "missing or empty in .env"; fi; fi
   done
 else
   row FAIL ".env exists in repo root" "copy .env.example to .env and fill it in"

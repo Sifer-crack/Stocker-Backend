@@ -12,7 +12,7 @@
 ## Stubbed / TODO
 
 - `infrastructure/config/KafkaProducerConfig` — wire `KafkaTemplate<String,String>`, add produce methods.
-- `infrastructure/config/KafkaConsumerConfig#onEvent` — implement handler.
+- `infrastructure/messaging/KafkaEventConsumer#onEvent` — implement handler.
 - Real `domain/`, `application/`, `infrastructure/persistence` layers.
 - AuthN/AuthZ — deliberately NOT wired (no `spring-boot-starter-security`). When added, keep `/healthz` and actuator unauthenticated.
 - Real Flyway migrations (replace `V1__placeholder.sql`).

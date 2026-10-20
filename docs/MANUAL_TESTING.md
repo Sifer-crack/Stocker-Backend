@@ -8,7 +8,7 @@ Postgres anywhere) and walks through every Sprint 2 feature. Scripts live in `sc
 - Docker with Compose v2. If Docker Desktop is not running, the scripts automatically use the `default` context
   (`docker --context default ...`). The first start builds 8 images (JDK 25, Gradle) and uses a lot of memory and
   disk: close heavy programs first and do not run other builds in parallel.
-- Free ports: 8080-8087, 9092, 9094.
+- Free ports: 8080-8087, 9092. Only the gateway (8080) is published on all interfaces; every other port is bound to 127.0.0.1 because the downstream services trust `X-User-Id`. Pricing gRPC (9094) is no longer published (internal to the compose network).
 - A root `.env` (gitignored; copy `.env.example`). Variables, by name only:
 
 | Variable | Required | Meaning |
@@ -19,7 +19,7 @@ Postgres anywhere) and walks through every Sprint 2 feature. Scripts live in `sc
 | `STOCKER_JWT_SECRET` | yes | At least 32 bytes; gateway and identity share it |
 | `STOCKER_CORS_ALLOWED_ORIGINS` | no | Default `http://localhost:5173` |
 | `STOCKER_AUTH_COOKIE_SECURE` | no | Keep `false` on plain http |
-| `STOCKER_INTERNAL_TOKEN` | no | Shopping-to-gateway push secret (dev default if empty) |
+| `STOCKER_INTERNAL_TOKEN` | yes | Shopping-to-gateway push secret, no default; generate with `openssl rand -hex 32` |
 | `STOCKER_NOTIFICATIONS_SCAN_INTERVAL` / `..._SCAN_INITIAL_DELAY` | no | `PT30S` / `PT10S` for testing (production `PT15M`) |
 | `STOCKER_FETCH_PROVIDER`, `STOCKER_SPREAD_API_KEY` | no | Live price provider for `/api/pricing/search` only |
 | `STOCKER_INGEST_ENABLED`, `STOCKER_INGEST_DRY_RUN` | no | Supermarket crawl, **OFF** by default (section 5) |
@@ -41,7 +41,7 @@ scripts/manual-test/stack-down.sh
 | Service | Port | Notes |
 |---|---|---|
 | gateway | 8080 | The only entry point for the frontend and the smoke test |
-| identity / catalog / shopping / pricing / notifications / analytics / inventory | 8081 / 8082 / 8083 / 8084 / 8085 / 8086 / 8087 | Each has `GET /healthz`; pricing also gRPC 9094 |
+| identity / catalog / shopping / pricing / notifications / analytics / inventory | 8081 / 8082 / 8083 / 8084 / 8085 / 8086 / 8087 | Each has `GET /healthz`; pricing also gRPC 9094 (compose network only) |
 | kafka | 9092 (host), 29092 (inside compose) | `kafka-init` creates the topics and exits |
 
 Everything a user does goes through `http://localhost:8080`. `/api/identity/register|login|refresh|logout`,

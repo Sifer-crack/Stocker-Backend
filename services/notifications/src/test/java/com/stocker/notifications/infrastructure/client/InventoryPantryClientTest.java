@@ -37,6 +37,20 @@ class InventoryPantryClientTest {
     }
 
     @Test
+    void readsNameCategoryUnitAndNullProductIdOfAFreeTextItem() throws Exception {
+        String json = """
+                [{"pantryItemId":"%s","userId":"%s","productId":null,"quantity":1,
+                  "expirationDate":"2026-10-20","notifyDaysBefore":3,
+                  "name":"Nana's jam","category":"Pantry","unit":"jar"}]
+                """.formatted(ITEM, USER);
+        try (InventoryStub inventory = new InventoryStub(query -> InventoryStub.Reply.ok(json))) {
+            assertThat(new InventoryPantryClient(inventory.baseUrl()).findDueItems(LocalDate.of(2026, 10, 19)))
+                    .containsExactly(new ExpiringItem(ITEM, USER, null, 1, LocalDate.of(2026, 10, 20), 3,
+                            "Nana's jam", "Pantry", "jar"));
+        }
+    }
+
+    @Test
     void acceptsNullThresholdAndEmptyList() throws Exception {
         String json = """
                 [{"pantryItemId":"%s","userId":"%s","productId":"%s","quantity":1,

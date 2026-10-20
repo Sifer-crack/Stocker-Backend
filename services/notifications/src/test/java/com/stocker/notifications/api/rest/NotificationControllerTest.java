@@ -53,6 +53,19 @@ class NotificationControllerTest {
     }
 
     @Test
+    void listExposesNameCategoryAndUnitAndToleratesNullProductId() throws Exception {
+        ExpirationNotification row = ExpirationNotification.create(userId, UUID.randomUUID(), null,
+                LocalDate.of(2026, 10, 21), NOW, "Nana's jam", null, "jar");
+        when(service.list(userId)).thenReturn(List.of(row));
+
+        mockMvc.perform(get("/notifications").header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].itemName").value("Nana's jam"))
+                .andExpect(jsonPath("$[0].unit").value("jar"))
+                .andExpect(jsonPath("$[0].productId").doesNotExist());
+    }
+
+    @Test
     void missingUserHeaderIsUnauthorised() throws Exception {
         mockMvc.perform(get("/notifications")).andExpect(status().isUnauthorized());
     }

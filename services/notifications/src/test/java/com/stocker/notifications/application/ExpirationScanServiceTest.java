@@ -110,4 +110,59 @@ class ExpirationScanServiceTest {
 
         verify(pantryClient).findDueItems(TODAY);
     }
+
+    @Test
+    void freeTextItemWithoutProductIdIsNotifiedAlongsideANormalOne() {
+        ExpiringItem freeText = new ExpiringItem(UUID.randomUUID(), UUID.randomUUID(), null, 1, TODAY.plusDays(1), 3,
+                "Nana's jam", null, "jar");
+        ExpiringItem normal = item(TODAY.plusDays(2), 3);
+        when(pantryClient.findDueItems(TODAY)).thenReturn(List.of(freeText, normal));
+
+        assertThat(service.scan()).isEqualTo(2);
+        ArgumentCaptor<ExpirationNotification> captor = ArgumentCaptor.forClass(ExpirationNotification.class);
+        verify(repository, org.mockito.Mockito.times(2)).save(captor.capture());
+        ExpirationNotification first = captor.getAllValues().get(0);
+        assertThat(first.getProductId()).isNull();
+        assertThat(first.getItemName()).isEqualTo("Nana's jam");
+        assertThat(first.getCategory()).isNull();
+        assertThat(first.getUnit()).isEqualTo("jar");
+    }
+
+    @Test
+    void aFailingSaveDoesNotStopTheOtherItems() {
+        ExpiringItem bad = item(TODAY.plusDays(1), 3);
+        ExpiringItem good = item(TODAY.plusDays(2), 3);
+        when(pantryClient.findDueItems(TODAY)).thenReturn(List.of(bad, good));
+        when(repository.save(any())).thenAnswer(invocation -> {
+            ExpirationNotification n = invocation.getArgument(0);
+            if (n.getPantryItemId().equals(bad.pantryItemId())) {
+                throw new IllegalStateException("boom");
+            }
+            return n;
+        });
+
+        assertThat(service.scan()).isEqualTo(1);
+        verify(repository, org.mockito.Mockito.times(2)).save(any());
+    }
+
+    @Test
+    void itemsExpiredLongBeforeTheCutOffAreSkipped() {
+        ExpiringItem longGone = item(TODAY.minusDays(8), 3);
+        ExpiringItem recentlyExpired = item(TODAY.minusDays(7), 3);
+        when(pantryClient.findDueItems(TODAY)).thenReturn(List.of(longGone, recentlyExpired));
+
+        assertThat(service.scan()).isEqualTo(1);
+        ArgumentCaptor<ExpirationNotification> captor = ArgumentCaptor.forClass(ExpirationNotification.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getPantryItemId()).isEqualTo(recentlyExpired.pantryItemId());
+    }
+
+    @Test
+    void cutOffIsConfigurable() {
+        service = new ExpirationScanService(pantryClient, repository, Clock.fixed(NOW, ZoneOffset.UTC), 1);
+        when(pantryClient.findDueItems(TODAY))
+                .thenReturn(List.of(item(TODAY.minusDays(2), 3), item(TODAY.minusDays(1), 3)));
+
+        assertThat(service.scan()).isEqualTo(1);
+    }
 }

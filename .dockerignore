@@ -8,3 +8,8 @@ build
 infra
 docs
 docker-compose.yml
+.env
+**/.env
+.idea
+*.iml
+.vscode
