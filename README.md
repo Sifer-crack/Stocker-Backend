@@ -32,6 +32,23 @@ with Kafka for events and Neon (serverless PostgreSQL) for storage. The React fr
 Kafka (single KRaft node) carries the events in `infra/kafka/topics.yml`. Details for each service are in its
 `AGENT.md`; the architecture overview is in [`docs/architecture/README.md`](docs/architecture/README.md).
 
+## Tech stack and dependencies
+
+| Area | What this project uses |
+|---|---|
+| Language and build | Java 25 toolchain, Gradle multi-module build (Groovy DSL) |
+| Frameworks | Spring Boot 4.0.7, Spring Cloud 2025.1.2 |
+| APIs | Spring WebMVC (services), Spring Cloud Gateway on WebFlux (gateway), Spring gRPC 1.0.3 + grpc-java 1.83.1 |
+| Protobuf | `com.google.protobuf` Gradle plugin 0.9.4, protoc 3.25.9 |
+| Persistence | PostgreSQL on Neon, Spring Data JPA (`ddl-auto: validate`), Flyway (`flyway-database-postgresql`) |
+| Messaging | Apache Kafka in KRaft mode, Spring for Apache Kafka |
+| Crawling | Playwright for Java 1.63.0 (`pricing` ingest), Spring WebClient (fetch providers) |
+| Observability | Spring Boot Actuator, Micrometer Prometheus registry |
+| Other | Lombok, dotenv-java 3.2.0, Jackson 2 (`jackson-datatype-jsr310`) |
+
+All versions are pinned centrally in [`gradle/libs.versions.toml`](gradle/libs.versions.toml); do not add or bump a
+dependency without checking the rules in [`AGENTS.md`](AGENTS.md).
+
 ## Features of this sprint
 
 - **Expiry notifications:** pantry items carry an expiration date and a "notify N days before" threshold; a scheduled scan
@@ -70,9 +87,27 @@ scripts/manual-test/stack-down.sh
 
 Full runbook, acceptance checklists and troubleshooting: [`docs/MANUAL_TESTING.md`](docs/MANUAL_TESTING.md).
 
-## Test it
+## Build it
 
-Requires the JDK 25 toolchain.
+Requires the JDK 25 toolchain; Gradle resolves it automatically. If auto-detection fails, add the JDK path to
+`org.gradle.java.installations.paths` in `~/.gradle/gradle.properties`.
+
+```bash
+./gradlew build                        # compile, test and assemble every module
+./gradlew :services:pricing:bootJar    # one runnable jar (build/libs/)
+./gradlew :gateway:bootJar
+```
+
+There is no separate install step. On the first build Gradle resolves and downloads every dependency declared in the
+module `build.gradle` files (versions come from `gradle/libs.versions.toml`) from Maven Central and the Gradle Plugin
+Portal, caching them in `~/.gradle/caches`. To inspect or refresh them:
+
+```bash
+./gradlew dependencies                 # dependency tree for every module
+./gradlew build --refresh-dependencies # force re-check and re-download
+```
+
+## Test it
 
 ```bash
 ./gradlew test                              # everything, offline (gated live/database tests are skipped)
@@ -82,6 +117,44 @@ Requires the JDK 25 toolchain.
 ```
 
 The test layers, tags and the environment variables that switch on the gated tests are in [`docs/testing.md`](docs/testing.md).
+
+## API examples
+
+The gateway is the only entry point for browser and API clients: `http://localhost:8080`. Every call except
+`/healthz`, the identity register/login/refresh/logout endpoints and `GET /api/products/**` needs
+`Authorization: Bearer <accessToken>`. The gateway verifies the JWT and sets `X-User-Id` itself; clients must not send
+that header. The full contract is in [`docs/frontend/FRONTEND_PROMPT.md`](docs/frontend/FRONTEND_PROMPT.md).
+
+```bash
+BASE=http://localhost:8080
+
+# 1. Register (201, no token) and log in (200, access token + refresh cookie)
+curl -s -X POST "$BASE/api/identity/register" -H 'Content-Type: application/json' \
+  -d '{"email":"cook@example.com","password":"correct-horse-battery"}'
+
+TOKEN=$(curl -s -X POST "$BASE/api/identity/login" -H 'Content-Type: application/json' \
+  -d '{"email":"cook@example.com","password":"correct-horse-battery"}' \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')
+
+# 2. Pantry: list, then add a free-text item with an expiry reminder
+curl -s "$BASE/api/pantry-items" -H "Authorization: Bearer $TOKEN"
+
+curl -s -X POST "$BASE/api/pantry-items" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"Milk","category":"Dairy","unit":"2 L","quantity":1,"expirationDate":"2026-10-27","notifyDaysBefore":3}'
+
+# 3. Price search: the itemId is any client-generated UUID
+curl -s "$BASE/api/pricing/search?term=milk&itemId=00000000-0000-0000-0000-000000000001" \
+  -H "Authorization: Bearer $TOKEN"
+
+# 4. Shopping list comparison (prices, totals and fulfilment fees per chain)
+curl -s -X POST "$BASE/api/pricing/compare" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"region":"auckland","selectedChainId":"woolworths","allowedMethods":["delivery","click_and_collect"],"items":[{"itemId":"00000000-0000-0000-0000-000000000001","quantity":2}]}'
+```
+
+Shopping-list updates (including comparison results) are pushed to the browser over
+`GET /api/updates/shopping` as Server-Sent Events.
 
 ## Branches and pull requests
 
@@ -108,6 +181,19 @@ The complete list is in [`docs/SUBMISSION.md`](docs/SUBMISSION.md).
 Stocker is a team project. Many commits in this repository carry a `Co-Authored-By: Claude Sonnet 5` or
 `Claude Sonnet 5.5` trailer: an AI assistant (Claude Code) helped write code, tests and documentation. The team should check the
 AUT policy on generative-AI use for this assessment and declare the assistance as it requires.
+
+## Contributors
+
+Built by the Stocker team. Contributors to this repository, from the git history:
+
+- Semion Andreev
+- Rhys Woolliscroft
+- Nick Tozer
+- Aneirin Blosch
+
+## License
+
+Released under the Apache License 2.0; see [`LICENSE`](LICENSE).
 
 ## Where to read more
 
