@@ -31,7 +31,12 @@ public record ChainPageTemplate(
 		String showingRegex,
 		/** CSS selector of the pagination nav; only used to make a missing "Showing" line easier to diagnose. */
 		String paginationNavSelector,
-		List<MandatoryField> mandatory) {
+		List<MandatoryField> mandatory,
+		/**
+		 * True when the tile wrappers can exist before their content does (client-side hydration): the loader then
+		 * waits for tiles whose {@link #NAME} field has text instead of reading as soon as the first wrapper appears.
+		 */
+		boolean waitForNamedTiles) {
 
 	public static final String NAME = "name";
 	public static final String BRAND = "brand";
@@ -85,10 +90,15 @@ public record ChainPageTemplate(
 						new MandatoryField(CODE, "card data-testid like product-<digits>-<unit>-<n>",
 								ProductCardFields::nativeProductCode),
 						new MandatoryField("price", "meta[itemprop='price'] or [data-testid='price-dollars'] + price-cents",
-								ProductCardFields::rawPriceText)));
+								ProductCardFields::rawPriceText)),
+				false);
 	}
 
-	/** Woolworths NZ. Selectors from Jason-nzd/countdown-scraper (class prefixes survive the hashed class suffixes). */
+	/**
+	 * Woolworths NZ. Class PREFIXES survive the hashed suffixes (Jason-nzd/countdown-scraper); re-verified against the live
+	 * page on 2026-10-20 (see INGEST_MODULE.md): product links are now /shop/product-details/ (with a hyphen), which the
+	 * code segment logic does not depend on.
+	 */
 	public static ChainPageTemplate woolworths() {
 		Map<String, FieldSpec> fields = new LinkedHashMap<>();
 		fields.put(NAME, FieldSpec.text("a[class^='product-tile_description_']"));
@@ -100,7 +110,16 @@ public record ChainPageTemplate(
 						new MandatoryField(NAME, "a[class^='product-tile_description_']", ProductCardFields::rawName),
 						new MandatoryField(CODE, "a[class^='product-tile_productImageLink_'] href (stockcode segment)",
 								ProductCardFields::nativeProductCode),
-						new MandatoryField("price", "span[class^='product-price_value_']", ProductCardFields::rawPriceText)));
+						new MandatoryField("price", "span[class^='product-price_value_']", ProductCardFields::rawPriceText)),
+				true);
+	}
+
+	/** Card selector plus every field selector, for log lines. */
+	public String describeSelectors() {
+		StringBuilder sb = new StringBuilder("card=").append(cardSelector);
+		fields.forEach((name, f) -> sb.append(", ").append(name).append('=').append(f.selector().isEmpty() ? "(card)" : f.selector())
+				.append(f.attribute() == null ? "" : "@" + f.attribute()));
+		return sb.toString();
 	}
 
 	/** A copy with one field spec replaced (chain-specific override of a shared template). */
@@ -108,7 +127,7 @@ public record ChainPageTemplate(
 		Map<String, FieldSpec> copy = new LinkedHashMap<>(fields);
 		copy.put(field, spec);
 		return new ChainPageTemplate(chain, cardSelector, copy, codePattern, codeSegmentFromEnd, showingRegex,
-				paginationNavSelector, mandatory);
+				paginationNavSelector, mandatory, waitForNamedTiles);
 	}
 
 	/** The argument of the single {@code page.evaluate}: plain maps / lists / strings only. */

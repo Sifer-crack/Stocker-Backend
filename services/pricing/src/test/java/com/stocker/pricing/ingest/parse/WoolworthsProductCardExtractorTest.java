@@ -61,4 +61,31 @@ class WoolworthsProductCardExtractorTest {
 		assertEquals("Full Cream Milk 2L", WoolworthsProductCardExtractor.cleanName("Woolworths Fresh Full Cream Milk 2L"));
 		assertEquals("White Bread", WoolworthsProductCardExtractor.cleanName("Woolworths White Bread"));
 	}
+
+	@Test
+	void parseAllCountsMissingFieldsAndBuildsOneSummary() {
+		var cards = java.util.List.of(
+				new ProductCardFields("Milk 2l", null, "$3.49", "1", null, null),
+				new ProductCardFields(null, null, null, null, null, null),
+				new ProductCardFields("Bread", null, "$2.00", null, null, null));
+
+		var page = WoolworthsProductCardExtractor.parseAll(cards, "s");
+
+		assertEquals(1, page.products().size());
+		assertEquals(2, page.unusable());
+		assertEquals(1, page.missingName());
+		assertEquals(2, page.missingCode());
+		assertEquals(1, page.missingPrice());
+		assertTrue(!page.templateStale());
+		assertEquals("WOOLWORTHS: 2 of 3 cards unusable at u (fields missing: name 1, code 2, price 1); template selectors: sel",
+				page.summary("u", "sel"));
+	}
+
+	@Test
+	void parseAllFlagsTemplateStaleWhenCardsButNoProduct() {
+		var page = WoolworthsProductCardExtractor.parseAll(
+				java.util.List.of(new ProductCardFields(null, null, null, null, null, null)), "s");
+
+		assertTrue(page.templateStale());
+	}
 }
