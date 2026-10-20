@@ -1,7 +1,7 @@
 # shopping
 
 Owns: shopping lists.
-Data store: PostgreSQL (`shopping` database), schema managed by Flyway, **transactional outbox** for outbound events.
+Data store: PostgreSQL (`shopping` database **on Neon**), schema managed by Flyway, **transactional outbox** for outbound events.
 Status: **skeleton only** — boots, connects to Postgres/Kafka, exposes `GET /healthz`. Outbox table exists; publisher is a stub.
 
 ## Confirmed event topics

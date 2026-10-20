@@ -23,4 +23,8 @@ public interface PriceRecordRepository extends JpaRepository<PriceRecord, UUID> 
 	 */
 	@Query("select p from PriceRecord p where p.itemId like '%:%' and p.capturedAt >= :since")
 	List<PriceRecord> findIngestedSince(@Param("since") OffsetDateTime since);
+
+	/** {@link #findIngestedSince} narrowed to one chain (lower-case id, e.g. "paknsave"). */
+	@Query("select p from PriceRecord p where p.itemId like '%:%' and p.chainId = :chainId and p.capturedAt >= :since")
+	List<PriceRecord> findIngestedByChainSince(@Param("chainId") String chainId, @Param("since") OffsetDateTime since);
 }

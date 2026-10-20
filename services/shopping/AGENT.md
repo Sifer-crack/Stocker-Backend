@@ -4,7 +4,7 @@
 
 - Boots a Spring Boot 4.0.7 app (Java 25, Gradle Groovy DSL) on port 8083 (`SERVER_PORT`), `@EnableScheduling`.
 - `GET /healthz` via `api/rest/HealthzController`.
-- Postgres via `STOCKER_DB_URL`/`STOCKER_DB_USER`/`STOCKER_DB_PASSWORD` (defaults: localhost:5432/shopping, stocker/stocker). Flyway: V1 placeholder, V2 outbox scaffold, **V3 `shopping_list_items` + `shopping_item_prices`**.
+- Postgres via `STOCKER_DB_URL`/`STOCKER_DB_USER`/`STOCKER_DB_PASSWORD` (no local default: the `shopping` database on Neon, role/password shared with the other services; compose passes `STOCKER_SHOPPING_DB_URL`). Flyway: V1 placeholder, V2 outbox scaffold, **V3 `shopping_list_items` + `shopping_item_prices`**.
 - **Shopping-list items with a price comparison.** REST (reached through the gateway as `/api/shopping/**`, prefix stripped; the caller is identified by `X-User-Id`, set by the gateway from the verified JWT): `POST /shopping/items` (201 immediately, `comparisonStatus: "pending"`), `GET /shopping/items`, `GET /shopping/items/{id}` (404 for another user's item). Errors are `{ "error": "..." }`.
 - **Add-item never waits on pricing.** The row is committed as PENDING; after commit `application/ComparisonDispatcher` makes ONE `CompareItemPrices` gRPC call to pricing on a bounded background executor (`app.pricing.compare-timeout`, default 8s, **no retries**).
   - prices returned -> `ComparisonUpdateService.applyPrices(SYNC)`; none yet / timeout / any failure -> item stays `pending`; pricing `INVALID_ARGUMENT` (e.g. outside the service area) -> `unavailable`.
@@ -28,3 +28,10 @@
 - Outbox poll interval: `app.outbox.poll-interval-ms` (default 5000).
 - Idempotent consumers / at-least-once delivery expected on all Kafka topics (see `infra/kafka/topics.yml`).
 - Only the endpoints above (plus `/healthz` and actuator) may be exposed.
+
+## Favorite stores (Sprint 2)
+
+- `domain/FavoriteStore`, `application/FavoriteStoreService`, port `application/port/FavoriteStoreRepository` (JPA
+  adapter in `infrastructure/persistence`), `api/rest/FavoriteStoreController` on `/shopping/favorite-stores`.
+  Migration `V4__create_favorite_stores.sql`. Details: `docs/features/favorite-stores.md`.
+- `ApiExceptionHandler` now maps `IllegalArgumentException` to 400 and `FavoriteStoreNotFoundException` to 404.
